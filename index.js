@@ -1,29 +1,27 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-const fs = require('fs');
 require('dotenv').config();
 
-// Load user data
-const userData = JSON.parse(fs.readFileSync('./data/users.json', 'utf8'));
+// Create a new instance of a Discord client
+const client = new Client({ 
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
+});
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-
+// Log when the bot is online
 client.once('ready', () => {
     console.log('Bot is online!');
 });
 
+// Handle incoming messages
 client.on('messageCreate', message => {
-    if (message.content.startsWith('!addfriend')) {
-        const userId = message.author.id;
-        const friendId = message.mentions.users.first().id;
+    // Ignore messages from the bot itself
+    if (message.author.bot) return;
 
-        if (!userData[userId]) {
-            userData[userId] = { friends: [] };
-        }
-
-        userData[userId].friends.push(friendId);
-        fs.writeFileSync('./data/users.json', JSON.stringify(userData, null, 2));
-        message.channel.send('Friend added!');
+    // Simple command handling
+    if (message.content === '!ping') {
+        message.channel.send('Pong!');
     }
+
 });
 
-client.login(process.env.BOT_TOKEN);
+// Login to Discord with your app's token
+client.login(process.env.DISCORD_TOKEN);
