@@ -1,0 +1,22 @@
+{
+  "name": "spectre",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/MrGhost111/spectre.git"
+  },
+  "keywords": [
+    "none"
+  ],
+  "author": "ghost",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MrGhost111/spectre/issues"
+  },
+  "homepage": "https://github.com/MrGhost111/spectre#readme",
+  "description": ""
+}
