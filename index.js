@@ -1,10 +1,13 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
-
+let usersData; 
+try {
 // Load user data
-const userData = JSON.parse(fs.readFileSync('./data/users.json', 'utf8'));
-
+userData = JSON.parse(fs.readFileSync('./data/users.json', 'utf8'));
+catch (error) {console.error('error reading or parsing users.json', error);
+usersDara = {}; 
+}
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
 client.once('ready', () => {
