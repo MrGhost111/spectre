@@ -1,7 +1,6 @@
 {
   "name": "spectre",
   "version": "1.0.0",
-<<<<<<< HEAD
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -13,7 +12,6 @@
   },
   "keywords": [],
   "author": "",
-=======
   "main": "index.js",
   "scripts": {
     "test": "test"
@@ -26,18 +24,15 @@
     "none"
   ],
   "author": "ghost",
->>>>>>> 37c1b0af26ba45135219aa4dda3cc8f5cc207fcc
+
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/MrGhost111/spectre/issues"
   },
   "homepage": "https://github.com/MrGhost111/spectre#readme",
-<<<<<<< HEAD
   "dependencies": {
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5"
   }
-=======
   "description": ""
->>>>>>> 37c1b0af26ba45135219aa4dda3cc8f5cc207fcc
 }
