@@ -12,19 +12,6 @@
   },
   "keywords": [],
   "author": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "test"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/MrGhost111/spectre.git"
-  },
-  "keywords": [
-    "none"
-  ],
-  "author": "ghost",
-
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/MrGhost111/spectre/issues"
@@ -34,5 +21,5 @@
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5"
   }
-  "description": ""
 }
+
