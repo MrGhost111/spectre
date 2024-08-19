@@ -8,7 +8,7 @@ client.on('messageUpdate', (oldMessage, newMessage) => {
 });
 
 client.on('messageCreate', message => {
-    if (message.content === '!esnipe') {
+    if (message.content === ',esnipe') {
         if (lastEditedMessage) {
             message.channel.send(`Last edited message: ${lastEditedMessage.oldMessage.content} -> ${lastEditedMessage.newMessage.content}`);
         } else {
