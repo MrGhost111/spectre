@@ -8,7 +8,7 @@ client.on('messageDelete', message => {
 });
 
 client.on('messageCreate', message => {
-    if (message.content === '!snipe') {
+    if (message.content === ',snipe') {
         if (lastDeletedMessage) {
             message.channel.send(`Last deleted message: ${lastDeletedMessage.content}`);
         } else {
