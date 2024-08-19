@@ -1,5 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const { client } = require('./index.js');
 
 let lastDeletedMessage = null;
 
@@ -8,7 +7,7 @@ client.on('messageDelete', message => {
 });
 
 client.on('messageCreate', message => {
-    if (message.content === ',snipe') {
+    if (message.content === '!snipe') {
         if (lastDeletedMessage) {
             message.channel.send(`Last deleted message: ${lastDeletedMessage.content}`);
         } else {
@@ -16,5 +15,3 @@ client.on('messageCreate', message => {
         }
     }
 });
-
-client.login(process.env.DISCORD_TOKEN);
