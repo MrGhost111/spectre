@@ -1,68 +1,39 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, SlashCommandBuilder, UserSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const fs = require('fs');
+const Discord = require('discord.js');
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-  ],
+const client = new Discord.Client({ intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MESSAGES] });
+
+client.commands = new Discord.Collection();
+
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+  client.commands.set(command.name, command);
+}
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
 });
 
-const selectUsersCommand = new SlashCommandBuilder()
-  .setName('selectusers')
-  .setDescription('Select multiple users');
+client.on('messageCreate', async message => {
+  if (!message.content.startsWith(',')) return;
 
-const searchModal = new ModalBuilder()
-  .setCustomId('user_search')
-  .setTitle('Search for Users');
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args.shift().toLowerCase();
 
-const searchInput = new TextInputBuilder()
-  .setCustomId('search_query')
-  .setLabel('Search')
-  .setStyle(TextInputStyle.Short);
+  const command = client.commands.get(commandName) || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
-const firstActionRow = new ActionRowBuilder().addComponents(searchInput);
-
-searchModal.addComponents(firstActionRow);
-
-client.once('ready', async () => {
-  console.log(`Ready! Logged in as ${client.user.tag}`);
-
-  // Load commands from the 'commands' folder
-  const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-
-  for (const file of commandFiles) {
-    const command = require(`./commands/${file}
-
-    // Command validation and registration logic
-    if (command.data && typeof command.execute === 'function') {
-      client.application.commands.create(command.data);
-    } else {
-      console.error(`Error loading command ${file}: either 'data' or 'execute' is missing.`);
-    }
-  }
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-
-  if (!command) {
-    console.error(`No command matching ${interaction.commandName} found.`);
-    return;
-  }
+  if (!command) return;
 
   try {
-    await command.execute(interaction);
+    await command.execute(message, args);
   } catch (error) {
-    console.error(`Error executing command ${interaction.commandName}:`, error);
-    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+    console.error(error);
+    message.reply('There was an error trying to execute that command!');
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-
-module.exports = { client };
