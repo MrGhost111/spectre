@@ -30,46 +30,39 @@ searchModal.addComponents(firstActionRow);
 client.once('ready', async () => {
   console.log(`Ready! Logged in as ${client.user.tag}`);
 
-  await client.application.commands.create(selectUsersCommand);
+  // Load commands from the 'commands' folder
+  const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+  for (const file of commandFiles) {
+    const command = require(`./commands/${file}
+
+    // Command validation and registration logic
+    if (command.data && typeof command.execute === 'function') {
+      client.application.commands.create(command.data);
+    } else {
+      console.error(`Error loading command ${file}: either 'data' or 'execute' is missing.`);
+    }
+  }
 });
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
-  if (interaction.commandName === 'selectusers') {
-    const channel = interaction.channel;
-    const recentMessages = await channel.messages.fetch({ limit: 50 });
+  const command = client.commands.get(interaction.commandName);
 
-    const uniqueUsers = new Set();
-    recentMessages.forEach(message => uniqueUsers.add(message.author.id));
-
-    const userOptions = Array.from(uniqueUsers)
-      .map(userId => client.users.cache.get(userId))
-      .filter(user => user)
-      .map(user => ({
-        label: user.username,
-        value: user.id,
-      }));
-
-    const userSelect = new UserSelectMenuBuilder()
-  .setCustomId('user_select')
-  .setMinValues(1)
-  .setMaxValues(3)
-  .setPlaceholder('Select up to 3 users')
-  .addOptions(userOptions);
-    const row = new ActionRowBuilder().addComponents(userSelect);
-
-    await interaction.reply({ content: 'Select users:', components: [row] });
+  if (!command) {
+    console.error(`No command matching ${interaction.commandName} found.`);
+    return;
   }
 
-  // Handle search modal
-  if (interaction.customId === 'user_search') {
-    const searchQuery = interaction.fields.getTextInputValue('search_query');
-    // Implement search logic based on searchQuery
-    // Update select menu options accordingly
-    await interaction.update({ content: 'Updated user list', components: [row] });
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(`Error executing command ${interaction.commandName}:`, error);
+    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
   }
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
 module.exports = { client };
