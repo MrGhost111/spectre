@@ -1,20 +1,15 @@
-const { client } = require('../index.js');
+// snipe.js
+const { SlashCommandBuilder } = require('discord.js');
 
-let lastDeletedMessage = null;
-
-client.on('messageDelete', message => {
-    console.log('Message deleted:', message.content);
-    lastDeletedMessage = message;
-});
-
-client.on('messageCreate', message => {
-    if (message.content === ',snipe') {
-        console.log('Snipe command received');
-        if (lastDeletedMessage) {
-            message.channel.send(`Last deleted message: ${lastDeletedMessage.content}`);
-        } else {
-            message.channel.send('No messages have been deleted recently.');
-        }
-    }
-});
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('snipe')
+    .setDescription('Snipes the last deleted message'),
+  async execute(interaction, client) {
+    // Implement your sniping logic here
+    //  access the channel using interaction.channel
+    //  ....
+    await interaction.reply('Your sniped message');
+  },
+};
 
