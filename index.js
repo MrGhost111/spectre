@@ -1,13 +1,32 @@
 const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 require('dotenv').config();
 
+<<<<<<< HEAD
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
 
 client.once('ready', () => {
+=======
+const fs = require('fs');
+const Discord = require('discord.js');
+
+const client = new Discord.Client({ intents: [Discord.Intents.FLAGS.GUILDS, Discord.Intents.FLAGS.GUILD_MESSAGES] });
+
+client.commands = new Discord.Collection();
+
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+  client.commands.set(command.name, command);
+}
+
+client.on('ready', () => {
+>>>>>>> f8533b409f1cbcda1b34e365206c6eb34d898b02
   console.log(`Logged in as ${client.user.tag}!`);
 });
 
 client.on('messageCreate', async message => {
+<<<<<<< HEAD
   // Ignore messages from bots
   if (message.author.bot) return;
 
@@ -40,6 +59,22 @@ client.on('messageCreate', async message => {
         message.channel.send('There was an error retrieving the member IDs.');
       }
     }
+=======
+  if (!message.content.startsWith(',')) return;
+
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args.shift().toLowerCase();
+
+  const command = client.commands.get(commandName) || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+  if (!command) return;
+
+  try {
+    await command.execute(message, args);
+  } catch (error) {
+    console.error(error);
+    message.reply('There was an error trying to execute that command!');
+>>>>>>> f8533b409f1cbcda1b34e365206c6eb34d898b02
   }
 });
 

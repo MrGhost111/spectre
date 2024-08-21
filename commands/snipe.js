@@ -1,20 +1,9 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-
-let lastDeletedMessage = null;
-
-client.on('messageDelete', message => {
-    lastDeletedMessage = message;
-});
-
-client.on('messageCreate', message => {
-    if (message.content === ',snipe') {
-        if (lastDeletedMessage) {
-            message.channel.send(`Last deleted message: ${lastDeletedMessage.content}`);
-        } else {
-            message.channel.send('No messages have been deleted recently.');
-        }
-    }
-});
-
-client.login(process.env.DISCORD_TOKEN);
+module.exports = {
+  name: 'snipe',
+  execute(message) {
+    const deletedMessages = message.channel.messages.cache.filter(m => m.deleted);
+    const latestDeleted = deletedMessages.sort((a, b) => b.createdTimestamp - a.createdTimestamp).first();
+    if (!latestDeleted) return message.channel.send('No deleted messages found.');
+    message.channel.send({ embeds: [{ title: 'Sniped Message', description: latestDeleted.content, timestamp: latestDeleted.createdAt }] });
+  }
+};
