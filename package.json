@@ -19,7 +19,7 @@
   "homepage": "https://github.com/MrGhost111/spectre#readme",
   "dependencies": {
     "discord.js": "^14.15.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "node.js": "^0.0.1-security"
   }
 }
-
