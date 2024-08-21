@@ -1,9 +1,17 @@
 module.exports = {
-  name: 'snipe',
-  execute(message) {
-    const deletedMessages = message.channel.messages.cache.filter(m => m.deleted);
-    const latestDeleted = deletedMessages.sort((a, b) => b.createdTimestamp - a.createdTimestamp).first();
-    if (!latestDeleted) return message.channel.send('No deleted messages found.');
-    message.channel.send({ embeds: [{ title: 'Sniped Message', description: latestDeleted.content, timestamp: latestDeleted.createdAt }] });
-  }
+    name: 'snipe',
+    description: 'Retrieves the last deleted message.',
+    permissions: '1241835441624453221', // Optional: Required role ID
+    execute(message, args) {
+        const amount = args[0] ? parseInt(args[0]) : 1; // Get the amount to snipe
+
+        const snipes = client.snipes.get(message.channel.id);
+        if (!snipes) return message.reply('There is nothing to snipe.');
+
+        const snipe = snipes[snipes.length - 1 + amount];
+        if (!snipe) return message.reply('There is nothing to snipe.');
+
+        // Send the sniped message
+        message.channel.send(snipe.content);
+    },
 };
