@@ -82,21 +82,20 @@ module.exports = {
             // Send response as an embed (non-ephemeral message)
             await interaction.reply({ embeds: [embed], ephemeral: false });
 
-            // Automatically trigger the viewchannel command
-            const viewChannelCommand = interaction.client.commands.get('viewchannel');
-            if (viewChannelCommand) {
-                // Create a dummy interaction object for triggering viewchannel
-                const dummyInteraction = {
-                    ...interaction,
-                    commandName: 'viewchannel',
-                    options: { getChannel: () => channel },
-                    reply: interaction.reply.bind(interaction) // Mock reply method to handle response
-                };
-                await viewChannelCommand.execute(dummyInteraction);
-            }
+            // Send a follow-up message with management instructions
+            await interaction.followUp({
+                content: `Channel <#${channel.id}> assigned to <@${targetUser.id}>.\n\n` +
+                    `Use </mychannel:1277343138901659812> to manage your channel.\n` +
+                    `Use </addfriends:1277343138901659811> to add users.\n` +
+                    `Use </removefriends:1277343138901659813> to remove users.`,
+                ephemeral: false
+            });
         } catch (error) {
             console.error('Error assigning channel:', error);
-            await interaction.reply({ content: 'There was an error assigning the channel. Please try again.', ephemeral: false });
+            // Only reply once
+            if (!interaction.replied) {
+                await interaction.reply({ content: 'There was an error assigning the channel. Please try again.', ephemeral: false });
+            }
         }
     },
 };
