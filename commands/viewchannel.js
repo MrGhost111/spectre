@@ -86,11 +86,11 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setTitle('Channel Information')
             .setDescription(
-                `**Channel:** <#${channelInfo.id}>\n\n` +
+                `<:invisible:1277372701710749777>\n**Channel:** <#${channelInfo.id}>\n\n` +
                 `**Owner:** ${ownerStatus}\n\n` +
                 `**Created On:** <t:${Math.floor(new Date(userChannel.createdAt).getTime() / 1000)}:D>\n\n` +
                 `**Friends:** ${currentFriendsCount}/${maxFriends}\n\n` +
-                `**Invited Friends:** ${friendsList}\n\n` +
+                `**Invited Friends:**\n${friendsList}\n\n` +
                 `**Role Thresholds:**\n${roleThresholds}`
             )
             .setColor(ownerStatus.includes('(left the server)') ? Colors.Red : Colors.Green);
