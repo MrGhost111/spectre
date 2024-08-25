@@ -44,6 +44,15 @@ module.exports = {
             interaction.options.getUser('friend5')
         ].filter(user => user !== null);
 
+        // Calculate the max friends limit
+        const maxFriends = calculateMaxFriends(interaction.member);
+
+        // Check if adding these users would exceed the limit
+        if (userChannel.friends.length + userOptions.length > maxFriends) {
+            await interaction.reply({ content: `You have exceeded your friend limit of ${maxFriends}.`, ephemeral: true });
+            return;
+        }
+
         // Process each user
         for (const user of userOptions) {
             if (user.bot) {
@@ -64,29 +73,44 @@ module.exports = {
                 if (channel.permissionOverwrites.cache.has(user.id)) {
                     responses.push(`User <@${user.id}> is already in the channel.`);
                 } else {
+                    try {
+                        await channel.permissionOverwrites.create(user.id, {
+                            [PermissionsBitField.Flags.ViewChannel]: true,
+                        });
+                        addedUsers.push(user.id);
+                        responses.push(`User <@${user.id}> added to the channel.`);
+                    } catch (error) {
+                        console.error('Error creating permission overwrite:', error);
+                        responses.push(`Failed to add user <@${user.id}> to the channel.`);
+                    }
+                }
+            } else {
+                userChannel.friends.push(user.id);
+                try {
                     await channel.permissionOverwrites.create(user.id, {
                         [PermissionsBitField.Flags.ViewChannel]: true,
                     });
                     addedUsers.push(user.id);
-                    responses.push(`User <@${user.id}> added to the channel.`);
+                    responses.push(`User <@${user.id}> added to the channel and friends list.`);
+                } catch (error) {
+                    console.error('Error creating permission overwrite:', error);
+                    responses.push(`Failed to add user <@${user.id}> to the channel.`);
                 }
-            } else {
-                userChannel.friends.push(user.id);
-                await channel.permissionOverwrites.create(user.id, {
-                    [PermissionsBitField.Flags.ViewChannel]: true,
-                });
-                addedUsers.push(user.id);
-                responses.push(`User <@${user.id}> added to the channel and friends list.`);
             }
         }
 
         // Ensure all friends in the list are in the channel
         for (const friendId of userChannel.friends) {
             if (!channel.permissionOverwrites.cache.has(friendId)) {
-                await channel.permissionOverwrites.create(friendId, {
-                    [PermissionsBitField.Flags.ViewChannel]: true,
-                });
-                responses.push(`User <@${friendId}> added to channel from friends list.`);
+                try {
+                    await channel.permissionOverwrites.create(friendId, {
+                        [PermissionsBitField.Flags.ViewChannel]: true,
+                    });
+                    responses.push(`User <@${friendId}> added to channel from friends list.`);
+                } catch (error) {
+                    console.error('Error creating permission overwrite:', error);
+                    responses.push(`Failed to add user <@${friendId}> to the channel.`);
+                }
             }
         }
 
@@ -103,3 +127,22 @@ module.exports = {
         await interaction.reply({ embeds: [embed] });
     },
 };
+
+// Helper function to calculate the maximum number of friends based on roles
+function calculateMaxFriends(member) {
+    const roleLimits = {
+        '768448955804811274': 5,
+        '768449168297033769': 5,
+        '946729964328337408': 5,
+        '1028256286560763984': 2,
+        '1028256279124250624': 3,
+        '1038106794200932512': 5,
+    };
+    let totalLimit = 0;
+    for (const roleId in roleLimits) {
+        if (member.roles.cache.has(roleId)) {
+            totalLimit += roleLimits[roleId];
+        }
+    }
+    return totalLimit;
+}

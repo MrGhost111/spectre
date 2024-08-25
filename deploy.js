@@ -27,7 +27,7 @@ const rest = new REST({ version: '10' }).setToken(token);
         // Delete previously registered commands that are not needed anymore
         const currentCommands = await rest.get(Routes.applicationGuildCommands(clientId, guildId));
         for (const command of currentCommands) {
-            if (command.name === 'myc view' || command.name === 'myc rename') {
+            if (!commands.some(c => c.name === command.name)) {
                 console.log(`Deleting guild command: ${command.name} with ID ${command.id}`);
                 await rest.delete(Routes.applicationGuildCommand(clientId, guildId, command.id));
             }
