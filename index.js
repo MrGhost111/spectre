@@ -1,52 +1,195 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, ChannelType } = require('discord.js');
+const fs = require('fs');
 require('dotenv').config();
 
-const path = require('path');
-const fs = require('fs');
-
-const prefix = ','; // Define the prefix here
-
-const client = new Client({ intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-] });
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessageReactions,
+    ],
+});
 
 client.commands = new Collection();
 
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+// Load command files
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-
-    if ('data' in command && command.data.name) {
+    const command = require(`./commands/${file}`);
+    if (command.data && command.data.name) {
         client.commands.set(command.data.name, command);
     }
 }
 
-client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}`);
+client.once(Events.ClientReady, () => {
+    console.log(`Logged in as ${client.user.tag}!`);
 });
 
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isCommand()) {
+        const command = client.commands.get(interaction.commandName);
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+        if (!command) return;
 
-    const command = client.commands.get(commandName)
-        || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+        try {
+            await command.execute(interaction);
+            console.log(`${interaction.commandName} command executed`);
+        } catch (error) {
+            console.error(`Error executing ${interaction.commandName}:`, error);
+            await interaction.reply('There was an error trying to execute that command!');
+        }
+    } else if (interaction.isButton()) {
+        if (interaction.customId === 'create_channel') {
+            const dataPath = './data/channels.json';
+            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
-    if (!command) return;
+            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+            if (userChannel) {
+                await interaction.reply({ content: "You already own a channel.", ephemeral: true });
+                return;
+            }
 
-    try {
-        await command.execute(message, args);
-    } catch (error) {
-        console.error(error);
-        message.reply('There was an error trying to execute that command!');
+            const modal = new ModalBuilder()
+                .setCustomId('create_channel_modal')
+                .setTitle('Create Your Channel');
+
+            const nameInput = new TextInputBuilder()
+                .setCustomId('channel_name_input')
+                .setLabel('Channel Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const actionRow = new ActionRowBuilder().addComponents(nameInput);
+            modal.addComponents(actionRow);
+
+            await interaction.showModal(modal);
+        } else if (interaction.customId === 'rename_channel') {
+            const dataPath = './data/channels.json';
+            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+
+            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+            if (!userChannel) {
+                await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+                return;
+            }
+
+            const modal = new ModalBuilder()
+                .setCustomId('rename_channel_modal')
+                .setTitle('Rename Your Channel');
+
+            const nameInput = new TextInputBuilder()
+                .setCustomId('new_channel_name_input')
+                .setLabel('New Channel Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const actionRow = new ActionRowBuilder().addComponents(nameInput);
+            modal.addComponents(actionRow);
+
+            await interaction.showModal(modal);
+        } else if (interaction.customId === 'view_friends') {
+            const dataPath = './data/channels.json';
+            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+
+            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+            if (!userChannel) {
+                await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+                return;
+            }
+
+            const friends = userChannel.friends;
+            const friendsMentions = friends.map(friendId => `<@${friendId}>`).join('\n');
+            const totalFriends = friends.length;
+
+            const embed = new EmbedBuilder()
+                .setTitle(`Friends (${totalFriends}/${calculateMaxFriends(interaction.member)})`)
+                .setDescription(friendsMentions || 'No friends added.');
+
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+    } else if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'create_channel_modal') {
+            const channelName = interaction.fields.getTextInputValue('channel_name_input');
+            const dataPath = './data/channels.json';
+            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+
+            const existingChannel = Object.values(channelsData).find(ch => ch.channelId && interaction.guild.channels.cache.get(ch.channelId));
+            if (existingChannel) {
+                delete channelsData[existingChannel.userId];
+                fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+            }
+
+            const categoryId = '842471433238347786';
+            let category = interaction.guild.channels.cache.get(categoryId);
+            if (!category || category.children.size >= 50) {
+                category = interaction.guild.channels.cache.get('1064095644811284490');
+            }
+
+            const newChannel = await interaction.guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                parent: category,
+                permissionOverwrites: [
+                    {
+                        id: interaction.guild.id,
+                        deny: [PermissionsBitField.Flags.ViewChannel],
+                    },
+                    {
+                        id: interaction.user.id,
+                        allow: [PermissionsBitField.Flags.ViewChannel],
+                    },
+                ],
+            });
+
+            channelsData[interaction.user.id] = {
+                userId: interaction.user.id,
+                channelId: newChannel.id,
+                createdAt: new Date().toISOString(),
+                friends: [],
+            };
+            fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+
+            await interaction.reply({ content: `Channel <#${newChannel.id}> created successfully!`, ephemeral: true });
+        } else if (interaction.customId === 'rename_channel_modal') {
+            const newName = interaction.fields.getTextInputValue('new_channel_name_input');
+            const dataPath = './data/channels.json';
+            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+
+            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+            if (!userChannel) {
+                await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+                return;
+            }
+
+            const channel = interaction.guild.channels.cache.get(userChannel.channelId);
+            if (channel) {
+                await channel.setName(newName);
+                await interaction.reply({ content: `Channel renamed to ${newName}!`, ephemeral: true });
+            } else {
+                await interaction.reply({ content: "Channel not found.", ephemeral: true });
+            }
+        }
     }
 });
+
+function calculateMaxFriends(member) {
+    const roleLimits = {
+        '768448955804811274': 5,
+        '768449168297033769': 5,
+        '946729964328337408': 5,
+        '1028256286560763984': 2,
+        '1028256279124250624': 3,
+        '1038106794200932512': 5,
+    };
+    let totalLimit = 0;
+    for (const roleId in roleLimits) {
+        if (member.roles.cache.has(roleId)) {
+            totalLimit += roleLimits[roleId];
+        }
+    }
+    return totalLimit;
+}
 
 client.login(process.env.DISCORD_TOKEN);
