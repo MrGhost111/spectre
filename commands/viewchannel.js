@@ -44,7 +44,7 @@ module.exports = {
         const channelInfo = interaction.guild.channels.cache.get(userChannel.channelId);
         if (!channelInfo) {
             return interaction.reply({
-                content: 'Channel not found.',
+                content: 'Channel not found or it may have been deleted.',
                 ephemeral: true
             });
         }
@@ -88,7 +88,7 @@ module.exports = {
             .setDescription(
                 `<:invisible:1277372701710749777>\n**Channel:** <#${channelInfo.id}>\n\n` +
                 `**Owner:** ${ownerStatus}\n\n` +
-                `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
+                `**Created On:** <t:${Math.floor(channelInfo.createdTimestamp / 1000)}:D>\n\n` +
                 `**Friends:** ${currentFriendsCount}/${maxFriends}\n\n` +
                 `**Invited Friends:**\n${friendsList}\n\n` +
                 `**Role Thresholds:**\n${roleThresholds}`
