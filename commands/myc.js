@@ -42,7 +42,7 @@ module.exports = {
                 .setDescription(
                     `**Channel:** <#${channel.id}>\n\n` +  // Added empty lines
                     `**Owner:** <@${interaction.user.id}>\n\n` +  // Added empty lines
-                    `**Created On:** <t:${Math.floor(new Date(userChannel.createdAt).getTime() / 1000)}:D>\n\n` +  // Added empty lines
+                    `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +  // Added empty lines
                     `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +  // Added empty lines
                     `**Role Thresholds:**\n${roleThresholds}`
                 )
