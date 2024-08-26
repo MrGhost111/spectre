@@ -4,7 +4,7 @@ const dataPath = './data/channels.json';
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('myc')
+        .setName('mychannel')
         .setDescription('Manage your channel'),
     async execute(interaction) {
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));

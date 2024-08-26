@@ -104,6 +104,11 @@
   resolved "https://registry.npmjs.org/@vladfrangu/async_event_emitter/-/async_event_emitter-2.4.5.tgz"
   integrity sha512-J7T3gUr3Wz0l7Ni1f9upgBZ7+J22/Q1B7dl0X6fG+fTsD+H+31DIosMHj4Um1dWQwqbcQ3oQf+YS2foYkDc9cQ==
 
+cls@^0.1.5:
+  version "0.1.5"
+  resolved "https://registry.npmjs.org/cls/-/cls-0.1.5.tgz"
+  integrity sha512-l5BPpQaNDud5DtmzvPrs6/XmsK0Rsp+xhhNTGLtUPb2x3zrEYOb2alBkVw3YyzKMf3v6py+i9LBE22b2vgGO7Q==
+
 discord-api-types@0.37.83:
   version "0.37.83"
   resolved "https://registry.npmjs.org/discord-api-types/-/discord-api-types-0.37.83.tgz"

@@ -79,22 +79,22 @@ module.exports = {
                 });
             }
 
-            // Send response as an embed (non-ephemeral message)
-            await interaction.reply({ embeds: [embed], ephemeral: false });
+            // Send response as an embed (ephemeral message)
+            await interaction.reply({ embeds: [embed], ephemeral: true });
 
-            // Send a follow-up message with management instructions
+            // Send a follow-up message with management instructions (ephemeral message)
             await interaction.followUp({
                 content: `Channel <#${channel.id}> assigned to <@${targetUser.id}>.\n\n` +
-                    `Use </mychannel:1277343138901659812> to manage your channel.\n` +
-                    `Use </addfriends:1277343138901659811> to add users.\n` +
-                    `Use </removefriends:1277343138901659813> to remove users.`,
-                ephemeral: false
+                    `Use /mychannel to manage your channel.\n` +
+                    `Use /addfriends to add users.\n` +
+                    `Use /removefriends to remove users.`,
+                ephemeral: true
             });
         } catch (error) {
             console.error('Error assigning channel:', error);
             // Only reply once
             if (!interaction.replied) {
-                await interaction.reply({ content: 'There was an error assigning the channel. Please try again.', ephemeral: false });
+                await interaction.reply({ content: 'There was an error assigning the channel. Please try again.', ephemeral: true });
             }
         }
     },
