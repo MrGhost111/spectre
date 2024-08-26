@@ -41,11 +41,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.reply('There was an error trying to execute that command!');
         }
     } else if (interaction.isButton()) {
-        if (interaction.customId === 'create_channel') {
-            const dataPath = './data/channels.json';
-            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        const dataPath = './data/channels.json';
+        const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
-            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+        // Ensure the button is author-only
+        const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+        
+        if (interaction.customId === 'create_channel') {
             if (userChannel) {
                 await interaction.reply({ content: "You already own a channel.", ephemeral: true });
                 return;
@@ -66,11 +68,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'rename_channel') {
-            const dataPath = './data/channels.json';
-            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-            if (!userChannel) {
+            // Check if the user is the owner of the channel
+            if (!userChannel || userChannel.userId !== interaction.user.id) {
                 await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
                 return;
             }
@@ -90,11 +89,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'view_friends') {
-            const dataPath = './data/channels.json';
-            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-            const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-            if (!userChannel) {
+            // Check if the user is the owner of the channel
+            if (!userChannel || userChannel.userId !== interaction.user.id) {
                 await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
                 return;
             }

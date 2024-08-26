@@ -48,18 +48,23 @@ module.exports = {
                 )
                 .setColor(0x6666ff);
 
-            // Rename button - set to secondary style
+            // Check if the interaction user is the owner of the channel
+            const isOwner = interaction.user.id === userChannel.userId;
+
+            // Rename button - set to secondary style and disable if not the owner
             const renameButton = new ButtonBuilder()
                 .setCustomId('rename_channel')
                 .setLabel('Rename Channel')
-                .setStyle(ButtonStyle.Secondary);
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(!isOwner); // Disable if the user is not the owner
 
-            // View friends button - set to secondary style
+            // View friends button - set to secondary style and disable if not the owner
             const viewFriendsButton = new ButtonBuilder()
                 .setCustomId('view_friends')
                 .setLabel('View Friends')
                 .setStyle(ButtonStyle.Secondary)
-                .setEmoji('<:user:1273754877646082048>');
+                .setEmoji('<:user:1273754877646082048>')
+                .setDisabled(!isOwner); // Disable if the user is not the owner
 
             const row = new ActionRowBuilder().addComponents(renameButton, viewFriendsButton);
 
