@@ -51,29 +51,35 @@ module.exports = {
 
         // Determine owner status
         let ownerStatus;
+        let ownerRoles;
         try {
             const owner = await interaction.guild.members.fetch(userChannel.userId);
             ownerStatus = `<@${userChannel.userId}>`;
+            ownerRoles = owner.roles.cache;
         } catch (error) {
             // Owner not in the server
             ownerStatus = `${userChannel.userId} (left the server)`;
+            ownerRoles = new Collection(); // Empty collection if user is not in the server
         }
 
         // Calculate the maximum number of friends
-        const maxFriends = calculateMaxFriends(interaction.member);
+        const maxFriends = calculateMaxFriends(ownerRoles);
         const currentFriendsCount = userChannel.friends.length;
 
         // Define role thresholds
-        const roleThresholds = [
+        const roles = [
             { id: '768448955804811274', limit: 5 },
             { id: '768449168297033769', limit: 5 },
             { id: '946729964328337408', limit: 5 },
             { id: '1028256286560763984', limit: 2 },
             { id: '1028256279124250624', limit: 3 },
             { id: '1038106794200932512', limit: 5 },
-        ].map(role => {
-            const hasRole = interaction.member.roles.cache.has(role.id);
+        ];
+
+        const roleThresholds = roles.map(role => {
+            const hasRole = ownerRoles.has(role.id);
             const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
+            console.log(`Role ${role.id} detected for owner: ${hasRole}`);
             return `${emoji} <@&${role.id}> ${role.limit}`;
         }).join('\n');
 
@@ -100,20 +106,22 @@ module.exports = {
 };
 
 // Helper function to calculate the maximum number of friends based on roles
-function calculateMaxFriends(member) {
-    const roleLimits = {
-        '768448955804811274': 5,
-        '768449168297033769': 5,
-        '946729964328337408': 5,
-        '1028256286560763984': 2,
-        '1028256279124250624': 3,
-        '1038106794200932512': 5,
-    };
+function calculateMaxFriends(rolesCache) {
+    const roles = [
+        { id: '768448955804811274', limit: 5 },
+        { id: '768449168297033769', limit: 5 },
+        { id: '946729964328337408', limit: 5 },
+        { id: '1028256286560763984', limit: 2 },
+        { id: '1028256279124250624', limit: 3 },
+        { id: '1038106794200932512', limit: 5 },
+    ];
+
     let totalLimit = 0;
-    for (const roleId in roleLimits) {
-        if (member.roles.cache.has(roleId)) {
-            totalLimit += roleLimits[roleId];
+    roles.forEach(role => {
+        if (rolesCache.has(role.id)) {
+            totalLimit += role.limit;
         }
-    }
+    });
+
     return totalLimit;
 }

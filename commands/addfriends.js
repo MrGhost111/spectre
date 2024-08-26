@@ -71,17 +71,17 @@ module.exports = {
 
             if (userChannel.friends.includes(user.id)) {
                 if (channel.permissionOverwrites.cache.has(user.id)) {
-                    responses.push(`User <@${user.id}> is already in the channel.`);
+                    responses.push(`<@${user.id}> is already in the channel.`);
                 } else {
                     try {
                         await channel.permissionOverwrites.create(user.id, {
                             [PermissionsBitField.Flags.ViewChannel]: true,
                         });
                         addedUsers.push(user.id);
-                        responses.push(`User <@${user.id}> added to the channel.`);
+                        responses.push(`Added <@${user.id}>.`);
                     } catch (error) {
                         console.error('Error creating permission overwrite:', error);
-                        responses.push(`Failed to add user <@${user.id}> to the channel.`);
+                        responses.push(`Failed to add <@${user.id}>.`);
                     }
                 }
             } else {
@@ -91,7 +91,7 @@ module.exports = {
                         [PermissionsBitField.Flags.ViewChannel]: true,
                     });
                     addedUsers.push(user.id);
-                    responses.push(`User <@${user.id}> added to the channel and friends list.`);
+                    responses.push(`Added <@${user.id}>.`);
                 } catch (error) {
                     console.error('Error creating permission overwrite:', error);
                     responses.push(`Failed to add user <@${user.id}> to the channel.`);
@@ -106,7 +106,7 @@ module.exports = {
                     await channel.permissionOverwrites.create(friendId, {
                         [PermissionsBitField.Flags.ViewChannel]: true,
                     });
-                    responses.push(`User <@${friendId}> added to channel from friends list.`);
+                    responses.push(`Added <@${friendId}>.`);
                 } catch (error) {
                     console.error('Error creating permission overwrite:', error);
                     responses.push(`Failed to add user <@${friendId}> to the channel.`);
