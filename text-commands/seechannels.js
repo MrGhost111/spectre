@@ -1,4 +1,4 @@
-const { EmbedBuilder, Colors } = require('discord.js');
+const { EmbedBuilder, Colors, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
@@ -8,7 +8,7 @@ module.exports = {
     description: 'Admin command to list all channels an admin user is part of',
     async execute(message) {
         // Check for admin permissions
-        if (!message.member.permissions.has('ADMINISTRATOR')) {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return message.reply('This command is only available to admins.');
         }
 
