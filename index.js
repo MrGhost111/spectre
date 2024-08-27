@@ -60,18 +60,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
+    // Extract the command name from the message content
     const args = message.content.slice(1).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
-    const command = client.textCommands.get(commandName);
+    // Find a command where the message starts with that command name
+    const command = client.textCommands.find(cmd => commandName.startsWith(cmd.name));
 
     if (!command) return;
 
     try {
         await command.execute(message, args);
-        console.log(`${commandName} text command executed`);
+        console.log(`${command.name} text command executed`);
     } catch (error) {
-        console.error(`Error executing ${commandName}:`, error);
+        console.error(`Error executing ${command.name}:`, error);
         message.reply('There was an error trying to execute that command!');
     }
 });

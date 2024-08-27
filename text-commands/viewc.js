@@ -1,59 +1,44 @@
-const { SlashCommandBuilder, EmbedBuilder, Colors } = require('discord.js');
+const { EmbedBuilder, Colors, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('viewchannel')
-        .setDescription('Admin command to view channel info')
-        .addUserOption(option => option.setName('user').setDescription('User to view the channel of'))
-        .addChannelOption(option => option.setName('channel').setDescription('Text channel to view')),
-    async execute(interaction) {
+    name: 'viewc',
+    description: 'Admin command to view channel info',
+    async execute(message, args) {
         // Check for admin permissions
-        if (!interaction.member.permissions.has('ADMINISTRATOR')) {
-            return interaction.reply({
-                content: 'This command is only available to admins.',
-                ephemeral: true
-            });
+        if (!message.member.permissions.has('ADMINISTRATOR')) {
+            return message.reply('This command is only available to admins.');
         }
 
-        const user = interaction.options.getUser('user');
-        const channel = interaction.options.getChannel('channel');
+        const userMention = message.mentions.users.first();
+        const channelMention = message.mentions.channels.first();
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
         let userChannel;
-        if (user) {
-            userChannel = Object.values(channelsData).find(ch => ch.userId === user.id);
-        } else if (channel) {
-            userChannel = Object.values(channelsData).find(ch => ch.channelId === channel.id);
+        if (userMention) {
+            userChannel = Object.values(channelsData).find(ch => ch.userId === userMention.id);
+        } else if (channelMention) {
+            userChannel = Object.values(channelsData).find(ch => ch.channelId === channelMention.id);
         } else {
-            return interaction.reply({
-                content: 'Please pick a user or channel.',
-                ephemeral: true
-            });
+            return message.reply('Please mention a user or a channel to view.');
         }
 
         if (!userChannel) {
-            return interaction.reply({
-                content: 'No channel found for the specified user or channel.',
-                ephemeral: true
-            });
+            return message.reply('No channel found for the specified user or channel.');
         }
 
-        const channelInfo = interaction.guild.channels.cache.get(userChannel.channelId);
+        const channelInfo = message.guild.channels.cache.get(userChannel.channelId);
         if (!channelInfo) {
-            return interaction.reply({
-                content: 'Channel not found or it may have been deleted.',
-                ephemeral: true
-            });
+            return message.reply('Channel not found or it may have been deleted.');
         }
 
         // Determine owner status
         let ownerStatus;
         let ownerRoles;
         try {
-            const owner = await interaction.guild.members.fetch(userChannel.userId);
+            const owner = await message.guild.members.fetch(userChannel.userId);
             ownerStatus = `<@${userChannel.userId}>`;
             ownerRoles = owner.roles.cache;
         } catch (error) {
@@ -101,7 +86,7 @@ module.exports = {
             )
             .setColor(ownerStatus.includes('(left the server)') ? Colors.Red : Colors.Green);
 
-        await interaction.reply({ embeds: [embed] });
+        await message.reply({ embeds: [embed] });
     }
 };
 
