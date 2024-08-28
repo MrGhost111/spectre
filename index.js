@@ -14,6 +14,8 @@ const client = new Client({
 
 client.commands = new Collection();
 client.textCommands = new Collection();
+client.snipedMessages = new Collection(); // Store sniped messages
+client.editedMessages = new Collection(); // Store edited messages
 
 // Load slash command files
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
@@ -75,6 +77,33 @@ client.on(Events.MessageCreate, async (message) => {
     } catch (error) {
         console.error(`Error executing ${command.name}:`, error);
         message.reply('There was an error trying to execute that command!');
+    }
+});
+
+// Listen for message deletions and store the deleted messages
+client.on(Events.MessageDelete, message => {
+    if (!message.partial) {
+        const snipedMessages = client.snipedMessages.get(message.channel.id) || [];
+        snipedMessages.push({
+            author: message.author,
+            content: message.content,
+            timestamp: message.createdTimestamp
+        });
+        client.snipedMessages.set(message.channel.id, snipedMessages);
+    }
+});
+
+// Listen for message edits and store the edited messages
+client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
+    if (!oldMessage.partial && !newMessage.partial) {
+        const editedMessages = client.editedMessages.get(oldMessage.channel.id) || [];
+        editedMessages.push({
+            author: oldMessage.author,
+            oldContent: oldMessage.content,
+            newContent: newMessage.content,
+            timestamp: oldMessage.createdTimestamp
+        });
+        client.editedMessages.set(oldMessage.channel.id, editedMessages);
     }
 });
 
