@@ -104,10 +104,12 @@ async function handleButtonInteraction(interaction) {
 
     const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
 
-    // Check if the user is the owner of the channel
-    const channelOwnerId = interaction.message.embeds[0]?.footer?.text?.replace('Channel Owner ID: ', '');
-    if (interaction.user.id !== channelOwnerId) {
-        return interaction.reply({ content: "You don't have permission to use this button.", ephemeral: true });
+    // Check if the user is the owner of the channel only for specific interactions
+    if (interaction.customId === 'rename_channel' || interaction.customId === 'view_friends') {
+        const channelOwnerId = interaction.message.embeds[0]?.footer?.text?.replace('Channel Owner ID: ', '');
+        if (interaction.user.id !== channelOwnerId) {
+            return interaction.reply({ content: "You don't have permission to use this button.", ephemeral: true });
+        }
     }
 
     if (interaction.customId === 'create_channel') {
@@ -230,9 +232,9 @@ function calculateMaxFriends(member) {
     };
 
     let maxFriends = 0;
-    member.roles.cache.forEach(role => {
-        if (roleLimits[role.id]) {
-            maxFriends += roleLimits[role.id];
+    Object.entries(roleLimits).forEach(([roleId, limit]) => {
+        if (member.roles.cache.has(roleId)) {
+            maxFriends += limit;
         }
     });
 
