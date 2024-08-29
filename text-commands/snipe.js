@@ -43,14 +43,17 @@ module.exports = {
 
         // Create embed
         const embed = new EmbedBuilder()
-            .setColor(0x0099ff)
-            .setTitle('Sniped Messages');
+            .setColor(0x0099ff);
 
+        let description = '';
         messagesToDisplay.forEach(msg => {
-            const authorName = msg.author ? msg.author.username : 'Unknown User';
             const content = msg.content || 'No content';
-            embed.addFields({ name: authorName, value: content });
+            const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            description += `[**${timestamp}] ${msg.author.username}:** ${content}\n`;
         });
+
+        embed.setDescription(description.trim());
+        embed.setFooter({ text: `Command used by ${message.author.username}` });
 
         await message.reply({ embeds: [embed] });
         console.log(`Snipe command executed with ${snipeCount} messages.`);
