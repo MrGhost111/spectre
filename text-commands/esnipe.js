@@ -4,9 +4,8 @@ module.exports = {
     name: 'esnipe',
     description: 'Snipe the last edited message(s)',
     async execute(message, args) {
-        // Define the role-based permissions
         const rolePermissions = {
-            '1030707878597763103': 1, // Role IDs and their corresponding snipe limits
+            '1030707878597763103': 1,
             '866641249452556309': 1,
             '721331975847411754': 1,
             '768448955804811274': 1,
@@ -17,7 +16,6 @@ module.exports = {
             '866641313754251297': 3
         };
 
-        // Check user's roles
         const userRoles = message.member.roles.cache.map(role => role.id);
         const highestRole = userRoles.reduce((max, roleId) => Math.max(max, rolePermissions[roleId] || 0), 0);
 
@@ -32,24 +30,20 @@ module.exports = {
             snipeCount = highestRole;
         }
 
-        // Fetch edited messages
         const editedMessages = message.client.editedMessages.get(message.channel.id) || [];
         if (editedMessages.length === 0) {
             return message.reply('There are no edited messages to snipe.');
         }
 
-        // Determine messages to display
         const messagesToDisplay = editedMessages.slice(-snipeCount);
 
-        // Create embed
         const embed = new EmbedBuilder()
             .setColor(0x0099ff);
 
         let description = '';
         messagesToDisplay.forEach(msg => {
-            const newContent = msg.newContent || 'No content';
-            const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            description += `[**${timestamp}] ${msg.author.username}:** ${newContent}\n`;
+            const timestamp = `<t:${msg.timestamp}:t>`; // Discord timestamp formatting
+            description += `**[${timestamp}] ${msg.author}:** ${msg.oldContent}`;
         });
 
         embed.setDescription(description.trim());

@@ -2,7 +2,6 @@ const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
 const myChannelHandler = require('./commands/myc.js'); // Import the command handler
-const interactionHandler = require('./text-commands/interactionHandler.js'); // Import the interaction handler
 
 const client = new Client({
     intents: [
@@ -10,14 +9,26 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
+// Initialize snipedMessages and editedMessages
+client.snipedMessages = new Collection();
+client.editedMessages = new Collection();
+
 client.commands = new Collection();
 client.textCommands = new Collection();
-client.snipedMessages = new Collection(); // Store sniped messages
-client.editedMessages = new Collection(); // Store edited messages
+
+// Load slash command files
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    if (command.data && command.data.name) {
+        client.commands.set(command.data.name, command);
+        console.log(`Loaded command: ${command.data.name}`); // Debug log
+    }
+}
 
 // Load text command files
 const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
@@ -26,11 +37,33 @@ for (const file of textCommandFiles) {
     const command = require(`./text-commands/${file}`);
     if (command.name) {
         client.textCommands.set(command.name, command);
+        console.log(`Loaded text command: ${command.name}`); // Debug log
     }
 }
 
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isCommand()) {
+        const command = client.commands.get(interaction.commandName);
+
+        if (!command) {
+            console.log(`Command ${interaction.commandName} not found`); // Debug log
+            return;
+        }
+
+        try {
+            await command.execute(interaction);
+            console.log(`${interaction.commandName} command executed`);
+        } catch (error) {
+            console.error(`Error executing ${interaction.commandName}:`, error);
+            await interaction.reply('There was an error trying to execute that command!');
+        }
+    } else if (interaction.isButton() || interaction.isModalSubmit()) {
+        await myChannelHandler.handleInteraction(interaction);
+    }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -54,36 +87,44 @@ client.on(Events.MessageCreate, async (message) => {
     }
 });
 
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isButton() || interaction.isModalSubmit()) {
-        await interactionHandler.handleInteraction(interaction);
+client.on(Events.MessageDelete, (message) => {
+    if (message.author.bot) return;
+
+    if (!client.snipedMessages.has(message.channel.id)) {
+        client.snipedMessages.set(message.channel.id, []);
+    }
+
+    const snipedMessages = client.snipedMessages.get(message.channel.id);
+    snipedMessages.push({
+        content: message.content,
+        author: message.author.username,
+        timestamp: Math.floor(message.createdTimestamp / 1000), // Convert to Unix timestamp in seconds
+    });
+
+    // Keep only the last 100 sniped messages
+    if (snipedMessages.length > 100) {
+        snipedMessages.shift();
     }
 });
 
-// Listen for message deletions and store the deleted messages
-client.on(Events.MessageDelete, message => {
-    if (!message.partial) {
-        const snipedMessages = client.snipedMessages.get(message.channel.id) || [];
-        snipedMessages.push({
-            author: message.author,
-            content: message.content,
-            timestamp: message.createdTimestamp
-        });
-        client.snipedMessages.set(message.channel.id, snipedMessages);
-    }
-});
-
-// Listen for message edits and store the edited messages
 client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
-    if (!oldMessage.partial && !newMessage.partial) {
-        const editedMessages = client.editedMessages.get(oldMessage.channel.id) || [];
-        editedMessages.push({
-            author: oldMessage.author,
-            oldContent: oldMessage.content,
-            newContent: newMessage.content,
-            timestamp: oldMessage.createdTimestamp
-        });
-        client.editedMessages.set(oldMessage.channel.id, editedMessages);
+    if (oldMessage.author.bot || oldMessage.content === newMessage.content) return;
+
+    if (!client.editedMessages.has(oldMessage.channel.id)) {
+        client.editedMessages.set(oldMessage.channel.id, []);
+    }
+
+    const editedMessages = client.editedMessages.get(oldMessage.channel.id);
+    editedMessages.push({
+        oldContent: oldMessage.content,
+        newContent: newMessage.content,
+        author: oldMessage.author.username,
+        timestamp: Math.floor(oldMessage.editedTimestamp / 1000), // Convert to Unix timestamp in seconds
+    });
+
+    // Keep only the last 100 edited messages
+    if (editedMessages.length > 100) {
+        editedMessages.shift();
     }
 });
 

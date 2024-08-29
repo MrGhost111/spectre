@@ -4,9 +4,8 @@ module.exports = {
     name: 'snipe',
     description: 'Snipe the last deleted message(s)',
     async execute(message, args) {
-        // Define the role-based permissions
         const rolePermissions = {
-            '1030707878597763103': 1, // Role IDs and their corresponding snipe limits
+            '1030707878597763103': 1,
             '866641249452556309': 1,
             '721331975847411754': 1,
             '768448955804811274': 1,
@@ -17,7 +16,6 @@ module.exports = {
             '866641313754251297': 3
         };
 
-        // Check user's roles
         const userRoles = message.member.roles.cache.map(role => role.id);
         const highestRole = userRoles.reduce((max, roleId) => Math.max(max, rolePermissions[roleId] || 0), 0);
 
@@ -32,24 +30,20 @@ module.exports = {
             snipeCount = highestRole;
         }
 
-        // Fetch sniped messages
         const snipedMessages = message.client.snipedMessages.get(message.channel.id) || [];
         if (snipedMessages.length === 0) {
             return message.reply('There are no deleted messages to snipe.');
         }
 
-        // Determine messages to display
         const messagesToDisplay = snipedMessages.slice(-snipeCount);
 
-        // Create embed
         const embed = new EmbedBuilder()
             .setColor(0x0099ff);
 
         let description = '';
         messagesToDisplay.forEach(msg => {
-            const content = msg.content || 'No content';
-            const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            description += `[**${timestamp}] ${msg.author.username}:** ${content}\n`;
+            const timestamp = `<t:${msg.timestamp}:t>`; // Discord timestamp formatting
+            description += `**[${timestamp}] ${msg.author}:** ${msg.content}\n`;
         });
 
         embed.setDescription(description.trim());
