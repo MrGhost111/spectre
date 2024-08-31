@@ -1,8 +1,8 @@
-const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
 const myChannelHandler = require('./commands/myc.js'); // Import the command handler
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 
 // Initialize the client with intents
 const client = new Client({
@@ -68,6 +68,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     } else if (interaction.isButton() || interaction.isModalSubmit()) {
         await myChannelHandler.handleInteraction(interaction);
+    } else if (interaction.isButton() && interaction.customId === 'play_audio') {
+        const voiceChannel = interaction.member.voice.channel;
+        if (!voiceChannel) {
+            return interaction.reply({ content: 'You need to join a voice channel to play music!', ephemeral: true });
+        }
+
+        // Join the voice channel and play the audio
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: voiceChannel.guild.id,
+            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+        });
+
+        const audioPath = '/home/ubuntu/spectre/audio/humpback_whale.mp3';
+        const resource = createAudioResource(audioPath);
+
+        audioPlayer.play(resource);
+        connection.subscribe(audioPlayer);
+
+        audioPlayer.once(AudioPlayerStatus.Idle, () => {
+            connection.destroy(); // Leave the voice channel when the audio ends
+        });
+
+        await interaction.reply({ content: 'Audio is being played.', ephemeral: true });
     }
 });
 
@@ -86,8 +110,15 @@ client.on(Events.MessageCreate, async (message) => {
             .setDescription('Try to guess the word! Type your guess below.')
             .setTimestamp();
 
-        await message.channel.send({ embeds: [guessEmbed] });
-        console.log('Guess command executed with embed');
+        const playButton = new ButtonBuilder()
+            .setCustomId('play_audio')
+            .setLabel('Play')
+            .setStyle(ButtonStyle.Primary);
+
+        const row = new ActionRowBuilder().addComponents(playButton);
+
+        await message.channel.send({ embeds: [guessEmbed], components: [row] });
+        console.log('Guess command executed with embed and play button');
         return;
     }
 });
