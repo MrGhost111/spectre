@@ -1,21 +1,23 @@
-const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
 const myChannelHandler = require('./commands/myc.js'); // Import the command handler
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 
+// Initialize the client with intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildVoiceStates, // Required for voice channel interactions
     ],
 });
 
-// Initialize snipedMessages and editedMessages
+// Initialize snipedMessages, editedMessages, commands, and textCommands
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
-
 client.commands = new Collection();
 client.textCommands = new Collection();
 
@@ -40,6 +42,9 @@ for (const file of textCommandFiles) {
         console.log(`Loaded text command: ${command.name}`); // Debug log
     }
 }
+
+// Voice player setup
+const audioPlayer = createAudioPlayer();
 
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -73,17 +78,56 @@ client.on(Events.MessageCreate, async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
-    // Find a command where the message starts with that command name
-    const command = client.textCommands.find(cmd => commandName.startsWith(cmd.name));
+    // Handle the guess command to show an embed
+    if (commandName === 'guess') {
+        const guessEmbed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('Guess the Word')
+            .setDescription('Try to guess the word! Type your guess below.')
+            .setTimestamp();
 
-    if (!command) return;
+        await message.channel.send({ embeds: [guessEmbed] });
+        console.log('Guess command executed with embed');
+        return;
+    }
+});
 
-    try {
-        await command.execute(message, args);
-        console.log(`${command.name} text command executed`);
-    } catch (error) {
-        console.error(`Error executing ${command.name}:`, error);
-        message.reply('There was an error trying to execute that command!');
+// Voice command handler: Example for future extension if needed
+client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+
+    const prefix = '!'; // Define your prefix
+    if (!message.content.startsWith(prefix)) return;
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    if (command === 'play') {
+        if (!args[0]) {
+            return message.reply('Please provide a URL or search term to play.');
+        }
+
+        const voiceChannel = message.member.voice.channel;
+        if (!voiceChannel) {
+            return message.reply('You need to be in a voice channel to play music!');
+        }
+
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: voiceChannel.guild.id,
+            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+        });
+
+        const resource = createAudioResource(args[0]); // You can replace this with a more complex logic to handle different types of input
+
+        audioPlayer.play(resource);
+        connection.subscribe(audioPlayer);
+
+        audioPlayer.once(AudioPlayerStatus.Idle, () => {
+            connection.destroy(); // Leave the voice channel when the audio ends
+        });
+
+        return message.reply(`Now playing: ${args[0]}`);
     }
 });
 
