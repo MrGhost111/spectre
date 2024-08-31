@@ -23,7 +23,9 @@
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "ffmpeg-static": "^5.2.0",
+    "fs": "^0.0.1-security",
     "libsodium-wrappers": "^0.7.15",
-    "node.js": "^0.0.1-security"
+    "node.js": "^0.0.1-security",
+    "opusscript": "^0.0.8"
   }
 }
