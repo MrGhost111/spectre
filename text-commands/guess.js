@@ -1,6 +1,5 @@
-// text-commands/guess.js
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { joinVoiceChannel } = require('@discordjs/voice'); // Import joinVoiceChannel
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { joinVoiceChannel } = require('@discordjs/voice');
 
 module.exports = {
     name: 'guess',
@@ -35,5 +34,30 @@ module.exports = {
 
         // Send the embed with the button
         await message.channel.send({ embeds: [guessEmbed], components: [row] });
+
+        // Listen for the audio completion and provide replay/answer options
+        message.client.audioPlayer.once('stateChange', async (oldState, newState) => {
+            if (newState.status === 'idle') {
+                const replayButton = new ButtonBuilder()
+                    .setCustomId('replay_audio')
+                    .setLabel('Replay')
+                    .setStyle(ButtonStyle.Secondary);
+
+                const answerButton = new ButtonBuilder()
+                    .setCustomId('submit_answer')
+                    .setLabel('Answer')
+                    .setStyle(ButtonStyle.Success);
+
+                const actionRow = new ActionRowBuilder().addComponents(replayButton, answerButton);
+
+                const afterEmbed = new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle('What would you like to do next?')
+                    .setDescription('You can either replay the sound or submit your answer.')
+                    .setTimestamp();
+
+                await message.channel.send({ embeds: [afterEmbed], components: [actionRow] });
+            }
+        });
     },
 };

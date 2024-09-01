@@ -37,8 +37,7 @@ module.exports = {
 
         const messagesToDisplay = snipedMessages.slice(-snipeCount);
 
-        const embed = new EmbedBuilder()
-            .setColor(0x0099ff);
+        const embed = new EmbedBuilder().setColor(0x0099ff);
 
         let description = '';
         messagesToDisplay.forEach(msg => {
@@ -56,13 +55,26 @@ module.exports = {
 
         const row = new ActionRowBuilder().addComponents(deleteButton);
 
-        const replyMessage = await message.reply({ embeds: [embed], components: [row] });
+        try {
+            const replyMessage = await message.reply({ embeds: [embed], components: [row] });
 
-        // Remove the button after 15 seconds
-        setTimeout(async () => {
-            await replyMessage.edit({ components: [] });
-        }, 15000);
+            // Remove the button after 15 seconds
+            setTimeout(async () => {
+                try {
+                    await replyMessage.edit({ components: [] });
+                } catch (error) {
+                    if (error.code === 10008) {
+                        // Message not found error, handle gracefully
+                        console.log('The snipe message was not found, likely already deleted or edited.');
+                    } else {
+                        console.error('Error editing snipe message:', error);
+                    }
+                }
+            }, 15000);
 
-        console.log(`Snipe command executed with ${snipeCount} messages.`);
+            console.log(`Snipe command executed with ${snipeCount} messages.`);
+        } catch (error) {
+            console.error('Error sending snipe message:', error);
+        }
     },
 };

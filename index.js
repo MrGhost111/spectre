@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Collection, ButtonBuilder, ActionRowBuilder, EmbedBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 const fs = require('fs');
 require('dotenv').config();
@@ -52,7 +52,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.reply('There was an error executing this command!');
         }
     } else if (interaction.isButton()) {
-            if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+        if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
             const originalMessage = await interaction.message.fetchReference().catch(() => null);
 
             if (originalMessage && originalMessage.author.id === interaction.user.id) {
@@ -61,8 +61,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             } else {
                 await interaction.reply({ content: 'You do not have permission to delete this message.', ephemeral: true });
             }
-        }
-        if (interaction.customId === 'play_audio') {
+        } else if (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio') {
             const voiceChannel = interaction.member.voice.channel;
             if (!voiceChannel) {
                 return interaction.reply({ content: 'You need to be in a voice channel to play audio!', ephemeral: true });
@@ -78,9 +77,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
             audioPlayer.play(resource);
             connection.subscribe(audioPlayer);
 
-            audioPlayer.once(AudioPlayerStatus.Idle, () => {
+            // Listen for audio completion
+            audioPlayer.once(AudioPlayerStatus.Idle, async () => {
                 console.log('Audio playback finished');
-                connection.destroy();
+
+                // Provide replay/answer options
+                const replayButton = new ButtonBuilder()
+                    .setCustomId('replay_audio')
+                    .setLabel('Replay')
+                    .setStyle(ButtonStyle.Secondary);
+
+                const answerButton = new ButtonBuilder()
+                    .setCustomId('submit_answer')
+                    .setLabel('Answer')
+                    .setStyle(ButtonStyle.Success);
+
+                const actionRow = new ActionRowBuilder().addComponents(replayButton, answerButton);
+
+                const afterEmbed = new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle('What would you like to do next?')
+                    .setDescription('You can either replay the sound or submit your answer.')
+                    .setTimestamp();
+
+                await interaction.followUp({ embeds: [afterEmbed], components: [actionRow] });
             });
 
             audioPlayer.on('error', (error) => {
@@ -88,6 +108,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
             });
 
             await interaction.reply({ content: 'Playing the sound. Listen and guess!', ephemeral: true });
+
+            // Disable the replay button after use
+            if (interaction.customId === 'replay_audio') {
+                const buttonRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('replay_audio')
+                        .setLabel('Replay')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true),
+                    new ButtonBuilder()
+                        .setCustomId('submit_answer')
+                        .setLabel('Answer')
+                        .setStyle(ButtonStyle.Success)
+                );
+
+                await interaction.message.edit({ components: [buttonRow] });
+            }
+        } else if (interaction.customId === 'submit_answer') {
+            const answerModal = new ModalBuilder()
+                .setCustomId('submit_answer_modal')
+                .setTitle('Submit Your Guess');
+
+            const answerInput = new TextInputBuilder()
+                .setCustomId('answer_input')
+                .setLabel('What sound did you hear?')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const actionRow = new ActionRowBuilder().addComponents(answerInput);
+            answerModal.addComponents(actionRow);
+
+            await interaction.showModal(answerModal);
         } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
             const mycCommand = client.commands.get('mychannel');
             if (mycCommand && mycCommand.handleInteraction) {
@@ -95,9 +147,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
     } else if (interaction.isModalSubmit()) {
-        const mycCommand = client.commands.get('mychannel');
-        if (mycCommand && mycCommand.handleInteraction) {
-            await mycCommand.handleInteraction(interaction);
+        if (interaction.customId === 'submit_answer_modal') {
+            const userAnswer = interaction.fields.getTextInputValue('answer_input').toLowerCase();
+            const correctAnswers = ['whale', 'humpback', 'humpback whale'];
+
+            if (correctAnswers.includes(userAnswer)) {
+                await interaction.reply({ content: 'Congratulations! You guessed it right!', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'Sorry, that was not the correct answer. Try again!', ephemeral: true });
+            }
+        } else {
+            const mycCommand = client.commands.get('mychannel');
+            if (mycCommand && mycCommand.handleInteraction) {
+                await mycCommand.handleInteraction(interaction);
+            }
         }
     }
 });
