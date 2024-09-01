@@ -1,5 +1,4 @@
-const { Client, GatewayIntentBits, Events, Collection, ButtonBuilder, ActionRowBuilder, EmbedBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
+const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
 
@@ -33,9 +32,6 @@ for (const file of commandFiles) {
     }
 }
 
-const audioPlayer = createAudioPlayer();
-const audioPath = '/home/ubuntu/spectre/audio/humpback_whale.mp3';
-
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
@@ -49,121 +45,38 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await command.execute(interaction);
         } catch (error) {
             console.error(`Error executing command: ${error}`);
-            await interaction.reply('There was an error executing this command!');
+            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
         }
-    } else if (interaction.isButton()) {
-        if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
-            const originalMessage = await interaction.message.fetchReference().catch(() => null);
-
-            if (originalMessage && originalMessage.author.id === interaction.user.id) {
-                await interaction.message.delete();
-                await interaction.reply({ content: 'Message deleted successfully.', ephemeral: true });
-            } else {
-                await interaction.reply({ content: 'You do not have permission to delete this message.', ephemeral: true });
-            }
-        } else if (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio') {
-            const voiceChannel = interaction.member.voice.channel;
-            if (!voiceChannel) {
-                return interaction.reply({ content: 'You need to be in a voice channel to play audio!', ephemeral: true });
-            }
-
-            const connection = joinVoiceChannel({
-                channelId: voiceChannel.id,
-                guildId: voiceChannel.guild.id,
-                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-            });
-
-            const resource = createAudioResource(audioPath);
-            audioPlayer.play(resource);
-            connection.subscribe(audioPlayer);
-
-            // Listen for audio completion
-            audioPlayer.once(AudioPlayerStatus.Idle, async () => {
-                console.log('Audio playback finished');
-
-                // Provide replay/answer options
-                const replayButton = new ButtonBuilder()
-                    .setCustomId('replay_audio')
-                    .setLabel('Replay')
-                    .setStyle(ButtonStyle.Secondary);
-
-                const answerButton = new ButtonBuilder()
-                    .setCustomId('submit_answer')
-                    .setLabel('Answer')
-                    .setStyle(ButtonStyle.Success);
-
-                const actionRow = new ActionRowBuilder().addComponents(replayButton, answerButton);
-
-                const afterEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle('What would you like to do next?')
-                    .setDescription('You can either replay the sound or submit your answer.')
-                    .setTimestamp();
-
-                await interaction.followUp({ embeds: [afterEmbed], components: [actionRow] });
-            });
-
-            audioPlayer.on('error', (error) => {
-                console.error('Error playing audio:', error);
-            });
-
-            await interaction.reply({ content: 'Playing the sound. Listen and guess!', ephemeral: true });
-
-            // Disable the replay button after use
-            if (interaction.customId === 'replay_audio') {
-                const buttonRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('replay_audio')
-                        .setLabel('Replay')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true),
-                    new ButtonBuilder()
-                        .setCustomId('submit_answer')
-                        .setLabel('Answer')
-                        .setStyle(ButtonStyle.Success)
-                );
-
-                await interaction.message.edit({ components: [buttonRow] });
-            }
-        } else if (interaction.customId === 'submit_answer') {
-            const answerModal = new ModalBuilder()
-                .setCustomId('submit_answer_modal')
-                .setTitle('Submit Your Guess');
-
-            const answerInput = new TextInputBuilder()
-                .setCustomId('answer_input')
-                .setLabel('What sound did you hear?')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
-            const actionRow = new ActionRowBuilder().addComponents(answerInput);
-            answerModal.addComponents(actionRow);
-
-            await interaction.showModal(answerModal);
-        } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
-            const mycCommand = client.commands.get('mychannel');
+    } else if (interaction.isButton() || interaction.isModalSubmit()) {
+        // Handle interactions for the `mychannel` command
+        if (interaction.customId.startsWith('rename_channel') || interaction.customId.startsWith('view_friends') || interaction.customId.startsWith('create_channel') || interaction.customId.startsWith('create_channel_modal') || interaction.customId.startsWith('rename_channel_modal')) {
+            const mycCommand = client.commands.get('mychannel'); // Get the `mychannel` command
             if (mycCommand && mycCommand.handleInteraction) {
-                await mycCommand.handleInteraction(interaction);
+                try {
+                    await mycCommand.handleInteraction(interaction);
+                    return; // Stop further processing if handled
+                } catch (error) {
+                    console.error(`Error handling mychannel interaction: ${error}`);
+                    await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
+                }
             }
         }
-    } else if (interaction.isModalSubmit()) {
-        if (interaction.customId === 'submit_answer_modal') {
-            const userAnswer = interaction.fields.getTextInputValue('answer_input').toLowerCase();
-            const correctAnswers = ['whale', 'humpback', 'humpback whale'];
 
-            if (correctAnswers.includes(userAnswer)) {
-                await interaction.reply({ content: 'Congratulations! You guessed it right!', ephemeral: true });
-            } else {
-                await interaction.reply({ content: 'Sorry, that was not the correct answer. Try again!', ephemeral: true });
-            }
-        } else {
-            const mycCommand = client.commands.get('mychannel');
-            if (mycCommand && mycCommand.handleInteraction) {
-                await mycCommand.handleInteraction(interaction);
+        // Handle interactions for the `guess` command
+        if (interaction.customId.startsWith('play_button') || interaction.customId.startsWith('guess')) {
+            const guessCommand = client.textCommands.get('guess'); // Adjusting to use textCommands
+            if (guessCommand && guessCommand.handleInteraction) {
+                try {
+                    await guessCommand.handleInteraction(interaction);
+                } catch (error) {
+                    console.error(`Error handling guess interaction: ${error}`);
+                    await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
+                }
             }
         }
     }
 });
+
 
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
@@ -174,7 +87,6 @@ client.on(Events.MessageCreate, async (message) => {
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const fullCommand = args.shift().toLowerCase();
 
-    // Check for command using startsWith instead of exact match
     const textCommand = client.textCommands.find(cmd => fullCommand.startsWith(cmd.name));
     if (textCommand) {
         try {
@@ -186,7 +98,6 @@ client.on(Events.MessageCreate, async (message) => {
     }
 });
 
-// Event handler for message deletion (for snipe command)
 client.on(Events.MessageDelete, message => {
     if (message.author.bot) return;
 
@@ -199,7 +110,6 @@ client.on(Events.MessageDelete, message => {
     client.snipedMessages.set(message.channel.id, snipes.slice(-5));
 });
 
-// Event handler for message editing (for esnipe command)
 client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
     if (oldMessage.author.bot) return;
     if (oldMessage.content === newMessage.content) return;
