@@ -1,50 +1,40 @@
-const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 const fs = require('fs');
 require('dotenv').config();
-const myChannelHandler = require('./commands/myc.js'); // Import the command handler
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 
-// Initialize the client with intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildVoiceStates, // Required for voice channel interactions
+        GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
-// Initialize snipedMessages, editedMessages, commands, and textCommands
-client.snipedMessages = new Collection();
-client.editedMessages = new Collection();
 client.commands = new Collection();
 client.textCommands = new Collection();
+client.snipedMessages = new Collection();
+client.editedMessages = new Collection();
 
-// Load slash command files
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-    const command = require(`./commands/${file}`);
-    if (command.data && command.data.name) {
-        client.commands.set(command.data.name, command);
-        console.log(`Loaded command: ${command.data.name}`); // Debug log
-    }
-}
-
-// Load text command files
 const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
-
 for (const file of textCommandFiles) {
     const command = require(`./text-commands/${file}`);
     if (command.name) {
         client.textCommands.set(command.name, command);
-        console.log(`Loaded text command: ${command.name}`); // Debug log
     }
 }
 
-// Voice player setup
+const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    if (command.data && command.data.name) {
+        client.commands.set(command.data.name, command);
+    }
+}
+
 const audioPlayer = createAudioPlayer();
+const audioPath = '/home/ubuntu/spectre/audio/humpback_whale.mp3';
 
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -53,154 +43,100 @@ client.once(Events.ClientReady, () => {
 client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isCommand()) {
         const command = client.commands.get(interaction.commandName);
-
-        if (!command) {
-            console.log(`Command ${interaction.commandName} not found`); // Debug log
-            return;
-        }
+        if (!command) return;
 
         try {
             await command.execute(interaction);
-            console.log(`${interaction.commandName} command executed`);
         } catch (error) {
-            console.error(`Error executing ${interaction.commandName}:`, error);
-            await interaction.reply('There was an error trying to execute that command!');
+            console.error(`Error executing command: ${error}`);
+            await interaction.reply('There was an error executing this command!');
         }
-    } else if (interaction.isButton() || interaction.isModalSubmit()) {
-        await myChannelHandler.handleInteraction(interaction);
-    } else if (interaction.isButton() && interaction.customId === 'play_audio') {
-        const voiceChannel = interaction.member.voice.channel;
-        if (!voiceChannel) {
-            return interaction.reply({ content: 'You need to join a voice channel to play music!', ephemeral: true });
+    } else if (interaction.isButton()) {
+        if (interaction.customId === 'play_audio') {
+            const voiceChannel = interaction.member.voice.channel;
+            if (!voiceChannel) {
+                return interaction.reply({ content: 'You need to be in a voice channel to play audio!', ephemeral: true });
+            }
+
+            const connection = joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: voiceChannel.guild.id,
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+            });
+
+            const resource = createAudioResource(audioPath);
+            audioPlayer.play(resource);
+            connection.subscribe(audioPlayer);
+
+            audioPlayer.once(AudioPlayerStatus.Idle, () => {
+                console.log('Audio playback finished');
+                connection.destroy();
+            });
+
+            audioPlayer.on('error', (error) => {
+                console.error('Error playing audio:', error);
+            });
+
+            await interaction.reply({ content: 'Playing the sound. Listen and guess!', ephemeral: true });
+        } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
+            const mycCommand = client.commands.get('mychannel');
+            if (mycCommand && mycCommand.handleInteraction) {
+                await mycCommand.handleInteraction(interaction);
+            }
         }
-
-        // Join the voice channel and play the audio
-        const connection = joinVoiceChannel({
-            channelId: voiceChannel.id,
-            guildId: voiceChannel.guild.id,
-            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-        });
-
-        const audioPath = '/home/ubuntu/spectre/audio/humpback_whale.mp3';
-        const resource = createAudioResource(audioPath);
-
-        audioPlayer.play(resource);
-        connection.subscribe(audioPlayer);
-
-        audioPlayer.once(AudioPlayerStatus.Idle, () => {
-            connection.destroy(); // Leave the voice channel when the audio ends
-        });
-
-        await interaction.reply({ content: 'Audio is being played.', ephemeral: true });
+    } else if (interaction.isModalSubmit()) {
+        const mycCommand = client.commands.get('mychannel');
+        if (mycCommand && mycCommand.handleInteraction) {
+            await mycCommand.handleInteraction(interaction);
+        }
     }
 });
 
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
-    // Extract the command name from the message content
-    const args = message.content.slice(1).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
-
-    // Handle the guess command to show an embed
-    if (commandName === 'guess') {
-        const guessEmbed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle('Guess the Word')
-            .setDescription('Try to guess the word! Type your guess below.')
-            .setTimestamp();
-
-        const playButton = new ButtonBuilder()
-            .setCustomId('play_audio')
-            .setLabel('Play')
-            .setStyle(ButtonStyle.Primary);
-
-        const row = new ActionRowBuilder().addComponents(playButton);
-
-        await message.channel.send({ embeds: [guessEmbed], components: [row] });
-        console.log('Guess command executed with embed and play button');
-        return;
-    }
-});
-
-// Voice command handler: Example for future extension if needed
-client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-
-    const prefix = '!'; // Define your prefix
+    const prefix = ',';
     if (!message.content.startsWith(prefix)) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+    const commandName = args.shift().toLowerCase();
 
-    if (command === 'play') {
-        if (!args[0]) {
-            return message.reply('Please provide a URL or search term to play.');
+    const textCommand = client.textCommands.get(commandName);
+    if (textCommand) {
+        try {
+            await textCommand.execute(message, args);
+        } catch (error) {
+            console.error(`Error executing text command: ${error}`);
+            await message.reply('There was an error trying to execute that command!');
         }
-
-        const voiceChannel = message.member.voice.channel;
-        if (!voiceChannel) {
-            return message.reply('You need to be in a voice channel to play music!');
-        }
-
-        const connection = joinVoiceChannel({
-            channelId: voiceChannel.id,
-            guildId: voiceChannel.guild.id,
-            adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-        });
-
-        const resource = createAudioResource(args[0]); // You can replace this with a more complex logic to handle different types of input
-
-        audioPlayer.play(resource);
-        connection.subscribe(audioPlayer);
-
-        audioPlayer.once(AudioPlayerStatus.Idle, () => {
-            connection.destroy(); // Leave the voice channel when the audio ends
-        });
-
-        return message.reply(`Now playing: ${args[0]}`);
     }
 });
 
-client.on(Events.MessageDelete, (message) => {
+// Event handler for message deletion (for snipe command)
+client.on(Events.MessageDelete, message => {
     if (message.author.bot) return;
 
-    if (!client.snipedMessages.has(message.channel.id)) {
-        client.snipedMessages.set(message.channel.id, []);
-    }
-
-    const snipedMessages = client.snipedMessages.get(message.channel.id);
-    snipedMessages.push({
+    const snipes = client.snipedMessages.get(message.channel.id) || [];
+    snipes.push({
         content: message.content,
-        author: message.author.username,
-        timestamp: Math.floor(message.createdTimestamp / 1000), // Convert to Unix timestamp in seconds
+        author: message.author.tag,
+        timestamp: Math.floor(Date.now() / 1000)
     });
-
-    // Keep only the last 100 sniped messages
-    if (snipedMessages.length > 100) {
-        snipedMessages.shift();
-    }
+    client.snipedMessages.set(message.channel.id, snipes.slice(-5));
 });
 
+// Event handler for message editing (for esnipe command)
 client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
-    if (oldMessage.author.bot || oldMessage.content === newMessage.content) return;
+    if (oldMessage.author.bot) return;
+    if (oldMessage.content === newMessage.content) return;
 
-    if (!client.editedMessages.has(oldMessage.channel.id)) {
-        client.editedMessages.set(oldMessage.channel.id, []);
-    }
-
-    const editedMessages = client.editedMessages.get(oldMessage.channel.id);
-    editedMessages.push({
+    const edits = client.editedMessages.get(oldMessage.channel.id) || [];
+    edits.push({
         oldContent: oldMessage.content,
-        newContent: newMessage.content,
-        author: oldMessage.author.username,
-        timestamp: Math.floor(oldMessage.editedTimestamp / 1000), // Convert to Unix timestamp in seconds
+        author: oldMessage.author.tag,
+        timestamp: Math.floor(Date.now() / 1000)
     });
-
-    // Keep only the last 100 edited messages
-    if (editedMessages.length > 100) {
-        editedMessages.shift();
-    }
+    client.editedMessages.set(oldMessage.channel.id, edits.slice(-5));
 });
 
 client.login(process.env.DISCORD_TOKEN);

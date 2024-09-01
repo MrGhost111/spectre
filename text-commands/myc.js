@@ -126,4 +126,3 @@ function calculateMaxFriends(member) {
 
     return maxFriends;
 }
-
