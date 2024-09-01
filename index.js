@@ -52,6 +52,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.reply('There was an error executing this command!');
         }
     } else if (interaction.isButton()) {
+            if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+            const originalMessage = await interaction.message.fetchReference().catch(() => null);
+
+            if (originalMessage && originalMessage.author.id === interaction.user.id) {
+                await interaction.message.delete();
+                await interaction.reply({ content: 'Message deleted successfully.', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'You do not have permission to delete this message.', ephemeral: true });
+            }
+        }
         if (interaction.customId === 'play_audio') {
             const voiceChannel = interaction.member.voice.channel;
             if (!voiceChannel) {
@@ -99,9 +109,10 @@ client.on(Events.MessageCreate, async (message) => {
     if (!message.content.startsWith(prefix)) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+    const fullCommand = args.shift().toLowerCase();
 
-    const textCommand = client.textCommands.get(commandName);
+    // Check for command using startsWith instead of exact match
+    const textCommand = client.textCommands.find(cmd => fullCommand.startsWith(cmd.name));
     if (textCommand) {
         try {
             await textCommand.execute(message, args);

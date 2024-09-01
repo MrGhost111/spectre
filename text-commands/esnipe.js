@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     name: 'esnipe',
@@ -49,7 +49,20 @@ module.exports = {
         embed.setDescription(description.trim());
         embed.setFooter({ text: `Command used by ${message.author.username}` });
 
-        await message.reply({ embeds: [embed] });
+        const deleteButton = new ButtonBuilder()
+            .setCustomId('delete_esnipe')
+            .setEmoji('<:delete:1279632440343789659>')
+            .setStyle(ButtonStyle.Secondary);
+
+        const row = new ActionRowBuilder().addComponents(deleteButton);
+
+        const replyMessage = await message.reply({ embeds: [embed], components: [row] });
+
+        // Remove the button after 15 seconds
+        setTimeout(async () => {
+            await replyMessage.edit({ components: [] });
+        }, 15000);
+
         console.log(`Esnipe command executed with ${snipeCount} messages.`);
     },
 };
