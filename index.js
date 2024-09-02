@@ -16,6 +16,7 @@ client.textCommands = new Collection();
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 
+// Load text commands
 const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
 for (const file of textCommandFiles) {
     const command = require(`./text-commands/${file}`);
@@ -24,6 +25,7 @@ for (const file of textCommandFiles) {
     }
 }
 
+// Load slash commands
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
     const command = require(`./commands/${file}`);
@@ -63,15 +65,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         // Handle interactions for the `guess` command
-        if (interaction.customId.startsWith('play_button') || interaction.customId.startsWith('guess')) {
-            const guessCommand = client.textCommands.get('guess'); // Adjusting to use textCommands
-            if (guessCommand && guessCommand.handleInteraction) {
-                try {
-                    await guessCommand.handleInteraction(interaction);
-                } catch (error) {
-                    console.error(`Error handling guess interaction: ${error}`);
-                    await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
+        const guessCommand = client.textCommands.get('guess'); // Get the `guess` command
+        if (guessCommand && (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio' || interaction.customId === 'submit_answer' || interaction.customId === 'submit_answer_modal')) {
+            try {
+                if (interaction.isModalSubmit()) {
+                    await guessCommand.handleModalSubmit(interaction); // Handle modal submission
+                } else {
+                    await guessCommand.handleInteraction(interaction); // Handle button interaction
                 }
+                return; // Stop further processing if handled
+            } catch (error) {
+                console.error(`Error handling guess interaction: ${error}`);
+                await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
             }
         }
     }
