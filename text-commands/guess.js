@@ -17,20 +17,40 @@ module.exports = {
             return message.reply({ content: 'You need to be in a voice channel to play audio!' });
         }
 
+        // Join the voice channel
+        const connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: message.guild.id,
+            adapterCreator: message.guild.voiceAdapterCreator,
+        });
+
+        // Set initial embed with buttons
         const playButton = new ButtonBuilder()
             .setCustomId('play_audio')
-            .setLabel('Play Sound')
+            .setLabel('Play New')
             .setStyle(ButtonStyle.Primary);
 
-        const playButtonActionRow = new ActionRowBuilder().addComponents(playButton);
+        const replayButton = new ButtonBuilder()
+            .setCustomId('replay_audio')
+            .setLabel('Replay')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true); // Initially disabled
+
+        const answerButton = new ButtonBuilder()
+            .setCustomId('submit_answer')
+            .setLabel('Answer')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(true); // Initially disabled
+
+        const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
 
         const initialEmbed = new EmbedBuilder()
             .setColor('#0099ff')
             .setTitle('Guess the Sound')
-            .setDescription('Click the button below to play a random sound.')
+            .setDescription('Click "Play New" to start.')
             .setTimestamp();
 
-        await message.reply({ embeds: [initialEmbed], components: [playButtonActionRow] });
+        await message.reply({ embeds: [initialEmbed], components: [actionRow] });
     },
 
     async handleInteraction(interaction) {
@@ -41,7 +61,33 @@ module.exports = {
                     return interaction.reply({ content: 'You need to be in a voice channel to play audio!', ephemeral: true });
                 }
 
-                // Connect to the voice channel
+                // Disable all buttons
+                const playButton = new ButtonBuilder()
+                    .setCustomId('play_audio')
+                    .setLabel('Play New')
+                    .setStyle(ButtonStyle.Primary)
+                    .setDisabled(true);
+
+                const replayButton = new ButtonBuilder()
+                    .setCustomId('replay_audio')
+                    .setLabel('Replay')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true);
+
+                const answerButton = new ButtonBuilder()
+                    .setCustomId('submit_answer')
+                    .setLabel('Answer')
+                    .setStyle(ButtonStyle.Success)
+                    .setDisabled(true);
+
+                const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
+
+                // Update embed with all buttons disabled
+                await interaction.message.edit({
+                    components: [actionRow]
+                });
+
+                // Connect to the voice channel and play random audio
                 const connection = joinVoiceChannel({
                     channelId: voiceChannel.id,
                     guildId: interaction.guild.id,
@@ -53,7 +99,7 @@ module.exports = {
                     return interaction.reply({ content: 'No audio files available to play.', ephemeral: true });
                 }
 
-                // Select a random audio file that hasn't been played yet
+                // Select a random audio file
                 this.currentAudioFile = audioFiles[Math.floor(Math.random() * audioFiles.length)];
                 const audioPlayer = createAudioPlayer();
                 const resource = createAudioResource(path.join(audioDirectory, this.currentAudioFile));
@@ -78,7 +124,13 @@ module.exports = {
                         .setLabel('Answer')
                         .setStyle(ButtonStyle.Success);
 
-                    const actionRow = new ActionRowBuilder().addComponents(replayButton, answerButton);
+                    const playButton = new ButtonBuilder()
+                        .setCustomId('play_audio')
+                        .setLabel('Play New')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(true); // Keep "Play New" disabled
+
+                    const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
 
                     const afterEmbed = new EmbedBuilder()
                         .setColor('#0099ff')
@@ -93,7 +145,6 @@ module.exports = {
                     console.error('Error playing audio:', error);
                 });
             } else if (interaction.customId === 'replay_audio') {
-                // Replay the current audio clip
                 if (!this.currentAudioFile) return; // Prevent replay if no audio has been played
 
                 const audioPlayer = createAudioPlayer();
@@ -125,7 +176,13 @@ module.exports = {
                         .setLabel('Answer')
                         .setStyle(ButtonStyle.Success);
 
-                    const actionRow = new ActionRowBuilder().addComponents(replayButton, answerButton);
+                    const playButton = new ButtonBuilder()
+                        .setCustomId('play_audio')
+                        .setLabel('Play New')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(true); // Keep "Play New" disabled
+
+                    const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
 
                     const afterEmbed = new EmbedBuilder()
                         .setColor('#0099ff')
@@ -164,24 +221,35 @@ module.exports = {
             const correctAnswers = sounds[this.currentAudioFile];
 
             if (correctAnswers.includes(userAnswer)) {
-                // If correct, provide a Next button
-                const nextButton = new ButtonBuilder()
-                    .setCustomId('next_audio')
-                    .setLabel('Next')
+                // If correct, edit existing message to update button states
+                const playButton = new ButtonBuilder()
+                    .setCustomId('play_audio')
+                    .setLabel('Play New')
                     .setStyle(ButtonStyle.Primary);
 
-                const actionRow = new ActionRowBuilder().addComponents(nextButton);
+                const replayButton = new ButtonBuilder()
+                    .setCustomId('replay_audio')
+                    .setLabel('Replay')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true); // Disable replay button after use
 
-                await interaction.reply({ content: 'Congratulations! You guessed it right!', components: [actionRow], ephemeral: true });
+                const answerButton = new ButtonBuilder()
+                    .setCustomId('submit_answer')
+                    .setLabel('Answer')
+                    .setStyle(ButtonStyle.Success)
+                    .setDisabled(true); // Disable answer button after use
+
+                const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
+
+                await interaction.reply({ content: 'Congratulations! You guessed it right!', ephemeral: true });
+
+                // Update the original message to reset button states
+                await interaction.message.edit({
+                    components: [actionRow]
+                });
             } else {
                 await interaction.reply({ content: 'Sorry, that was not the correct answer. Try again!', ephemeral: true });
             }
-        } else if (interaction.customId === 'next_audio') {
-            // Handle moving to the next audio clip
-            this.currentAudioFile = null; // Reset current audio file to allow for a new random selection
-
-            // Trigger the audio play again as if the command was called
-            await this.execute(interaction); // Pass interaction as if it's a message
         }
     }
 };

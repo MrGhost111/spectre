@@ -1,4 +1,7 @@
 {
-    "humpback_whale.mp3": ["whale", "humpback", "humpback whale"]
+    "humpback_whale.mp3": ["whale", "humpback", "humpback whale"],
+    "elephant.mp3": ["memoth", "elephant"],
+    "cat.mp3": ["cat", "pussy", "kitty"],
+    "dolphin.mp3": ["dolphin", "dolphine"]
 }
 

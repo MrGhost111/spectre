@@ -66,7 +66,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         // Handle interactions for the `guess` command
         const guessCommand = client.textCommands.get('guess'); // Get the `guess` command
-        if (guessCommand && (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio' || interaction.customId === 'submit_answer' || interaction.customId === 'submit_answer_modal')) {
+        if (guessCommand && (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio' || interaction.customId === 'submit_answer' || interaction.customId === 'submit_answer_modal' || interaction.customId === 'next_audio')) {
             try {
                 if (interaction.isModalSubmit()) {
                     await guessCommand.handleModalSubmit(interaction); // Handle modal submission
@@ -81,7 +81,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 });
-
 
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
@@ -126,6 +125,25 @@ client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
         timestamp: Math.floor(Date.now() / 1000)
     });
     client.editedMessages.set(oldMessage.channel.id, edits.slice(-5));
+});
+
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+    // Check if the user left the voice channel
+    if (oldState.channelId && !newState.channelId) {
+        // Check if the user was the one who initiated the guess game
+        const guessCommand = client.textCommands.get('guess');
+        if (guessCommand && guessCommand.voiceConnections) {
+            const userId = oldState.id;
+            // Find and disconnect the voice connection if the user was the one who started the game
+            for (const [guildId, connection] of guessCommand.voiceConnections.entries()) {
+                if (connection.channel.members.has(userId)) {
+                    connection.disconnect();
+                    guessCommand.voiceConnections.delete(guildId);
+                    console.log(`Bot left the voice channel because the user left: ${userId}`);
+                }
+            }
+        }
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);
