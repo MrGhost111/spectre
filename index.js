@@ -119,9 +119,11 @@ client.on(Events.MessageCreate, async (message) => {
 
                     // Check and update item price
                     const previousValue = client.itemPrices.get(itemName);
-                    if (previousValue) {
-                        client.itemPrices.set(itemName, averageValue);
-                        message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
+                    if (previousValue !== undefined) {
+                        if (previousValue !== averageValue) {
+                            client.itemPrices.set(itemName, averageValue);
+                            message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
+                        }
                     } else {
                         client.itemPrices.set(itemName, averageValue);
                         message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
@@ -166,49 +168,44 @@ client.on(Events.MessageDelete, message => {
 });
 
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-    if (oldMessage.author.bot) return;
-    if (oldMessage.content === newMessage.content) return;
+    // Check if the edited message is from Dank Memer and contains an embed
+    if (newMessage.author.bot && newMessage.author.id === '270904126974590976' && newMessage.embeds.length > 0) {
+        const embed = newMessage.embeds[0];
+        const description = embed.description || '';
 
-    // Ensure the update message is from Dank Memer
-    if (newMessage.author.id === '270904126974590976') {
-        const description = newMessage.content;
+        // Detect "Successfully donated" in the embed description without the coin symbol (⏣)
+        if (description.includes('Successfully donated') && !description.includes('⏣')) {
+            console.log('Detected a donation without coins:', description);
 
-        if (description.includes('Successfully donated')) {
-            let totalValue;
+            // Extract item details
+            const amountMatch = description.match(/\*\*(\d+)\s<[^>]+>/);
+            const itemNameMatch = description.match(/<[^>]+>\s([^*]+)\*\*/);
 
-            if (description.includes('⏣')) {
-                // Coins donation
-                const amountMatch = description.match(/Successfully donated ⏣ ([\d,]+)/);
-                if (amountMatch) {
-                    const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
-                    totalValue = amount;
-                    newMessage.channel.send(`Total value: ⏣ ${totalValue}`);
-                }
-            } else if (description.includes(':') && description.includes(' ')) {
-                // Items donation
-                const [numberOfItems, itemName] = description.split(':');
-                const itemMatch = itemName.match(/([^\s]+)\s*(.*)/);
-                const itemPrice = client.itemPrices.get(itemMatch[2]);
+            if (amountMatch && itemNameMatch) {
+                const amount = parseInt(amountMatch[1], 10);
+                const itemName = itemNameMatch[1].trim();
+                const itemPrice = client.itemPrices.get(itemName);
 
                 if (itemPrice) {
-                    const numberOfItemsValue = parseInt(numberOfItems.replace(/,/g, ''), 10);
-                    totalValue = numberOfItemsValue * itemPrice;
-                    newMessage.channel.send(`Total value: ⏣ ${totalValue}`);
+                    const totalValue = amount * itemPrice;
+                    newMessage.channel.send(`Total amount donated: ${totalValue} (${amount}x ${itemName})`);
                 } else {
-                    newMessage.channel.send('Item price not found. Please use /item to add/update the item price.');
+                    newMessage.channel.send(`Item **${itemName}** not found. Please run the Dank Memer command **/item ${itemName}** to add it to the database.`);
                 }
             }
         }
     }
 
-    // Log message updates
-    const edits = client.editedMessages.get(oldMessage.channel.id) || [];
-    edits.push({
-        oldContent: oldMessage.content,
-        author: oldMessage.author.tag,
-        timestamp: Math.floor(Date.now() / 1000)
-    });
-    client.editedMessages.set(oldMessage.channel.id, edits.slice(-5));
+    // Check if a regular message was edited
+    if (!newMessage.author.bot && oldMessage.content !== newMessage.content) {
+        const edits = client.editedMessages.get(oldMessage.channel.id) || [];
+        edits.push({
+            oldContent: oldMessage.content,
+            author: oldMessage.author.tag,
+            timestamp: Math.floor(Date.now() / 1000)
+        });
+        client.editedMessages.set(oldMessage.channel.id, edits.slice(-5));
+    }
 });
 
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
@@ -228,4 +225,4 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     }
 });
 
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.DISCORD_TOKEN);
