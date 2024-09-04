@@ -1,7 +1,19 @@
 {
-    "humpback_whale.mp3": ["whale", "humpback", "humpback whale"],
-    "elephant.mp3": ["memoth", "elephant"],
-    "cat.mp3": ["cat", "pussy", "kitty"],
-    "dolphin.mp3": ["dolphin", "dolphine"]
+    "humpback_whale.mp3": {
+        "answers": ["whale", "humpback", "humpback whale"],
+        "hint": "It's a large marine mammal."
+    },
+    "elephant.mp3": {
+        "answers": ["mammoth", "elephant"],
+        "hint": "No hint."
+    },
+    "cat.mp3": {
+        "answers": ["cat", "pussy", "kitty"],
+        "hint": "No hint."
+    },
+    "dolphin.mp3": {
+        "answers": ["dolphin", "dolphine"],
+        "hint": "An intelligent marine creature that can do drugs."
+    }
 }
 
