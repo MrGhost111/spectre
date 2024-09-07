@@ -5,7 +5,7 @@
     },
     "elephant.mp3": {
         "answers": ["mammoth", "elephant"],
-        "hint": "No hint."
+        "hint": "A massive land animal with tusks."
     },
     "cat.mp3": {
         "answers": ["cat", "pussy", "kitty"],
@@ -13,7 +13,55 @@
     },
     "dolphin.mp3": {
         "answers": ["dolphin", "dolphine"],
-        "hint": "An intelligent marine creature that can do drugs."
+        "hint": "An intelligent marine creature."
+    },
+    "bubbles.mp3": {
+        "answers": ["bubble", "water"],
+        "hint": "No hint."
+    },
+    "clock_tick_tock.mp3": {
+        "answers": ["clock", "tick", "tock"],
+        "hint": "time."
+    },
+    "glass_breaking.mp3": {
+        "answers": ["glass", "shatter", "break"],
+        "hint": "No hint."
+    },
+    "laser_sound.mp3": {
+        "answers": ["laser", "pew"],
+        "hint": "Futuristic weapon sound."
+    },
+    "sparrow.mp3": {
+        "answers": ["sparrow", "bird"],
+        "hint": "A small bird that chirps."
+    },
+    "waves.mp3": {
+        "answers": ["wave", "ocean"],
+        "hint": "No hint."
+    },
+    "footsteps_sound.mp3": {
+        "answers": ["footstep", "walk"],
+        "hint": "No hint."
+    },
+    "helicopter.mp3": {
+        "answers": ["helicopter", "chopper"],
+        "hint": "No hint."
+    },
+    "knock_knock_door.mp3": {
+        "answers": ["knock", "door", "knock knock"],
+        "hint": "No hint."
+    },
+    "raining.mp3": {
+        "answers": ["rain", "storm", "raining"],
+        "hint": "No hint."
+    },
+    "thunder.mp3": {
+        "answers": ["thunder", "storm", "lightning"],
+        "hint": "Monsoon."
+    },
+    "wind.mp3": {
+        "answers": ["wind", "breeze"],
+        "hint": "No hint."
     }
 }
 
