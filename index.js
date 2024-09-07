@@ -17,6 +17,7 @@ client.textCommands = new Collection();
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 client.itemPrices = new Map(); // Store item prices here
+client.donations = new Map(); // Track total donations here
 
 // Load existing items from items.json
 const loadItems = () => {
@@ -28,6 +29,13 @@ const loadItems = () => {
             client.itemPrices.set(itemName, itemPrice);
         }
     }
+};
+
+// Function to save items to items.json
+const saveItems = () => {
+    const filePath = path.join(__dirname, 'data', 'items.json');
+    const items = Object.fromEntries(client.itemPrices);
+    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf8');
 };
 
 // Load text commands
@@ -54,11 +62,35 @@ client.once(Events.ClientReady, () => {
     loadItems();
 });
 
-// Function to save items to items.json
-const saveItems = () => {
-    const filePath = path.join(__dirname, 'data', 'items.json');
-    const items = Object.fromEntries(client.itemPrices);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf8');
+// Function to set donation note
+const setDonationNote = async (userId, note) => {
+    const filePath = path.join(__dirname, 'data', 'users.json');
+    let usersData = {};
+    if (fs.existsSync(filePath)) {
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        usersData = JSON.parse(rawData);
+    }
+
+    if (!usersData[userId]) {
+        usersData[userId] = { total: 0 };
+    }
+
+    // Add donation to total
+    const donationAmount = note.includes('⏣') ? parseInt(note.replace('⏣ ', '').replace(/,/g, ''), 10) : 0;
+    const itemMatch = note.match(/(\d+)x (.+)/);
+    if (itemMatch) {
+        const itemAmount = parseInt(itemMatch[1], 10);
+        const itemName = itemMatch[2];
+        const itemPrice = client.itemPrices.get(itemName);
+        if (itemPrice) {
+            usersData[userId].total += itemAmount * itemPrice;
+        }
+    } else {
+        usersData[userId].total += donationAmount;
+    }
+
+    fs.writeFileSync(filePath, JSON.stringify(usersData, null, 2), 'utf8');
+    client.donations.set(userId, usersData[userId].total); // Update in memory
 };
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -103,21 +135,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
+
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) {
         if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
             const embed = message.embeds[0];
-            // Extract the item name from the embed title
             const itemName = embed.title || 'Unknown Item';
 
-            // Extract average value from the embed fields
             const averageValueField = embed.fields.find(field => field.name === 'Market' && field.value.includes('Average Value'));
             if (averageValueField) {
                 const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
                 if (averageValueMatch) {
                     const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
-
-                    // Check and update item price
                     const previousValue = client.itemPrices.get(itemName);
                     if (previousValue !== undefined) {
                         if (previousValue !== averageValue) {
@@ -128,9 +157,7 @@ client.on(Events.MessageCreate, async (message) => {
                         client.itemPrices.set(itemName, averageValue);
                         message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
                     }
-
-                    // Save items to items.json
-                    saveItems(); 
+                    saveItems(); // Ensure this is called after updating the price
                     console.log(`Updated/Added price of ${itemName} to ${averageValue}`);
                 }
             }
@@ -168,16 +195,13 @@ client.on(Events.MessageDelete, message => {
 });
 
 client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-    // Check if the edited message is from Dank Memer and contains an embed
     if (newMessage.author.bot && newMessage.author.id === '270904126974590976' && newMessage.embeds.length > 0) {
         const embed = newMessage.embeds[0];
         const description = embed.description || '';
 
-        // Detect "Successfully donated" in the embed description without the coin symbol (⏣)
+        // Detect item donation
         if (description.includes('Successfully donated') && !description.includes('⏣')) {
-            console.log('Detected a donation without coins:', description);
-
-            // Extract item details
+            console.log('Detected an item donation:', description);
             const amountMatch = description.match(/\*\*(\d+)\s<[^>]+>/);
             const itemNameMatch = description.match(/<[^>]+>\s([^*]+)\*\*/);
 
@@ -188,37 +212,48 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 
                 if (itemPrice) {
                     const totalValue = amount * itemPrice;
-                    newMessage.channel.send(`Total amount donated: ${totalValue} (${amount}x ${itemName})`);
+                    const repliedUser = newMessage.interaction?.user || newMessage.author;
+                    if (repliedUser) {
+                        await setDonationNote(repliedUser.id, `${totalValue} (${amount}x ${itemName})`);
+                        newMessage.react('✅');
+                        newMessage.channel.send({
+                            embeds: [{
+                                title: 'Donation Note Set',
+                                description: `Set note for **${repliedUser.tag}**\nItem: **${amount}x ${itemName}**\nTotal: **${totalValue} coins**\nTotal Donations: **${client.donations.get(repliedUser.id) || 0} coins**`,
+                                color: 0x1abc9c
+                            }]
+                        });
+                    }
                 } else {
-                    newMessage.channel.send(`Item **${itemName}** not found. Please run the Dank Memer command **/item ${itemName}** to add it to the database.`);
+                    newMessage.channel.send({
+                        embeds: [{
+                            title: 'Item Not Found',
+                            description: `Item **${itemName}** not found. Please run the Dank Memer command **/item ${itemName}** to add it to the database.`,
+                            color: 0x1abc9c
+                        }]
+                    });
+                    newMessage.channel.send('Ignore this setnote. It\'s just a test.');
                 }
             }
         }
-    }
-
-    // Check if a regular message was edited
-    if (!newMessage.author.bot && oldMessage.content !== newMessage.content) {
-        const edits = client.editedMessages.get(oldMessage.channel.id) || [];
-        edits.push({
-            oldContent: oldMessage.content,
-            author: oldMessage.author.tag,
-            timestamp: Math.floor(Date.now() / 1000)
-        });
-        client.editedMessages.set(oldMessage.channel.id, edits.slice(-5));
-    }
-});
-
-client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-    if (oldState.channelId && !newState.channelId) {
-        const guessCommand = client.textCommands.get('guess');
-        if (guessCommand && guessCommand.voiceConnections) {
-            const userId = oldState.id;
-            for (const [guildId, connection] of guessCommand.voiceConnections.entries()) {
-                if (connection.channel.members.has(userId)) {
-                    connection.disconnect();
-                    guessCommand.voiceConnections.delete(guildId);
-                    console.log(`Disconnected from voice channel as the user left: ${userId}`);
-                    break;
+        // Detect coin donation
+        else if (description.includes('Successfully donated') && description.includes('⏣')) {
+            console.log('Detected a coin donation:', description);
+            const coinAmountMatch = description.match(/⏣\s*([\d,]+)/);
+            if (coinAmountMatch) {
+                const coinAmount = parseInt(coinAmountMatch[1].replace(/,/g, ''), 10);
+                const repliedUser = newMessage.interaction?.user || newMessage.author;
+                if (repliedUser) {
+                    await setDonationNote(repliedUser.id, `⏣ ${coinAmount}`);
+                    newMessage.react('✅');
+                    newMessage.channel.send({
+                        embeds: [{
+                            title: 'Donation Note Set',
+                            description: `Set note for **${repliedUser.tag}**\nCoins: **⏣ ${coinAmount}**\nTotal Donations: **${client.donations.get(repliedUser.id) || 0} coins**`,
+                            color: 0x1abc9c
+                        }]
+                    });
+                       newMessage.channel.send('Ignore this setnote. It\'s just a test.');
                 }
             }
         }
