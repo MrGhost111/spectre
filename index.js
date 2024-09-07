@@ -56,6 +56,9 @@ for (const file of commandFiles) {
     }
 }
 
+// Load guess command separately
+const guessCommand = require('./text-commands/guess.js'); // Adjust the path if necessary
+
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
     // Load existing items
@@ -119,10 +122,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const guessCommand = client.textCommands.get('guess');
-        if (guessCommand && (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio' || interaction.customId === 'submit_answer' || interaction.customId === 'submit_answer_modal' || interaction.customId === 'next_audio')) {
+        if (guessCommand && (interaction.customId.startsWith('guess_'))) {
             try {
                 if (interaction.isModalSubmit()) {
                     await guessCommand.handleModalSubmit(interaction);
+                } else if (interaction.isButton()) {
+                    await guessCommand.handleButtonInteraction(interaction);
                 } else {
                     await guessCommand.handleInteraction(interaction);
                 }
@@ -131,31 +136,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 console.error(`Error handling guess interaction: ${error}`);
                 await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
             }
-        } 
-        // Handle delete button for sniped messages
-         if (interaction.customId === 'delete_snipe') {
-            try {
-                const channel = interaction.channel;
-
-                // Delete the sniped message (which is the interaction message)
-                await interaction.message.delete();
-
-                // Fetch the last 10 messages to find the ,snipe command
-                const messages = await channel.messages.fetch({ limit: 10 });
-                const snipeCommandMessage = messages.find(msg => msg.content.startsWith(',snipe') && msg.author.id === interaction.user.id);
-
-                if (snipeCommandMessage) {
-                    await snipeCommandMessage.delete(); // Delete the ,snipe command message
-                }
-
-                await interaction.reply({ content: 'Snipe message and command deleted!', ephemeral: true });
-            } catch (error) {
-                console.error('Error deleting snipe message or command:', error);
-                await interaction.reply({ content: 'Failed to delete snipe message or command!', ephemeral: true });
-            }
         }
     }
 });
+
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) {
         if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
@@ -232,25 +216,48 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 
                 if (itemPrice) {
                     const totalValue = amount * itemPrice;
-                    console.log(`Donated item: ${itemName}, Amount: ${amount}, Total value: ${totalValue}`);
-                    const repliedToUser = newMessage.interaction?.user || newMessage.author;
-
-                    await setDonationNote(repliedToUser.id, `${amount}x ${itemName}`);
-                    await newMessage.react('✅');
-
-                    const donationEmbed = {
-                        color: 0x00FF00,
-                        title: `Donation Summary for ${repliedToUser.tag}`,
-                        description: `**${repliedToUser.tag}** has donated the following items:`,
-                        fields: [
-                            { name: 'Items', value: `${amount}x ${itemName} (Total Value: ⏣ ${totalValue.toLocaleString()})`, inline: true },
-                            { name: 'Total Donations', value: `⏣ ${client.donations.get(repliedToUser.id).toLocaleString()}`, inline: true }
-                        ],
-                        timestamp: new Date(),
-                    };
-                    await newMessage.channel.send({ embeds: [donationEmbed] });
+                    const repliedUser = newMessage.interaction?.user || newMessage.author;
+                    if (repliedUser) {
+                        await setDonationNote(repliedUser.id, `⏣ ${totalValue} (${amount}x ${itemName})`);
+                        newMessage.react('✅');
+                        newMessage.channel.send({
+                            embeds: [{
+                                title: 'Donation Note Set',
+                                description: `Set note for **${repliedUser.tag}**\nItem: **${amount}x ${itemName}**\nTotal: **${totalValue} coins**\nTotal Donations: **${client.donations.get(repliedUser.id) || 0} coins**`,
+                                color: 0x1abc9c
+                            }]
+                        });
+                    }
                 } else {
-                    await newMessage.reply(`Item **${itemName}** not found in database. Please use \`/item ${itemName}\` to add it.`);
+                    newMessage.channel.send({
+                        embeds: [{
+                            title: 'Item Not Found',
+                            description: `Item **${itemName}** not found. Please run the Dank Memer command **/item ${itemName}** to add it to the database.`,
+                            color: 0x1abc9c
+                        }]
+                    });
+                    newMessage.channel.send('Ignore this setnote. It\'s just a test.');
+                }
+            }
+        }
+        // Detect coin donation
+        else if (description.includes('Successfully donated') && description.includes('⏣')) {
+            console.log('Detected a coin donation:', description);
+            const coinAmountMatch = description.match(/⏣\s*([\d,]+)/);
+            if (coinAmountMatch) {
+                const coinAmount = parseInt(coinAmountMatch[1].replace(/,/g, ''), 10);
+                const repliedUser = newMessage.interaction?.user || newMessage.author;
+                if (repliedUser) {
+                    await setDonationNote(repliedUser.id, `⏣ ${coinAmount}`);
+                    newMessage.react('✅');
+                    newMessage.channel.send({
+                        embeds: [{
+                            title: 'Donation Note Set',
+                            description: `Set note for **${repliedUser.tag}**\nCoins: **⏣ ${coinAmount}**\nTotal Donations: **${client.donations.get(repliedUser.id) || 0} coins**`,
+                            color: 0x1abc9c
+                        }]
+                    });
+                    newMessage.channel.send('Ignore this setnote. It\'s just a test.');
                 }
             }
         }
