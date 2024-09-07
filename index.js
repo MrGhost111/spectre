@@ -56,9 +56,6 @@ for (const file of commandFiles) {
     }
 }
 
-// Load guess command separately
-const guessCommand = require('./text-commands/guess.js'); // Adjust the path if necessary
-
 client.once(Events.ClientReady, () => {
     console.log(`Logged in as ${client.user.tag}!`);
     // Load existing items
@@ -122,12 +119,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         const guessCommand = client.textCommands.get('guess');
-        if (guessCommand && (interaction.customId.startsWith('guess_'))) {
+        if (guessCommand && (interaction.customId === 'play_audio' || interaction.customId === 'replay_audio' || interaction.customId === 'submit_answer' || interaction.customId === 'submit_answer_modal' || interaction.customId === 'next_audio')) {
             try {
                 if (interaction.isModalSubmit()) {
                     await guessCommand.handleModalSubmit(interaction);
-                } else if (interaction.isButton()) {
-                    await guessCommand.handleButtonInteraction(interaction);
                 } else {
                     await guessCommand.handleInteraction(interaction);
                 }
@@ -218,7 +213,7 @@ client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
                     const totalValue = amount * itemPrice;
                     const repliedUser = newMessage.interaction?.user || newMessage.author;
                     if (repliedUser) {
-                        await setDonationNote(repliedUser.id, `⏣ ${totalValue} (${amount}x ${itemName})`);
+                        await setDonationNote(repliedUser.id, `${totalValue} (${amount}x ${itemName})`);
                         newMessage.react('✅');
                         newMessage.channel.send({
                             embeds: [{

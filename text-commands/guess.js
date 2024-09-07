@@ -10,8 +10,6 @@ module.exports = {
     name: 'guess',
     description: 'Starts a guessing game with a sound.',
     currentAudioFile: null, // Track the current audio file
-    correctAnswers: [], // Store the correct answers for the current sound
-    audioPlayer: null, // Keep track of the audio player
 
     async execute(message) {
         const voiceChannel = message.member.voice.channel;
@@ -41,7 +39,7 @@ module.exports = {
         const answerButton = new ButtonBuilder()
             .setCustomId('submit_answer')
             .setLabel('Answer')
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(ButtonStyle.Success)
             .setDisabled(true); // Initially disabled
 
         const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
@@ -67,7 +65,7 @@ module.exports = {
                 const playButton = new ButtonBuilder()
                     .setCustomId('play_audio')
                     .setLabel('Play New')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setStyle(ButtonStyle.Primary)
                     .setDisabled(true);
 
                 const replayButton = new ButtonBuilder()
@@ -103,142 +101,96 @@ module.exports = {
 
                 // Select a random audio file
                 this.currentAudioFile = audioFiles[Math.floor(Math.random() * audioFiles.length)];
-                this.correctAnswers = sounds[this.currentAudioFile] || []; // Ensure correctAnswers is an array
-
-                this.audioPlayer = createAudioPlayer();
+                const audioPlayer = createAudioPlayer();
                 const resource = createAudioResource(path.join(audioDirectory, this.currentAudioFile));
 
-                this.audioPlayer.play(resource);
-                connection.subscribe(this.audioPlayer);
+                audioPlayer.play(resource);
+                connection.subscribe(audioPlayer);
 
-                // Update embed to reflect audio is playing
-                const playButtonDisabled = new ButtonBuilder()
-                    .setCustomId('play_audio')
-                    .setLabel('Play New')
-                    .setStyle(ButtonStyle.Success)
-                    .setDisabled(true);
-
-                const replayButtonEnabled = new ButtonBuilder()
-                    .setCustomId('replay_audio')
-                    .setLabel('Replay')
-                    .setStyle(ButtonStyle.Secondary);
-
-                const answerButtonEnabled = new ButtonBuilder()
-                    .setCustomId('submit_answer')
-                    .setLabel('Answer')
-                    .setStyle(ButtonStyle.Success);
-
-                const updatedActionRow = new ActionRowBuilder().addComponents(playButtonDisabled, replayButtonEnabled, answerButtonEnabled);
-
-                const playingEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle('Audio Playing')
-                    .setDescription('Listen to the sound and guess!')
-                    .setTimestamp();
-
-                await interaction.message.edit({ embeds: [playingEmbed], components: [updatedActionRow] });
+                await interaction.reply({ content: 'Playing a random sound. Listen and guess!', ephemeral: true });
 
                 // Listen for audio completion
-                this.audioPlayer.once(AudioPlayerStatus.Idle, async () => {
+                audioPlayer.once(AudioPlayerStatus.Idle, async () => {
                     console.log('Audio playback finished');
 
                     // Provide replay/answer options
-                    const replayButtonEnabled = new ButtonBuilder()
+                    const replayButton = new ButtonBuilder()
                         .setCustomId('replay_audio')
                         .setLabel('Replay')
                         .setStyle(ButtonStyle.Secondary);
 
-                    const answerButtonEnabled = new ButtonBuilder()
+                    const answerButton = new ButtonBuilder()
                         .setCustomId('submit_answer')
                         .setLabel('Answer')
                         .setStyle(ButtonStyle.Success);
 
-                    const playButtonDisabled = new ButtonBuilder()
+                    const playButton = new ButtonBuilder()
                         .setCustomId('play_audio')
                         .setLabel('Play New')
-                        .setStyle(ButtonStyle.Secondary)
+                        .setStyle(ButtonStyle.Primary)
                         .setDisabled(true); // Keep "Play New" disabled
 
-                    const actionRow = new ActionRowBuilder().addComponents(playButtonDisabled, replayButtonEnabled, answerButtonEnabled);
+                    const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
 
                     const afterEmbed = new EmbedBuilder()
                         .setColor('#0099ff')
-                        .setTitle('Audio Finished')
-                        .setDescription('Submit your answer or replay the audio.')
+                        .setTitle('What would you like to do next?')
+                        .setDescription('You can either replay the sound or submit your answer.')
                         .setTimestamp();
 
                     await interaction.message.edit({ embeds: [afterEmbed], components: [actionRow] });
                 });
 
-                this.audioPlayer.on('error', (error) => {
+                audioPlayer.on('error', (error) => {
                     console.error('Error playing audio:', error);
                 });
             } else if (interaction.customId === 'replay_audio') {
                 if (!this.currentAudioFile) return; // Prevent replay if no audio has been played
 
-                // Replay the same clip
-                this.audioPlayer.stop();
+                const audioPlayer = createAudioPlayer();
                 const resource = createAudioResource(path.join(audioDirectory, this.currentAudioFile));
-                this.audioPlayer.play(resource);
 
-                // Update embed to show sound is replaying
-                const playButtonDisabled = new ButtonBuilder()
-                    .setCustomId('play_audio')
-                    .setLabel('Play New')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true);
+                audioPlayer.play(resource);
+                const connection = joinVoiceChannel({
+                    channelId: interaction.member.voice.channel.id,
+                    guildId: interaction.guild.id,
+                    adapterCreator: interaction.guild.voiceAdapterCreator,
+                });
 
-                const replayButtonDisabled = new ButtonBuilder()
-                    .setCustomId('replay_audio')
-                    .setLabel('Replay')
-                    .setStyle(ButtonStyle.Success)
-                    .setDisabled(true);
+                connection.subscribe(audioPlayer);
 
-                const answerButtonEnabled = new ButtonBuilder()
-                    .setCustomId('submit_answer')
-                    .setLabel('Answer')
-                    .setStyle(ButtonStyle.Success);
+                await interaction.reply({ content: 'Replaying the sound. Listen and guess!', ephemeral: true });
 
-                const updatedActionRow = new ActionRowBuilder().addComponents(playButtonDisabled, replayButtonDisabled, answerButtonEnabled);
+                audioPlayer.once(AudioPlayerStatus.Idle, async () => {
+                    console.log('Audio playback finished on replay');
 
-                const replayingEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle('Replaying Audio')
-                    .setDescription('Listening to the sound again.')
-                    .setTimestamp();
-
-                await interaction.message.edit({ embeds: [replayingEmbed], components: [updatedActionRow] });
-
-                this.audioPlayer.once(AudioPlayerStatus.Idle, async () => {
-                    console.log('Replay finished');
-
-                    // Update embed to reflect final button states
-                    const playButtonDisabled = new ButtonBuilder()
-                        .setCustomId('play_audio')
-                        .setLabel('Play New')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true);
-
-                    const replayButtonDisabled = new ButtonBuilder()
+                    // Provide replay/answer options again
+                    const replayButton = new ButtonBuilder()
                         .setCustomId('replay_audio')
                         .setLabel('Replay')
                         .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true);
+                        .setDisabled(true); // Disable replay button after use
 
-                    const answerButtonEnabled = new ButtonBuilder()
+                    const answerButton = new ButtonBuilder()
                         .setCustomId('submit_answer')
                         .setLabel('Answer')
                         .setStyle(ButtonStyle.Success);
 
-                    const finalActionRow = new ActionRowBuilder().addComponents(playButtonDisabled, replayButtonDisabled, answerButtonEnabled);
+                    const playButton = new ButtonBuilder()
+                        .setCustomId('play_audio')
+                        .setLabel('Play New')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(true); // Keep "Play New" disabled
 
-                    const replayedEmbed = new EmbedBuilder()
+                    const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
+
+                    const afterEmbed = new EmbedBuilder()
                         .setColor('#0099ff')
-                        .setTitle('Replay Finished')
-                        .setDescription('You can now submit your answer.')
+                        .setTitle('What would you like to do next?')
+                        .setDescription('You can either replay the sound or submit your answer.')
                         .setTimestamp();
 
-                    await interaction.message.edit({ embeds: [replayedEmbed], components: [finalActionRow] });
+                    await interaction.message.edit({ embeds: [afterEmbed], components: [actionRow] });
                 });
             } else if (interaction.customId === 'submit_answer') {
                 // Handle opening the answer modal
@@ -246,7 +198,7 @@ module.exports = {
                     .setCustomId('submit_answer_modal')
                     .setTitle('Submit Your Guess');
 
-                                const answerInput = new TextInputBuilder()
+                const answerInput = new TextInputBuilder()
                     .setCustomId('answer_input')
                     .setLabel('What sound did you hear?')
                     .setStyle(TextInputStyle.Short)
@@ -266,9 +218,9 @@ module.exports = {
             const userAnswer = interaction.fields.getTextInputValue('answer_input').toLowerCase();
 
             // Check if the answer is correct based on the current audio file
-            const correctAnswers = this.correctAnswers;
+            const correctAnswers = sounds[this.currentAudioFile];
 
-            if (correctAnswers.some(answer => userAnswer.includes(answer.toLowerCase()))) {
+            if (correctAnswers.includes(userAnswer)) {
                 // If correct, edit existing message to update button states
                 const playButton = new ButtonBuilder()
                     .setCustomId('play_audio')
@@ -284,7 +236,7 @@ module.exports = {
                 const answerButton = new ButtonBuilder()
                     .setCustomId('submit_answer')
                     .setLabel('Answer')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setStyle(ButtonStyle.Success)
                     .setDisabled(true); // Disable answer button after use
 
                 const actionRow = new ActionRowBuilder().addComponents(playButton, replayButton, answerButton);
@@ -295,19 +247,9 @@ module.exports = {
                 await interaction.message.edit({
                     components: [actionRow]
                 });
-
-                // Stop the audio player if it's still playing
-                if (this.audioPlayer) {
-                    this.audioPlayer.stop();
-                }
             } else {
                 await interaction.reply({ content: 'Sorry, that was not the correct answer. Try again!', ephemeral: true });
-
-                // Provide a hint
-                const hint = `Hint: ${this.correctAnswers.join(', ')}`;
-                await interaction.followUp({ content: hint, ephemeral: true });
             }
         }
     }
 };
-
