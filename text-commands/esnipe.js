@@ -43,7 +43,7 @@ module.exports = {
         let description = '';
         messagesToDisplay.forEach(msg => {
             const timestamp = `<t:${msg.timestamp}:t>`; // Discord timestamp formatting
-            description += `**[${timestamp}] ${msg.author}:** ${msg.oldContent}`;
+            description += `**[${timestamp}] ${msg.author}:** ${msg.oldContent}\n`; // Add newline character
         });
 
         embed.setDescription(description.trim());

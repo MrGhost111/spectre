@@ -1,7 +1,6 @@
-const { CommandInteraction, Message } = require('discord.js');
-const fuzz = require('fuzzball'); // You can use 'fuzzball' or any other fuzzy matching library
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const fuzz = require('fuzzball'); // Make sure to install this or use an alternative fuzzy matching library
 
 // Helper functions for converting shorthand numbers
 const convertToNumber = (str) => {
@@ -40,10 +39,21 @@ module.exports = {
         if (message.mentions.users.size > 0) {
             user = message.mentions.users.first();
         } else {
-            const id = message.client.users.cache.find(u => u.id === userArg);
-            if (id) user = id;
-            if (!user) user = message.client.users.cache.find(u => u.username === userArg);
+            user = message.client.users.cache.find(u => u.id === userArg || u.username === userArg);
             if (!user) return message.reply('User not found.');
+        }
+
+        // Load items from items.json
+        const itemFilePath = path.join(__dirname, '..', 'data', 'items.json');
+        let itemPrices = new Map();
+        if (fs.existsSync(itemFilePath)) {
+            try {
+                const rawData = fs.readFileSync(itemFilePath, 'utf8');
+                itemPrices = new Map(Object.entries(JSON.parse(rawData)));
+            } catch (error) {
+                console.error('Error reading or parsing items.json:', error);
+                return message.reply('There was an error reading the item data.');
+            }
         }
 
         // Convert amount to number
@@ -51,58 +61,57 @@ module.exports = {
         if (!isNaN(amountArg)) {
             amount = convertToNumber(amountArg);
         } else {
-            amount = 0;
+            return message.reply('Invalid amount format.');
         }
 
         // Check for item
         let item;
         if (itemArg) {
-            item = findBestItemMatch(itemArg, message.client.itemPrices);
-            if (!item) return message.reply('Item not found. Please check the name or add it to the database.');
+            item = findBestItemMatch(itemArg, itemPrices);
+            if (!item) {
+                return message.reply('Item not found. Please check the name or add it to the database.');
+            }
         }
 
         // Handle the donation note
         const note = item ? `${amount}x ${item}` : `⏣ ${amount}`;
-        await setDonationNote(user.id, note);
+
+        // Load users from users.json and update donation data
+        const userFilePath = path.join(__dirname, '..', 'data', 'users.json');
+        let usersData = {};
+        if (fs.existsSync(userFilePath)) {
+            try {
+                const rawData = fs.readFileSync(userFilePath, 'utf8');
+                usersData = JSON.parse(rawData);
+            } catch (error) {
+                console.error('Error reading or parsing users.json:', error);
+                return message.reply('There was an error reading the user data.');
+            }
+        }
+
+        if (!usersData[user.id]) {
+            usersData[user.id] = { total: 0 };
+        }
+        if (item) {
+            const itemPrice = itemPrices.get(item);
+            if (itemPrice) {
+                usersData[user.id].total += amount * itemPrice;
+            } else {
+                return message.reply(`Price for item **${item}** not found.`);
+            }
+        } else {
+            usersData[user.id].total += amount;
+        }
+        fs.writeFileSync(userFilePath, JSON.stringify(usersData, null, 2), 'utf8');
 
         // Reply to the user
-        const totalDonations = message.client.donations.get(user.id) || 0;
+        const totalDonations = usersData[user.id].total;
         message.channel.send({
             embeds: [{
                 title: 'Donation Note Set',
-                description: `Set note for **${user.tag}**\n${note}\nTotal Donations: **${totalDonations} coins**`,
+                description: `Set note for **${user.tag}**\n${note}\nTotal Donations: **${totalDonations.toLocaleString()} coins**`,
                 color: 0x1abc9c
             }]
         });
     }
 };
-
-// Function to set donation note (similar to index.js)
-async function setDonationNote(userId, note) {
-    const filePath = path.join(__dirname, '..', 'data', 'users.json');
-    let usersData = {};
-    if (fs.existsSync(filePath)) {
-        const rawData = fs.readFileSync(filePath, 'utf8');
-        usersData = JSON.parse(rawData);
-    }
-
-    if (!usersData[userId]) {
-        usersData[userId] = { total: 0 };
-    }
-
-    const donationAmount = note.includes('⏣') ? parseInt(note.replace('⏣ ', '').replace(/,/g, ''), 10) : 0;
-    const itemMatch = note.match(/(\d+)x (.+)/);
-    if (itemMatch) {
-        const itemAmount = parseInt(itemMatch[1], 10);
-        const itemName = itemMatch[2];
-        const itemPrice = client.itemPrices.get(itemName);
-        if (itemPrice) {
-            usersData[userId].total += itemAmount * itemPrice;
-        }
-    } else {
-        usersData[userId].total += donationAmount;
-    }
-
-    fs.writeFileSync(filePath, JSON.stringify(usersData, null, 2), 'utf8');
-    client.donations.set(userId, usersData[userId].total); // Update in memory
-}
