@@ -1,46 +1,44 @@
 const fs = require('fs');
 
 // Read JSON files
-const poolData = JSON.parse(fs.readFileSync('pool.json', 'utf8'));
-const itemsData = JSON.parse(fs.readFileSync('items.json', 'utf8'));
+const poolData = require('./pool.json');
+const itemsData = require('./items.json');
 
-// Function to get item price case-insensitively
-const getPrice = (itemName) => {
-  const lowerCaseItemName = itemName.toLowerCase();
-  for (const [key, value] of Object.entries(itemsData)) {
-    if (key.toLowerCase() === lowerCaseItemName) {
-      return value;
-    }
-  }
-  return null;
-};
+// Ensure item prices are case insensitive
+const itemPrices = {};
+for (const [item, price] of Object.entries(itemsData)) {
+  itemPrices[item.toLowerCase()] = price;
+}
 
 // Calculate total worth for each item
-const totalWorth = [];
-for (const [item, quantity] of Object.entries(poolData)) {
-  const price = getPrice(item);
-  if (price !== null) {
-    const total = quantity * price;
-    totalWorth.push({ item, quantity, totalWorth: total });
-  } else {
-    console.warn(`Price for item "${item}" not found in items.json.`);
+const totals = Object.keys(poolData).map(item => {
+  const price = itemPrices[item.toLowerCase()];
+  if (price !== undefined) {
+    const quantity = poolData[item];
+    const totalWorth = quantity * price;
+    return { item, quantity, totalWorth };
   }
-}
+  return null;
+}).filter(result => result !== null);
 
 // Sort items by total worth in descending order
-totalWorth.sort((a, b) => b.totalWorth - a.totalWorth);
+totals.sort((a, b) => b.totalWorth - a.totalWorth);
 
-// Convert to JSON string and handle pagination
-const output = JSON.stringify(totalWorth, null, 2);
-const maxChunkSize = 2000; // Maximum character limit for each chunk
-let offset = 0;
-let chunkIndex = 1;
+// Create output text
+let output = 'Item\tQuantity\tTotal Worth\n';
+output += '------------------------------\n';
+let grandTotal = 0;
 
-while (offset < output.length) {
-  const chunk = output.substring(offset, offset + maxChunkSize);
-  fs.writeFileSync(`sorted_items_chunk_${chunkIndex}.json`, chunk);
-  offset += maxChunkSize;
-  chunkIndex++;
-}
+totals.forEach(({ item, quantity, totalWorth }) => {
+  output += `${item}\t${quantity}\t${totalWorth.toLocaleString()}\n`;
+  grandTotal += totalWorth;
+});
 
-console.log(`Data has been split into ${chunkIndex - 1} chunks.`);
+// Add grand total at the end
+output += '------------------------------\n';
+output += `Total of all items:\t\t${grandTotal.toLocaleString()}\n`;
+
+// Save to text file
+fs.writeFileSync('items_total_worth.txt', output);
+
+console.log('Output saved to items_total_worth.txt');
