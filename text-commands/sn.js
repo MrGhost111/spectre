@@ -1,117 +1,77 @@
-const fs = require('fs');
+const { EmbedBuilder } = require('discord.js');
 const path = require('path');
-const fuzz = require('fuzzball'); // Make sure to install this or use an alternative fuzzy matching library
+const fs = require('fs');
 
-// Helper functions for converting shorthand numbers
-const convertToNumber = (str) => {
-    const multipliers = { k: 1e3, m: 1e6, b: 1e9, e: 1e12 };
-    const match = str.match(/^(\d+)([kmbe]?)$/i);
-    if (match) {
-        const [_, number, suffix] = match;
-        return parseFloat(number) * (multipliers[suffix.toLowerCase()] || 1);
-    }
-    return parseFloat(str);
-};
-
-// Fuzzy match function for items
-const findBestItemMatch = (itemName, itemPrices) => {
-    const items = Array.from(itemPrices.keys());
-    const bestMatch = fuzz.extractOne(itemName, items);
-    return bestMatch ? bestMatch[0] : null;
-};
-
-// Command Execution Function
 module.exports = {
     name: 'setnote',
-    alias: ['sn'],
-    description: 'Sets a donation note for a user with optional item and amount.',
+    alias: 'sn',
+    description: 'Set donation amount for a user',
     async execute(message, args) {
+        const requiredRole = '1241835441624453221';
+        if (!message.member.roles.cache.has(requiredRole)) {
+            return message.reply('You do not have the required role to use this command.');
+        }
+
         if (args.length < 2) {
-            return message.reply('Usage: ,sn <user> <amount> [item]');
+            return message.reply('Please provide both a user and an amount.');
         }
 
-        const userArg = args.shift();
-        const amountArg = args.shift();
-        const itemArg = args.join(' ');
+        const userInput = args[0];
+        const amountInput = args.slice(1).join(' ');
 
-        // Resolve user from mention, ID, or username
-        let user;
-        if (message.mentions.users.size > 0) {
-            user = message.mentions.users.first();
-        } else {
-            user = message.client.users.cache.find(u => u.id === userArg || u.username === userArg);
-            if (!user) return message.reply('User not found.');
+        const amount = parseAmount(amountInput);
+        if (amount === null) {
+            return message.reply('Invalid amount format. Use plain numbers, abbreviations (k, m, b), or scientific notation.');
         }
 
-        // Load items from items.json
-        const itemFilePath = path.join(__dirname, '..', 'data', 'items.json');
-        let itemPrices = new Map();
-        if (fs.existsSync(itemFilePath)) {
-            try {
-                const rawData = fs.readFileSync(itemFilePath, 'utf8');
-                itemPrices = new Map(Object.entries(JSON.parse(rawData)));
-            } catch (error) {
-                console.error('Error reading or parsing items.json:', error);
-                return message.reply('There was an error reading the item data.');
-            }
+        const userId = await getUserIdFromInput(userInput, message);
+        if (!userId) {
+            return message.reply('User not found.');
         }
 
-        // Convert amount to number
-        let amount;
-        if (!isNaN(amountArg)) {
-            amount = convertToNumber(amountArg);
-        } else {
-            return message.reply('Invalid amount format.');
+        const filePath = path.join(__dirname, '..', 'data', 'users.json');
+        if (!fs.existsSync(filePath)) {
+            return message.reply('No data file found.');
         }
 
-        // Check for item
-        let item;
-        if (itemArg) {
-            item = findBestItemMatch(itemArg, itemPrices);
-            if (!item) {
-                return message.reply('Item not found. Please check the name or add it to the database.');
-            }
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        const users = JSON.parse(rawData);
+
+        if (!users[userId]) {
+            users[userId] = { total: 0 };
         }
 
-        // Handle the donation note
-        const note = item ? `${amount}x ${item}` : `⏣ ${amount}`;
+        users[userId].total += amount;
 
-        // Load users from users.json and update donation data
-        const userFilePath = path.join(__dirname, '..', 'data', 'users.json');
-        let usersData = {};
-        if (fs.existsSync(userFilePath)) {
-            try {
-                const rawData = fs.readFileSync(userFilePath, 'utf8');
-                usersData = JSON.parse(rawData);
-            } catch (error) {
-                console.error('Error reading or parsing users.json:', error);
-                return message.reply('There was an error reading the user data.');
-            }
-        }
+        fs.writeFileSync(filePath, JSON.stringify(users, null, 2), 'utf8');
 
-        if (!usersData[user.id]) {
-            usersData[user.id] = { total: 0 };
-        }
-        if (item) {
-            const itemPrice = itemPrices.get(item);
-            if (itemPrice) {
-                usersData[user.id].total += amount * itemPrice;
-            } else {
-                return message.reply(`Price for item **${item}** not found.`);
-            }
-        } else {
-            usersData[user.id].total += amount;
-        }
-        fs.writeFileSync(userFilePath, JSON.stringify(usersData, null, 2), 'utf8');
+        const user = message.guild.members.cache.get(userId) || { user: { tag: 'Unknown User' } };
 
-        // Reply to the user
-        const totalDonations = usersData[user.id].total;
-        message.channel.send({
-            embeds: [{
-                title: 'Donation Note Set',
-                description: `Set note for **${user.tag}**\n${note}\nTotal Donations: **${totalDonations.toLocaleString()} coins**`,
-                color: 0x1abc9c
-            }]
-        });
-    }
+        const embed = new EmbedBuilder()
+            .setTitle(`Donation Note Set for ${user.user.tag}`)
+            .setDescription(`Total Donations: ⏣ ${users[userId].total.toLocaleString()}`)
+            .setColor('#6666FF');
+
+        message.channel.send({ embeds: [embed] });
+    },
 };
+
+function parseAmount(input) {
+    if (input.includes('k')) return parseFloat(input.replace('k', '').trim()) * 1000;
+    if (input.includes('m')) return parseFloat(input.replace('m', '').trim()) * 1000000;
+    if (input.includes('b')) return parseFloat(input.replace('b', '').trim()) * 1000000000;
+    if (input.includes('e')) return parseFloat(input);
+    return parseFloat(input);
+}
+
+async function getUserIdFromInput(input, message) {
+    const userMention = message.mentions.users.first();
+    if (userMention) return userMention.id;
+
+    const user = message.guild.members.cache.find(member => member.user.username === input);
+    if (user) return user.id;
+
+    if (!isNaN(input)) return input;
+
+    return null;
+}

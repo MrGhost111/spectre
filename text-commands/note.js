@@ -1,42 +1,48 @@
-const fs = require('fs');
+const { EmbedBuilder } = require('discord.js');
 const path = require('path');
+const fs = require('fs');
 
 module.exports = {
     name: 'note',
-    aliases: ['notes'],
-    description: 'View or manage donation notes for users.',
+    description: 'View a specific user\'s donation note',
     async execute(message, args) {
-        const userId = message.mentions.users.first()?.id || args[0];
+        const userInput = args[0] || message.author.id;
         const filePath = path.join(__dirname, '..', 'data', 'users.json');
-        let usersData = {};
 
-        if (fs.existsSync(filePath)) {
-            const rawData = fs.readFileSync(filePath, 'utf8');
-            usersData = JSON.parse(rawData);
+        if (!fs.existsSync(filePath)) {
+            return message.reply('No data file found.');
         }
 
-        let targetUserId;
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        const users = JSON.parse(rawData);
+
+        let userId;
         if (message.mentions.users.size > 0) {
-            targetUserId = message.mentions.users.first().id;
-        } else if (userId) {
-            targetUserId = userId;
+            userId = message.mentions.users.first().id;
+        } else if (!isNaN(userInput)) {
+            userId = userInput;
         } else {
-            targetUserId = message.author.id;
+            // Try to find the user by username
+            const user = message.guild.members.cache.find(member => member.user.username === userInput);
+            if (user) {
+                userId = user.id;
+            } else {
+                return message.reply('User not found.');
+            }
         }
 
-        const userNotes = usersData[targetUserId] || { total: 0 };
-        const totalAmount = userNotes.total || 0;
-
-        if (totalAmount === 0) {
-            await message.reply(`User **${message.guild.members.cache.get(targetUserId)?.user.tag || 'Unknown User'}** has no donation amount assigned.`);
-        } else {
-            await message.reply({
-                embeds: [{
-                    title: 'Donation Note',
-                    description: `User: **${message.guild.members.cache.get(targetUserId)?.user.tag || 'Unknown User'}**\nTotal Donations: **${totalAmount.toLocaleString()}** coins`,
-                    color: 0x1abc9c
-                }]
-            });
+        if (!users[userId]) {
+            users[userId] = { total: 0 }; // Set default if user is not in the JSON file
         }
-    }
+
+        const user = message.guild.members.cache.get(userId) || await message.guild.members.fetch(userId).catch(() => null);
+        const userTag = user ? user.user.tag : 'Unknown User';
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Donation Note for ${userTag}`)
+            .setDescription(`Total Donations: ⏣ ${users[userId].total.toLocaleString()}`)
+            .setColor('#6666FF');
+
+        message.channel.send({ embeds: [embed] });
+    },
 };

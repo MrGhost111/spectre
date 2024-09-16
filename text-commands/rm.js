@@ -1,53 +1,77 @@
-const fs = require('fs');
+const { EmbedBuilder } = require('discord.js');
 const path = require('path');
+const fs = require('fs');
 
 module.exports = {
     name: 'removenote',
-    aliases: ['rm'],
-    description: 'Remove a donation note from a user',
+    alias: 'rn',
+    description: 'Remove donation amount from a user',
     async execute(message, args) {
-        // Check if the user has the correct role
-        if (!message.member.roles.cache.has('710572344745132114')) {
-            return message.reply('You do not have permission to use this command.');
+        const requiredRole = '1241835441624453221';
+        if (!message.member.roles.cache.has(requiredRole)) {
+            return message.reply('You do not have the required role to use this command.');
         }
 
-        const usersFilePath = path.join(__dirname, '../data', 'users.json');
-        let usersData = {};
-
-        // Read existing users data
-        if (fs.existsSync(usersFilePath)) {
-            const rawData = fs.readFileSync(usersFilePath, 'utf8');
-            usersData = JSON.parse(rawData);
+        if (args.length < 2) {
+            return message.reply('Please provide both a user and an amount.');
         }
 
-        // Parse command arguments
-        const userArg = args.shift();
-        const amountToRemove = parseInt(args.join(' ').replace(/,/g, ''), 10);
+        const userInput = args[0];
+        const amountInput = args.slice(1).join(' ');
 
-        // Find user ID from mention, username, or ID
-        const user = message.mentions.users.first() || 
-            message.guild.members.cache.find(member => member.user.username === userArg)?.user || 
-            message.guild.members.cache.get(userArg) || 
-            message.client.users.cache.get(userArg);
+        const amount = parseAmount(amountInput);
+        if (amount === null) {
+            return message.reply('Invalid amount format. Use plain numbers, abbreviations (k, m, b), or scientific notation.');
+        }
 
-        if (!user) {
+        const userId = await getUserIdFromInput(userInput, message);
+        if (!userId) {
             return message.reply('User not found.');
         }
 
-        const userId = user.id;
-
-        // Check if user data exists
-        if (!usersData[userId]) {
-            return message.reply('No notes found for this user.');
+        const filePath = path.join(__dirname, '..', 'data', 'users.json');
+        if (!fs.existsSync(filePath)) {
+            return message.reply('No data file found.');
         }
 
-        // Remove amount from user
-        if (usersData[userId].total < amountToRemove) {
-            return message.reply('Amount to remove is greater than the user\'s current total.');
+        const rawData = fs.readFileSync(filePath, 'utf8');
+        const users = JSON.parse(rawData);
+
+        if (!users[userId]) {
+            return message.reply('User has no donation record.');
         }
 
-        usersData[userId].total -= amountToRemove;
-        fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2), 'utf8');
-        message.reply(`Removed ${amountToRemove.toLocaleString()} coins from ${user.tag}.`);
+        users[userId].total = Math.max(0, users[userId].total - amount);
+
+        fs.writeFileSync(filePath, JSON.stringify(users, null, 2), 'utf8');
+
+        const user = message.guild.members.cache.get(userId) || { user: { tag: 'Unknown User' } };
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Donation Note Updated for ${user.user.tag}`)
+            .setDescription(`Total Donations: ⏣ ${users[userId].total.toLocaleString()}`)
+            .setColor('#6666FF');
+
+        message.channel.send({ embeds: [embed] });
     },
 };
+
+function parseAmount(input) {
+    if (input.includes('k')) return parseFloat(input.replace('k', '').trim()) * 1000;
+    if (input.includes('m')) return parseFloat(input.replace('m', '').trim()) * 1000000;
+    if (input.includes('b')) return parseFloat(input.replace('b', '').trim()) * 1000000000;
+    if (input.includes('e')) return parseFloat(input);
+    return parseFloat(input);
+}
+
+async function getUserIdFromInput(input, message) {
+    const userMention = message.mentions.users.first();
+    if (userMention) return userMention.id;
+
+    const user = message.guild.members.cache.find(member => member.user.username === input);
+    if (user) return user.id;
+
+    if (!isNaN(input)) return input;
+
+    return null;
+}
