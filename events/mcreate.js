@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
@@ -12,15 +15,25 @@ module.exports = {
                     const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
                     if (averageValueMatch) {
                         const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
-                        const previousValue = client.itemPrices.get(itemName);
-                        if (previousValue !== undefined && previousValue !== averageValue) {
-                            client.itemPrices.set(itemName, averageValue);
-                            message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
-                        } else {
-                            client.itemPrices.set(itemName, averageValue);
+
+                        // Path to items.json
+                        const itemsPath = path.join(__dirname, '../data/items.json');
+                        // Load items from JSON file
+                        let items = JSON.parse(fs.readFileSync(itemsPath, 'utf8'));
+
+                        // Check if item exists and update the price
+                        if (!(itemName in items)) {
+                            // Item not found, add it
+                            items[itemName] = averageValue;
                             message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
+                        } else if (items[itemName] !== averageValue) {
+                            // Item found but price is different, update it
+                            items[itemName] = averageValue;
+                            message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
                         }
-                        client.saveItems();
+
+                        // Save updated items to JSON file
+                        fs.writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf8');
                     }
                 }
             }

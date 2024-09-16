@@ -1,3 +1,5 @@
+const { ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require('discord.js');
+
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -34,7 +36,13 @@ module.exports = {
                     await interaction.reply({ content: 'There was an error handling this interaction!', ephemeral: true });
                 }
             }
+            if (interaction.customId === 'delete_esnipe') {
+                const message = interaction.message;
+                if (message) {
+                    await message.delete();
+                }
+                await interaction.reply({ content: 'Deleted the snipe message.', ephemeral: true });
+            }
         }
     },
 };
-

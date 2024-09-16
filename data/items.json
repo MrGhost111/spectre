@@ -1,6 +1,5 @@
 {
   "Legacy Rare Fish": 1000,
-  "Adventure Ticket": 203000,
   "A Plus": 8000000,
   "Life Saver": 180000,
   "Star Fragment": 2500000,
@@ -271,5 +270,6 @@
   "Fake ID": 44000,
   "Pet Feeder": 80193000,
   "New Years Popper": 80000,
-  "Stolen Amulet": 5000000
+  "Stolen Amulet": 5000000,
+  "Adventure Ticket": 203000
 }

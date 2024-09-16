@@ -1,4 +1,5 @@
 module.exports = {
+//
     name: 'messageDelete',
     execute(client, message) {
         if (message.author.bot) return;
