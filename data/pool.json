@@ -1,774 +1,195 @@
 {
-  "Bean Seeds": {
-    "quantity": 23743,
-    "totalWorth": 2682959000
-  },
-  "New Years Popper": {
-    "quantity": 5366,
-    "totalWorth": 429280000
-  },
-  "Fake ID": {
-    "quantity": 4187,
-    "totalWorth": 184228000
-  },
-  "Tidepod": {
-    "quantity": 4035,
-    "totalWorth": 605250000
-  },
-  "Box of Sand": {
-    "quantity": 2833,
-    "totalWorth": 48161000
-  },
-  "Laptop": {
-    "quantity": 2681,
-    "totalWorth": 225204000
-  },
-  "Cupid's Big Toe": {
-    "quantity": 2444,
-    "totalWorth": 2444000000
-  },
-  "Bank Note": {
-    "quantity": 2133,
-    "totalWorth": 533250000
-  },
-  "Alcohol": {
-    "quantity": 2097,
-    "totalWorth": 146790000
-  },
-  "Apple": {
-    "quantity": 1934,
-    "totalWorth": 36746000
-  },
-  "Fidget Spinner": {
-    "quantity": 1886,
-    "totalWorth": 565800000
-  },
-  "Cell Phone": {
-    "quantity": 1631,
-    "totalWorth": 16310000
-  },
-  "Blue Plastic Bits": {
-    "quantity": 1384,
-    "totalWorth": 110720000
-  },
-  "Potato": {
-    "quantity": 1013,
-    "totalWorth": 58754000
-  },
-  "Pizza Slice": {
-    "quantity": 943,
-    "totalWorth": 518650000
-  },
-  "Shredded Cheese": {
-    "quantity": 828,
-    "totalWorth": 116748000
-  },
-  "Landmine": {
-    "quantity": 825,
-    "totalWorth": 66825000
-  },
-  "Adventure Ticket": {
-    "quantity": 815,
-    "totalWorth": 165445000
-  },
-  "Skunk": {
-    "quantity": 780,
-    "totalWorth": 23400000
-  },
-  "Chill Pill": {
-    "quantity": 771,
-    "totalWorth": 1696200000
-  },
-  "Alien Sample": {
-    "quantity": 732,
-    "totalWorth": 1220976000
-  },
-  "Daily Box": {
-    "quantity": 730,
-    "totalWorth": 1399410000
-  },
-  "Snowflake": {
-    "quantity": 689,
-    "totalWorth": 487123000
-  },
-  "Robbers Wishlist": {
-    "quantity": 577,
-    "totalWorth": 231954000
-  },
-  "Candy Cane": {
-    "quantity": 522,
-    "totalWorth": 94482000
-  },
-  "Padlock": {
-    "quantity": 519,
-    "totalWorth": 20760000
-  },
-  "Coin Bomb": {
-    "quantity": 518,
-    "totalWorth": 408184000
-  },
-  "Fool's Notif": {
-    "quantity": 445,
-    "totalWorth": 356000000
-  },
-  "Snowball": {
-    "quantity": 421,
-    "totalWorth": 168821000
-  },
-  "Life Saver": {
-    "quantity": 393,
-    "totalWorth": 70740000
-  },
-  "Black Hole": {
-    "quantity": 385,
-    "totalWorth": 487410000
-  },
-  "Legacy Common Fish": {
-    "quantity": 378,
-    "totalWorth": 378000
-  },
-  "Candy Corn": {
-    "quantity": 357,
-    "totalWorth": 1249500000
-  },
-  "Deer": {
-    "quantity": 327,
-    "totalWorth": 65400000
-  },
-  "Shovel": {
-    "quantity": 306,
-    "totalWorth": 6120000
-  },
-  "Lucky Horseshoe": {
-    "quantity": 288,
-    "totalWorth": 115200000
-  },
-  "Vote Pack": {
-    "quantity": 286,
-    "totalWorth": 250250000
-  },
-  "Golden Plastic Bits": {
-    "quantity": 253,
-    "totalWorth": 235290000
-  },
-  "Normie Box": {
-    "quantity": 253,
-    "totalWorth": 392909000
-  },
-  "Cookie": {
-    "quantity": 237,
-    "totalWorth": 17301000
-  },
-  "Duct Tape": {
-    "quantity": 213,
-    "totalWorth": 106500000
-  },
-  "Santa's Hat": {
-    "quantity": 212,
-    "totalWorth": 67416000
-  },
-  "Jar Of Singularity": {
-    "quantity": 204,
-    "totalWorth": 489600000
-  },
-  "Corncob": {
-    "quantity": 176,
-    "totalWorth": 17600000
-  },
-  "Worm": {
-    "quantity": 174,
-    "totalWorth": 2784000
-  },
-  "Potato Seeds": {
-    "quantity": 152,
-    "totalWorth": 6384000
-  },
-  "Garbage": {
-    "quantity": 148,
-    "totalWorth": 19980000
-  },
-  "Legacy Rare Fish": {
-    "quantity": 144,
-    "totalWorth": 144000
-  },
-  "Rabbit": {
-    "quantity": 125,
-    "totalWorth": 2625000
-  },
-  "Friend's Gift": {
-    "quantity": 125,
-    "totalWorth": 650000000
-  },
-  "Ornament": {
-    "quantity": 119,
-    "totalWorth": 190400000
-  },
-  "Bean": {
-    "quantity": 110,
-    "totalWorth": 11000000
-  },
-  "Legacy Kraken": {
-    "quantity": 101,
-    "totalWorth": 101000
-  },
-  "Fart In A Bottle": {
-    "quantity": 101,
-    "totalWorth": 1232806000
-  },
-  "Carrot Seeds": {
-    "quantity": 101,
-    "totalWorth": 10100000
-  },
-  "Dragon": {
-    "quantity": 92,
-    "totalWorth": 52072000
-  },
-  "Adventure Voucher": {
-    "quantity": 85,
-    "totalWorth": 235535000
-  },
-  "Rare Pepe": {
-    "quantity": 81,
-    "totalWorth": 5670000
-  },
-  "Stickbug": {
-    "quantity": 80,
-    "totalWorth": 2720000
-  },
-  "Seaweed": {
-    "quantity": 74,
-    "totalWorth": 59200000
-  },
-  "Pepe Coin": {
-    "quantity": 72,
-    "totalWorth": 100800000
-  },
-  "Duck": {
-    "quantity": 69,
-    "totalWorth": 5175000
-  },
-  "Candy": {
-    "quantity": 61,
-    "totalWorth": 30500000
-  },
-  "Ant": {
-    "quantity": 60,
-    "totalWorth": 2100000
-  },
-  "Tool Box": {
-    "quantity": 50,
-    "totalWorth": 700000000
-  },
-  "Legacy Legendary Fish": {
-    "quantity": 47,
-    "totalWorth": 47000
-  },
-  "Legacy Exotic Fish": {
-    "quantity": 46,
-    "totalWorth": 46000
-  },
-  "Junk": {
-    "quantity": 44,
-    "totalWorth": 4400000
-  },
-  "Pepe Crown": {
-    "quantity": 42,
-    "totalWorth": 2127720000
-  },
-  "Fossil": {
-    "quantity": 40,
-    "totalWorth": 9600000
-  },
-  "Sanic Hot Dog": {
-    "quantity": 35,
-    "totalWorth": 42000000
-  },
-  "Ban Hammer": {
-    "quantity": 33,
-    "totalWorth": 99000000
-  },
-  "Ladybug": {
-    "quantity": 28,
-    "totalWorth": 12320000
-  },
-  "Legacy Jelly Fish": {
-    "quantity": 27,
-    "totalWorth": 27000
-  },
-  "Boar": {
-    "quantity": 26,
-    "totalWorth": 1014000
-  },
-  "Meme Box": {
-    "quantity": 26,
-    "totalWorth": 53534000
-  },
-  "Ammo": {
-    "quantity": 26,
-    "totalWorth": 130000000
-  },
-  "Shop Coupon": {
-    "quantity": 26,
-    "totalWorth": 61594000
-  },
-  "Lotus Seeds": {
-    "quantity": 25,
-    "totalWorth": 162500000
-  },
-  "Dank Box": {
-    "quantity": 23,
-    "totalWorth": 159459000
-  },
-  "Christmas Gift": {
-    "quantity": 23,
-    "totalWorth": 139150000
-  },
-  "Cursed Pepe": {
-    "quantity": 21,
-    "totalWorth": 2520000000
-  },
-  "Cowboy Boots": {
-    "quantity": 21,
-    "totalWorth": 210000000
-  },
-  "Santa's Bag": {
-    "quantity": 21,
-    "totalWorth": 328566000
-  },
-  "Bottle of Whiskey": {
-    "quantity": 21,
-    "totalWorth": 63000000
-  },
-  "Golden Nugget": {
-    "quantity": 20,
-    "totalWorth": 9380000
-  },
-  "Blue's Plane": {
-    "quantity": 17,
-    "totalWorth": 170000000
-  },
-  "Old Cowboy Revolver": {
-    "quantity": 17,
-    "totalWorth": 30600000
-  },
-  "Spider": {
-    "quantity": 16,
-    "totalWorth": 3360000
-  },
-  "Apron": {
-    "quantity": 16,
-    "totalWorth": 124800000
-  },
-  "Baby": {
-    "quantity": 16,
-    "totalWorth": 30400000
-  },
-  "Pet Saddle": {
-    "quantity": 16,
-    "totalWorth": 8000000
-  },
-  "Pepe Medal": {
-    "quantity": 15,
-    "totalWorth": 90000000
-  },
-  "Aiphey's Gemstone": {
-    "quantity": 14,
-    "totalWorth": 85400000
-  },
-  "A Plus": {
-    "quantity": 13,
-    "totalWorth": 104000000
-  },
-  "Motivational Poster": {
-    "quantity": 12,
-    "totalWorth": 228000000
-  },
-  "Fresh Bread": {
-    "quantity": 11,
-    "totalWorth": 3718000
-  },
-  "Badosz's Card": {
-    "quantity": 11,
-    "totalWorth": 132000000
-  },
-  "Purple Plastic Bits": {
-    "quantity": 11,
-    "totalWorth": 4510000
-  },
-  "Binary": {
-    "quantity": 10,
-    "totalWorth": 90000000
-  },
-  "Camera": {
-    "quantity": 9,
-    "totalWorth": 56700000
-  },
-  "Zig's Capybara": {
-    "quantity": 9,
-    "totalWorth": 3600000
-  },
-  "Broccoli": {
-    "quantity": 9,
-    "totalWorth": 3294000
-  },
-  "Streak Freeze": {
-    "quantity": 8,
-    "totalWorth": 32000000
-  },
-  "Lasso": {
-    "quantity": 8,
-    "totalWorth": 3616000
-  },
-  "Beaker of sus fluid": {
-    "quantity": 8,
-    "totalWorth": 52880000
-  },
-  "Engagement Ring": {
-    "quantity": 8,
-    "totalWorth": 28584000
-  },
-  "Chocolate Cake": {
-    "quantity": 8,
-    "totalWorth": 62848000
-  },
-  "Jacky o' Lanty": {
-    "quantity": 7,
-    "totalWorth": 56000000
-  },
-  "Star Fragment": {
-    "quantity": 7,
-    "totalWorth": 17500000
-  },
-  "God Box": {
-    "quantity": 7,
-    "totalWorth": 273987000
-  },
-  "Boxed Chocolates": {
-    "quantity": 6,
-    "totalWorth": 306000000
-  },
-  "Aetheryx' Flower": {
-    "quantity": 6,
-    "totalWorth": 27000000
-  },
-  "Pepe Statue": {
-    "quantity": 6,
-    "totalWorth": 864000
-  },
-  "Armpit Hair": {
-    "quantity": 5,
-    "totalWorth": 15000000
-  },
-  "Prestige Coin": {
-    "quantity": 5,
-    "totalWorth": 12500000
-  },
-  "Robbers Mask": {
-    "quantity": 5,
-    "totalWorth": 50000000
-  },
-  "Pet Feces": {
-    "quantity": 5,
-    "totalWorth": 640000
-  },
-  "School Urinal": {
-    "quantity": 4,
-    "totalWorth": 30000000
-  },
-  "Meteorite": {
-    "quantity": 4,
-    "totalWorth": 6000000
-  },
-  "Shooting Star": {
-    "quantity": 4,
-    "totalWorth": 34992000
-  },
-  "Membership Pack": {
-    "quantity": 4,
-    "totalWorth": 60000000
-  },
-  "Tip Jar": {
-    "quantity": 4,
-    "totalWorth": 57432000
-  },
-  "Energy Drink": {
-    "quantity": 4,
-    "totalWorth": 50620000
-  },
-  "Kable's Sunglasses": {
-    "quantity": 4,
-    "totalWorth": 56000000
-  },
-  "Out West Adventure Box": {
-    "quantity": 4,
-    "totalWorth": 12200000
-  },
-  "Barrel of Sludge": {
-    "quantity": 4,
-    "totalWorth": 7400000
-  },
-  "Fertilizer Bag": {
-    "quantity": 4,
-    "totalWorth": 800000
-  },
-  "ZomB's ZomBee": {
-    "quantity": 4,
-    "totalWorth": 36000000
-  },
-  "Royal Scepter": {
-    "quantity": 3,
-    "totalWorth": 18000000
-  },
-  "Pepe Ribbon": {
-    "quantity": 3,
-    "totalWorth": 2250000000
-  },
-  "Holiday Stocking": {
-    "quantity": 3,
-    "totalWorth": 37500000
-  },
-  "Cactus": {
-    "quantity": 3,
-    "totalWorth": 1500000
-  },
-  "Tumbleweed": {
-    "quantity": 3,
-    "totalWorth": 1572000
-  },
-  "Wedding Gift": {
-    "quantity": 3,
-    "totalWorth": 31422000
-  },
-  "Police Badge": {
-    "quantity": 3,
-    "totalWorth": 9300000
-  },
-  "Stack of Cash": {
-    "quantity": 3,
-    "totalWorth": 10500000
-  },
-  "Legacy Fishing Bait": {
-    "quantity": 3,
-    "totalWorth": 3000
-  },
-  "Legacy Fishing Pole": {
-    "quantity": 3,
-    "totalWorth": 3000
-  },
-  "Hunting Rifle": {
-    "quantity": 3,
-    "totalWorth": 252000
-  },
-  "Pepe Box": {
-    "quantity": 3,
-    "totalWorth": 36000000
-  },
-  "Space Adventure Box": {
-    "quantity": 3,
-    "totalWorth": 12969000
-  },
-  "Coin Voucher": {
-    "quantity": 3,
-    "totalWorth": 33600000
-  },
-  "Designer Hoodie": {
-    "quantity": 3,
-    "totalWorth": 9675000
-  },
-  "Gravestone": {
-    "quantity": 3,
-    "totalWorth": 750000
-  },
-  "Watering Can": {
-    "quantity": 3,
-    "totalWorth": 222000
-  },
-  "Carrot": {
-    "quantity": 3,
-    "totalWorth": 540000
-  },
-  "Diamond": {
-    "quantity": 3,
-    "totalWorth": 8400000
-  },
-  "Pet Food": {
-    "quantity": 3,
-    "totalWorth": 600000
-  },
-  "Multi Colored Plastic Bits": {
-    "quantity": 2,
-    "totalWorth": 410000
-  },
-  "Literally a Tree": {
-    "quantity": 2,
-    "totalWorth": 15000000
-  },
-  "Treasure Map": {
-    "quantity": 2,
-    "totalWorth": 4082000
-  },
-  "Prestige Pack": {
-    "quantity": 2,
-    "totalWorth": 27600000
-  },
-  "Green Screen": {
-    "quantity": 2,
-    "totalWorth": 14000000
-  },
-  "Headphones": {
-    "quantity": 2,
-    "totalWorth": 54978000
-  },
-  "Like Button": {
-    "quantity": 2,
-    "totalWorth": 2666000
-  },
-  "Pepe Trophy": {
-    "quantity": 2,
-    "totalWorth": 31056000
-  },
-  "Rare Butterfly": {
-    "quantity": 2,
-    "totalWorth": 48000000
-  },
-  "Plastic Box": {
-    "quantity": 2,
-    "totalWorth": 24000000
-  },
-  "Voodoo Doll": {
-    "quantity": 2,
-    "totalWorth": 80000000
-  },
-  "Corn Seeds": {
-    "quantity": 2,
-    "totalWorth": 170000
-  },
-  "Water Bucket": {
-    "quantity": 2,
-    "totalWorth": 800000
-  },
-  "Menorah": {
-    "quantity": 2,
-    "totalWorth": 5000000
-  },
-  "Corndog": {
-    "quantity": 1,
-    "totalWorth": 125000
-  },
-  "The Letter": {
-    "quantity": 1,
-    "totalWorth": 28000000
-  },
-  "Sugar Skull": {
-    "quantity": 1,
-    "totalWorth": 47500000
-  },
-  "Pepe Sus": {
-    "quantity": 1,
-    "totalWorth": 730000000
-  },
-  "Golden Corndog": {
-    "quantity": 1,
-    "totalWorth": 800000
-  },
-  "Literally Karen": {
-    "quantity": 1,
-    "totalWorth": 25000000
-  },
-  "Melmsie's Beard": {
-    "quantity": 1,
-    "totalWorth": 23000000
-  },
-  "Bean Mp3 Player": {
-    "quantity": 1,
-    "totalWorth": 68672000
-  },
-  "Bolt Cutters": {
-    "quantity": 1,
-    "totalWorth": 85263000
-  },
-  "Reversal Card": {
-    "quantity": 1,
-    "totalWorth": 48384000
-  },
-  "Orange Plastic Bits": {
-    "quantity": 1,
-    "totalWorth": 200000
-  },
-  "Christmas Tree": {
-    "quantity": 1,
-    "totalWorth": 400000
-  },
-  "Berries and Cream": {
-    "quantity": 1,
-    "totalWorth": 6524000
-  },
-  "Gift Box": {
-    "quantity": 1,
-    "totalWorth": 10525000
-  },
-  "Membership Box": {
-    "quantity": 1,
-    "totalWorth": 60000000
-  },
-  "Anti-Rob Pack": {
-    "quantity": 1,
-    "totalWorth": 1500000
-  },
-  "Keyboard": {
-    "quantity": 1,
-    "totalWorth": 83000
-  },
-  "Ectoplasm": {
-    "quantity": 1,
-    "totalWorth": 11000000
-  },
-  "Used Diaper": {
-    "quantity": 1,
-    "totalWorth": 4000000
-  },
-  "Crunchy Taco": {
-    "quantity": 1,
-    "totalWorth": 9439000
-  },
-  "Vaccine": {
-    "quantity": 1,
-    "totalWorth": 14000000
-  },
-  "Developer Box": {
-    "quantity": 1,
-    "totalWorth": 28654000
-  },
-  "Townie's Eyes": {
-    "quantity": 1,
-    "totalWorth": 13100000
-  },
-  "Old Box": {
-    "quantity": 1,
-    "totalWorth": 18000000
-  },
-  "The Megaphone": {
-    "quantity": 1,
-    "totalWorth": 26500000
-  },
-  "Stonk Coin": {
-    "quantity": 1,
-    "totalWorth": 70000000
-  },
-  "Spooky Mask": {
-    "quantity": 1,
-    "totalWorth": 35000000
-  },
-  "Mole Man": {
-    "quantity": 1,
-    "totalWorth": 410000
-  },
-  "Hoe": {
-    "quantity": 1,
-    "totalWorth": 119000
-  },
-  "Bait Box": {
-    "quantity": 1,
-    "totalWorth": 14935000
-  }
+  "Ectoplasm": 1,
+  "Used Diaper": 1,
+  "Crunchy Taco": 1,
+  "Vaccine": 1,
+  "Developer Box": 1,
+  "Townie's Eyes": 1,
+  "Old Box": 1,
+  "The Megaphone": 1,
+  "Stonk Coin": 1,
+  "Spooky Mask": 1,
+  "Mole Man": 1,
+  "Hoe": 1,
+  "Bait Box": 1,
+  "Corn Seeds": 2,
+  "Water Bucket": 2,
+  "Menorah": 2,
+  "Corndog": 1,
+  "The Letter": 1,
+  "Sugar Skull": 1,
+  "Pepe Sus": 1,
+  "Golden Corndog": 1,
+  "Literally Karen": 1,
+  "Melmsie's Beard": 1,
+  "Bean Mp3 Player": 1,
+  "Bolt Cutters": 1,
+  "Reversal Card": 1,
+  "Orange Plastic Bits": 1,
+  "Christmas Tree": 1,
+  "Berries and Cream": 1,
+  "Gift Box": 1,
+  "Membership Box": 1,
+  "Anti-Rob Pack": 1,
+  "Keyboard": 1,
+  "Pepe Box": 3,
+  "Space Adventure Box": 3,
+  "Coin Voucher": 3,
+  "Designer Hoodie": 3,
+  "Gravestone": 3,
+  "Watering Can": 3,
+  "Carrot": 3,
+  "Diamond": 3,
+  "Pet Food": 3,
+  "Multi Colored Plastic Bits": 2,
+  "Literally a Tree": 2,
+  "Treasure Map": 2,
+  "Prestige Pack": 2,
+  "Green Screen": 2,
+  "Headphones": 2,
+  "Like Button": 2,
+  "Pepe Trophy": 2,
+  "Rare Butterfly": 2,
+  "Plastic Box": 2,
+  "Voodoo Doll": 2,
+  "Shooting Star": 4,
+  "Membership Pack": 4,
+  "Tip Jar": 4,
+  "Energy Drink": 4,
+  "Kable's Sunglasses": 4,
+  "Out West Adventure Box": 4,
+  "Barrel of Sludge": 4,
+  "Fertilizer Bag": 4,
+  "ZomB's ZomBee": 4,
+  "Royal Scepter": 3,
+  "Pepe Ribbon": 3,
+  "Holiday Stocking": 3,
+  "Cactus": 3,
+  "Tumbleweed": 3,
+  "Wedding Gift": 3,
+  "Police Badge": 3,
+  "Stack of Cash": 3,
+  "Legacy Fishing Bait": 3,
+  "Legacy Fishing Pole": 3,
+  "Hunting Rifle": 3,
+  "Camera": 9,
+  "Zig's Capybara": 9,
+  "Broccoli": 9,
+  "Streak Freeze": 8,
+  "Lasso": 8,
+  "Beaker of Sus Fluid": 8,
+  "Engagement Ring": 8,
+  "Chocolate Cake": 8,
+  "Jacky o' Lanty": 7,
+  "Star Fragment": 7,
+  "God Box": 7,
+  "Boxed Chocolates": 6,
+  "Aetheryx' Flower": 6,
+  "Pepe Statue": 6,
+  "Armpit Hair": 5,
+  "Prestige Coin": 5,
+  "Robbers Mask": 5,
+  "Pet Feces": 5,
+  "School Urinal": 4,
+  "Meteorite": 4,
+  "Christmas Gift": 23,
+  "Cursed Pepe": 21,
+  "Cowboy Boots": 21,
+  "Santa's Bag": 21,
+  "Bottle of Whiskey": 21,
+  "Golden Nugget": 20,
+  "Blue's Plane": 17,
+  "Old Cowboy Revolver": 17,
+  "Spider": 16,
+  "Apron": 16,
+  "Baby": 16,
+  "Pet Saddle": 16,
+  "Pepe Medal": 15,
+  "Aiphey's Gemstone": 14,
+  "A Plus": 13,
+  "Motivational Poster": 12,
+  "Fresh Bread": 11,
+  "Badosz's Card": 11,
+  "Purple Plastic Bits": 11,
+  "Binary": 10,
+  "Pepe Coin": 72,
+  "Duck": 69,
+  "Candy": 61,
+  "Ant": 60,
+  "Tool Box": 50,
+  "Legacy Legendary Fish": 47,
+  "Legacy Exotic Fish": 46,
+  "Junk": 44,
+  "Pepe Crown": 42,
+  "Fossil": 40,
+  "Sanic Hot Dog": 35,
+  "Ban Hammer": 33,
+  "Ladybug": 28,
+  "Legacy Jelly Fish": 27,
+  "Boar": 26,
+  "Meme Box": 26,
+  "Ammo": 26,
+  "Shop Coupon": 26,
+  "Lotus Seeds": 25,
+  "Dank Box": 23,
+  "Duct Tape": 213,
+  "Santa's Hat": 212,
+  "Jar Of Singularity": 204,
+  "Corncob": 176,
+  "Worm": 174,
+  "Potato Seeds": 152,
+  "Garbage": 148,
+  "Legacy Rare Fish": 144,
+  "Rabbit": 125,
+  "Friend's Gift": 125,
+  "Ornament": 119,
+  "Bean": 110,
+  "Legacy Kraken": 101,
+  "Fart In A Bottle": 101,
+  "Carrot Seeds": 101,
+  "Dragon": 92,
+  "Adventure Voucher": 85,
+  "Rare Pepe": 81,
+  "Stickbug": 80,
+  "Seaweed": 74,
+  "Alien Sample": 732,
+  "Daily Box": 730,
+  "Snowflake": 689,
+  "Robbers Wishlist": 577,
+  "Candy Cane": 522,
+  "Padlock": 519,
+  "Coin Bomb": 518,
+  "Fool's Notif": 445,
+  "Snowball": 421,
+  "Life Saver": 393,
+  "Black Hole": 385,
+  "Legacy Common Fish": 378,
+  "Candy Corn": 357,
+  "Deer": 327,
+  "Shovel": 306,
+  "Lucky Horseshoe": 288,
+  "Vote Pack": 286,
+  "Golden Plastic Bits": 253,
+  "Normie Box": 253,
+  "Cookie": 237,
+  "Bean Seeds": 23743,
+  "New Years Popper": 5366,
+  "Fake ID": 4187,
+  "Tidepod": 4035,
+  "Box of Sand": 2833,
+  "Laptop": 2681,
+  "Cupid's Big Toe": 2444,
+  "Bank Note": 2133,
+  "Alcohol": 2097,
+  "Apple": 1934,
+  "Fidget Spinner": 1886,
+  "Cell Phone": 1631,
+  "Blue Plastic Bits": 1384,
+  "Potato": 1013,
+  "Pizza Slice": 943,
+  "Shredded Cheese": 828,
+  "Landmine": 825,
+  "Adventure Ticket": 815,
+  "Skunk": 780,
+  "Chill Pill": 771
 }
