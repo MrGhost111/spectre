@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 
 module.exports = {
-    name: 'setnote',
-    alias: 'sn',
+    name: 'sn',
+    alias: 'setnote',
     description: 'Set donation amount for a user',
     async execute(message, args) {
         const requiredRole = '1241835441624453221';

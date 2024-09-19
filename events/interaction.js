@@ -1,4 +1,8 @@
 const { ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require('discord.js');
+const path = require('path');
+
+// Importing the mychannel command
+const myChannelCommand = require(path.join(__dirname, '../commands/myc.js'));
 
 module.exports = {
     name: 'interactionCreate',
@@ -17,10 +21,10 @@ module.exports = {
 
             // Check if it's the delete_snipe or delete_esnipe button
             if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+                // Handle snipe/esnipe buttons
                 const message = interaction.message;
                 const originalAuthorId = message.interaction.user.id; // The user who ran the original command
 
-                // Check if the interaction user is the same as the command user
                 if (interaction.user.id !== originalAuthorId) {
                     console.log(`Unauthorized delete attempt by ${interaction.user.tag}`);
                     return await interaction.reply({
@@ -30,18 +34,12 @@ module.exports = {
                 }
 
                 try {
-                    // Check if the message (embed) exists
                     if (message) {
-                        console.log('Embed message found. Deleting...'); // Debugging log
-
-                        // Delete the embed message
+                        console.log('Embed message found. Deleting...');
                         await message.delete();
                         console.log('Embed message deleted.');
-                    } else {
-                        console.log('No embed message found to delete.'); // Log if no embed found
                     }
 
-                    // Find and delete the original command message (snipe or esnipe)
                     const originalCommandMessage = await interaction.channel.messages.fetch({ limit: 100 }).then(messages => {
                         return messages.find(msg => 
                             msg.content.startsWith(',snipe') || 
@@ -49,22 +47,29 @@ module.exports = {
                         );
                     });
 
-                    // If the original command message exists, delete it
                     if (originalCommandMessage) {
-                        console.log('Original command message found. Deleting...'); // Debugging log
+                        console.log('Original command message found. Deleting...');
                         await originalCommandMessage.delete();
                         console.log('Original command message deleted.');
-                    } else {
-                        console.log('Original command message was not found, likely already deleted or edited.'); // Graceful log
                     }
 
-                    // Send an ephemeral reply to confirm deletion
                     await interaction.reply({ content: 'Deleted the snipe/esnipe message and the command.', ephemeral: true });
                 } catch (error) {
                     console.error(`Error deleting message: ${error}`);
                     await interaction.reply({ content: 'Failed to delete the message.', ephemeral: true });
                 }
+            } 
+
+            // Add handling for buttons related to mychannel command
+            else if (interaction.customId === 'create_channel' || interaction.customId === 'rename_channel' || interaction.customId === 'view_friends') {
+                try {
+                    await myChannelCommand.handleInteraction(interaction);
+                } catch (error) {
+                    console.error(`Error handling mychannel interaction: ${error}`);
+                    await interaction.reply({ content: 'There was an error handling your interaction!', ephemeral: true });
+                }
             }
         }
     },
 };
+

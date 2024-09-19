@@ -104,6 +104,12 @@ async function handleButtonInteraction(interaction) {
 
     const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
 
+    // Admin check for button interactions
+    const isAdmin = interaction.member.roles.cache.has('710572344745132114'); // Admin role ID
+    if (!isAdmin && (interaction.customId === 'create_channel' || interaction.customId === 'rename_channel')) {
+        return interaction.reply({ content: "Only admins can use this button.", ephemeral: true });
+    }
+
     // Check if the user is the owner of the channel only for specific interactions
     if (interaction.customId === 'rename_channel' || interaction.customId === 'view_friends') {
         const channelOwnerId = interaction.message.embeds[0]?.footer?.text?.replace('Channel Owner ID: ', '');
@@ -216,27 +222,18 @@ async function handleModalSubmit(interaction) {
         }
 
         await channel.setName(newName);
-        await interaction.reply(`Channel name changed to ${newName}`);
+        await interaction.reply(`Channel renamed to ${newName}!`);
     }
 }
 
-// Helper function to calculate the maximum number of friends based on roles
 function calculateMaxFriends(member) {
-    const roleLimits = {
-        '768448955804811274': 5,
-        '768449168297033769': 5,
-        '946729964328337408': 5,
-        '1028256286560763984': 2,
-        '1028256279124250624': 3,
-        '1038106794200932512': 5,
-    };
-
-    let maxFriends = 0;
-    Object.entries(roleLimits).forEach(([roleId, limit]) => {
-        if (member.roles.cache.has(roleId)) {
-            maxFriends += limit;
-        }
-    });
-
-    return maxFriends;
+    // Adjust friend limit based on member's roles
+    if (member.roles.cache.has('1038106794200932512')) {
+        return 5;
+    } else if (member.roles.cache.has('1028256279124250624')) {
+        return 3;
+    } else if (member.roles.cache.has('1028256286560763984')) {
+        return 2;
+    }
+    return 0;
 }

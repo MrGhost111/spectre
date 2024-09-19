@@ -3,11 +3,11 @@ const path = require('path');
 const fs = require('fs');
 
 module.exports = {
-    name: 'rm',
+    name: 'removenote',
     alias: 'rn',
     description: 'Remove donation amount from a user',
     async execute(message, args) {
-        const requiredRole = '1241835441624453221';
+        const requiredRole = '710572344745132114';
         if (!message.member.roles.cache.has(requiredRole)) {
             return message.reply('You do not have the required role to use this command.');
         }
