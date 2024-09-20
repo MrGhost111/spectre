@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const dataPath = './data/channels.json';
 
@@ -8,13 +8,6 @@ module.exports = {
         .setDescription('Manage your channel'),
     async execute(interaction) {
         await handleMyChannelCommand(interaction);
-    },
-    async handleInteraction(interaction) {
-        if (interaction.isButton()) {
-            await handleButtonInteraction(interaction);
-        } else if (interaction.isModalSubmit()) {
-            await handleModalSubmit(interaction);
-        }
     },
 };
 
@@ -54,7 +47,7 @@ async function handleMyChannelCommand(interaction) {
                 `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
                 `**Role Thresholds:**\n${roleThresholds}`
             )
-            .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` }) // Added footer with owner ID
+            .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
             .setColor(0x6666ff);
 
         const isOwner = interaction.user.id === userChannel.userId;
@@ -98,142 +91,25 @@ async function handleMyChannelCommand(interaction) {
     }
 }
 
-async function handleButtonInteraction(interaction) {
-    const dataPath = './data/channels.json';
-    const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-    const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-
-    // Admin check for button interactions
-    const isAdmin = interaction.member.roles.cache.has('710572344745132114'); // Admin role ID
-    if (!isAdmin && (interaction.customId === 'create_channel' || interaction.customId === 'rename_channel')) {
-        return interaction.reply({ content: "Only admins can use this button.", ephemeral: true });
-    }
-
-    // Check if the user is the owner of the channel only for specific interactions
-    if (interaction.customId === 'rename_channel' || interaction.customId === 'view_friends') {
-        const channelOwnerId = interaction.message.embeds[0]?.footer?.text?.replace('Channel Owner ID: ', '');
-        if (interaction.user.id !== channelOwnerId) {
-            return interaction.reply({ content: "You don't have permission to use this button.", ephemeral: true });
-        }
-    }
-
-    if (interaction.customId === 'create_channel') {
-        if (userChannel) {
-            await interaction.reply({ content: "You already own a channel.", ephemeral: true });
-            return;
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId('create_channel_modal')
-            .setTitle('Create Your Channel');
-
-        const nameInput = new TextInputBuilder()
-            .setCustomId('channel_name_input')
-            .setLabel('Channel Name')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        const actionRow = new ActionRowBuilder().addComponents(nameInput);
-        modal.addComponents(actionRow);
-
-        await interaction.showModal(modal);
-    } else if (interaction.customId === 'rename_channel') {
-        if (!userChannel || userChannel.userId !== interaction.user.id) {
-            await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
-            return;
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId('rename_channel_modal')
-            .setTitle('Rename Your Channel');
-
-        const nameInput = new TextInputBuilder()
-            .setCustomId('new_channel_name_input')
-            .setLabel('New Channel Name')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        const actionRow = new ActionRowBuilder().addComponents(nameInput);
-        modal.addComponents(actionRow);
-
-        await interaction.showModal(modal);
-    } else if (interaction.customId === 'view_friends') {
-        if (!userChannel || userChannel.userId !== interaction.user.id) {
-            await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
-            return;
-        }
-
-        const friends = userChannel.friends;
-        const friendsMentions = friends.map(friendId => `<@${friendId}>`).join('\n');
-        const totalFriends = friends.length;
-
-        const embed = new EmbedBuilder()
-            .setTitle(`Friends (${totalFriends}/${calculateMaxFriends(interaction.member)})`)
-            .setDescription(friendsMentions || 'No friends added.');
-
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-}
-
-async function handleModalSubmit(interaction) {
-    const dataPath = './data/channels.json';
-    const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-    if (interaction.customId === 'create_channel_modal') {
-        const channelName = interaction.fields.getTextInputValue('channel_name_input');
-
-        const existingChannel = Object.values(channelsData).find(ch => ch.channelId && interaction.guild.channels.cache.get(ch.channelId));
-        if (existingChannel) {
-            delete channelsData[existingChannel.userId];
-            fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
-        }
-
-        const categoryId = '842471433238347786'; // Default category
-        const category = interaction.guild.channels.cache.get(categoryId);
-
-        let channel = await interaction.guild.channels.create({
-            name: channelName,
-            type: ChannelType.GuildText,
-            parent: category,
-        });
-
-        channelsData[interaction.user.id] = {
-            userId: interaction.user.id,
-            channelId: channel.id,
-            friends: [],
-        };
-        fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
-
-        await interaction.reply(`Channel ${channel} created successfully!`);
-    } else if (interaction.customId === 'rename_channel_modal') {
-        const newName = interaction.fields.getTextInputValue('new_channel_name_input');
-
-        const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-        if (!userChannel) {
-            await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
-            return;
-        }
-
-        const channel = interaction.guild.channels.cache.get(userChannel.channelId);
-        if (!channel) {
-            await interaction.reply({ content: "Channel not found.", ephemeral: true });
-            return;
-        }
-
-        await channel.setName(newName);
-        await interaction.reply(`Channel renamed to ${newName}!`);
-    }
-}
-
+// Helper function to calculate the maximum number of friends based on roles
 function calculateMaxFriends(member) {
-    // Adjust friend limit based on member's roles
-    if (member.roles.cache.has('1038106794200932512')) {
-        return 5;
-    } else if (member.roles.cache.has('1028256279124250624')) {
-        return 3;
-    } else if (member.roles.cache.has('1028256286560763984')) {
-        return 2;
+    const roleLimits = {
+        '768448955804811274': 5, // Role ID 1
+        '768449168297033769': 5, // Role ID 2
+        '946729964328337408': 5, // Role ID 3
+        '1028256286560763984': 2, // Role ID 4
+        '1028256279124250624': 3, // Role ID 5
+        '1038106794200932512': 5, // Role ID 6
+    };
+
+    let maxFriends = 0;
+
+    for (const [roleId, limit] of Object.entries(roleLimits)) {
+        if (member.roles.cache.has(roleId)) {
+            maxFriends += limit;
+        }
     }
-    return 0;
+
+    return maxFriends;
 }
+
