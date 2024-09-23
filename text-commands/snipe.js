@@ -5,16 +5,20 @@ module.exports = {
     description: 'Snipe the last deleted message(s)',
     async execute(message, args) {
         const rolePermissions = {
+            '768448459484692490': 1,
             '1030707878597763103': 1,
             '866641249452556309': 1,
-            '721331975847411754': 1,
-            '768448955804811274': 1,
+            '768448955804811274': 2,
+            '721331975847411754': 2,
             '1028256286560763984': 2,
+            '866641299355861022': 2,
             '768449168297033769': 2,
+            '1028256279124250624': 3,
             '765988972596822036': 3,
             '946729964328337408': 3,
             '866641313754251297': 3
-        };
+        }; 
+
 
         const userRoles = message.member.roles.cache.map(role => role.id);
         const highestRole = userRoles.reduce((max, roleId) => Math.max(max, rolePermissions[roleId] || 0), 0);

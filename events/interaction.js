@@ -1,4 +1,4 @@
-const { ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType } = require('discord.js');
+const { ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, PermissionsBitField } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
@@ -158,8 +158,10 @@ async function handleModalSubmit(interaction) {
             parent: category,
         });
 
-        // Add channel owner with view permission
-        await channel.permissionOverwrites.edit(interaction.user.id, { VIEW_CHANNEL: true });
+        // Add channel owner with view permission using Discord.js v14 syntax
+        await channel.permissionOverwrites.edit(interaction.user.id, {
+            [PermissionsBitField.Flags.ViewChannel]: true,
+        });
 
         channelsData[interaction.user.id] = {
             userId: interaction.user.id,
