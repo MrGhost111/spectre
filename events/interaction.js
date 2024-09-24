@@ -24,9 +24,9 @@ module.exports = {
             // Check if it's the delete_snipe or delete_esnipe button
             if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                 const message = interaction.message;
-                const originalAuthorId = message.interaction.user.id; // The user who ran the original command
+                const originalAuthorId = message.interaction?.user?.id; // Added safe navigation to prevent null errors
 
-                if (interaction.user.id !== originalAuthorId) {
+                if (!originalAuthorId || interaction.user.id !== originalAuthorId) {
                     console.log(`Unauthorized delete attempt by ${interaction.user.tag}`);
                     return await interaction.reply({
                         content: 'You are not allowed to delete this message.',
@@ -197,8 +197,8 @@ function calculateMaxFriends(member) {
         '768448955804811274': 5, // Role ID 1
         '768449168297033769': 5, // Role ID 2
         '946729964328337408': 5, // Role ID 3
-        '1028256286560763984': 2, // Role ID 4
-        '1028256279124250624': 3, // Role ID 5
+        '1028256286560763984': 5, // Role ID 4
+        '1028256279124250624': 5, // Role ID 5
         '1038106794200932512': 5, // Role ID 6
     };
 
