@@ -1,121 +1,204 @@
-const { MessageEmbed } = require('discord.js');
-const { cooldownManager } = require('../utils/cooldownManager');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
+const streakPath = path.join(__dirname, '../data/streaks.json'); // Path to streaks.json
 
 module.exports = {
     name: 'shush',
-    description: 'Mute a targeted user with a chance of failure based on role luck.',
-    execute: async (message, args) => {
-        const muteRoleID = '673978861335085107';
-        const baseRoles = [
-            { id: '866641313754251297', luck: 75 }, // 100 doll
-            { id: '1038106794200932512', luck: 75 }, // 500 tickets
-            { id: '866641299355861022', luck: 75 }, // 50 doll
-            { id: '946729964328337408', luck: 75 }, // 5b dono
-            { id: '866641249452556309', luck: 70 }, // 25 doll
-            { id: '768449168297033769', luck: 70 }, // 2.5b dono
-            { id: '1028256279124250624', luck: 70 }, // 300 tickets
-            { id: '866641177943080960', luck: 65 }, // 10 doll
-            { id: '1028256286560763984', luck: 65 }, // 100 tickets
-            { id: '768448955804811274', luck: 65 }, // 1b dono
-            { id: '866641062441254932', luck: 60 }, // 5 doll
-            { id: '1030707878597763103', luck: 60 }, // 50 tickets
-        ];
-        const boosterRoles = [
-            { id: '721331975847411754', luck: 5 }, // booster role
-            { id: '795693315978166292', luck: 5 }, // voter role
-            { id: '713452411720827013', luck: 5 }, // ush role
+    description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
+    execute(message) {
+        // Define base roles required to use the command
+        const requiredRoles = [
+            '866641313754251297',
+            '1038106794200932512',
+            '866641299355861022',
+            '946729964328337408',
+            '866641249452556309',
+            '768449168297033769',
+            '1028256279124250624',
+            '866641177943080960',
+            '1028256286560763984',
+            '768448955804811274',
+            '866641062441254932',
+            '1030707878597763103',
         ];
 
-        // Check cooldown
-        const cooldown = 30 * 60 * 1000; // 30 minutes
-        const userCooldown = cooldownManager.getCooldown(message.author.id, 'shush');
-        if (userCooldown) {
-            return message.reply(`You need to wait ${Math.round((userCooldown - Date.now()) / 1000)} seconds before using this command again.`);
+        // Check if the user has at least one of the required roles
+        const hasRequiredRole = requiredRoles.some(roleId => message.member.roles.cache.has(roleId));
+
+        if (!hasRequiredRole) {
+            return message.channel.send(`You cannot use this command. Check <#862927749802885150> for more info.`);
         }
 
-        // Identify the highest luck role
-        let userLuck = 0;
-        for (const role of baseRoles) {
-            if (message.member.roles.cache.has(role.id)) {
-                userLuck = Math.max(userLuck, role.luck);
+        const barsPath = path.join(__dirname, '../data/bars.json');
+
+        // Read the bars.json file
+        fs.readFile(barsPath, 'utf8', (err, data) => {
+            if (err) {
+                console.error('Error reading bars.json:', err);
+                return message.channel.send('Error loading bars. Please try again later.');
             }
-        }
 
-        // Apply booster roles
-        for (const role of boosterRoles) {
-            if (message.member.roles.cache.has(role.id)) {
-                userLuck += role.luck;
+            const bars = JSON.parse(data).bars;
+
+            // Function to get the corresponding bar based on the rolled number
+            const getBar = (value, barType) => {
+                if (value <= 10) return bars[barType]['0-10'];
+                if (value <= 20) return bars[barType]['11-20'];
+                if (value <= 30) return bars[barType]['21-30'];
+                if (value <= 40) return bars[barType]['31-40'];
+                if (value <= 50) return bars[barType]['41-50'];
+                if (value <= 60) return bars[barType]['51-60'];
+                if (value <= 70) return bars[barType]['61-70'];
+                if (value <= 80) return bars[barType]['71-80'];
+                if (value <= 90) return bars[barType]['81-90'];
+                return bars[barType]['91-100'];
+            };
+
+            // Calculate luck based on roles
+            let luck = 0;
+
+            // Base roles luck calculation
+            if (message.member.roles.cache.has('866641313754251297') || 
+                message.member.roles.cache.has('1038106794200932512') || 
+                message.member.roles.cache.has('866641299355861022') || 
+                message.member.roles.cache.has('946729964328337408')) {
+                luck = 75;
+            } else if (message.member.roles.cache.has('866641249452556309') || 
+                       message.member.roles.cache.has('768449168297033769') || 
+                       message.member.roles.cache.has('1028256279124250624')) {
+                luck = 70;
+            } else if (message.member.roles.cache.has('866641177943080960') || 
+                       message.member.roles.cache.has('1028256286560763984') || 
+                       message.member.roles.cache.has('768448955804811274')) {
+                luck = 65;
+            } else if (message.member.roles.cache.has('866641062441254932') || 
+                       message.member.roles.cache.has('1030707878597763103')) {
+                luck = 60;
             }
-        }
 
-        if (userLuck === 0) {
-            return message.reply("You don't have the required role to use this command.");
-        }
+            // Booster roles luck addition
+            let boosterLuck = 0;
+            if (message.member.roles.cache.has('721331975847411754')) boosterLuck += 5;
+            if (message.member.roles.cache.has('795693315978166292')) boosterLuck += 5;
+            if (message.member.roles.cache.has('713452411720827013')) boosterLuck += 5;
 
-        // Determine target
-        const target = message.mentions.members.first();
-        if (!target) {
-            return message.reply('Please mention a valid user to shush.');
-        }
-        if (target.id === message.author.id) {
-            return message.reply("You can't shush yourself.");
-        }
+            // Total luck is base luck + booster luck
+            const totalLuck = Math.min(luck + boosterLuck, 100); // Ensure luck does not exceed 100
 
-        // Check if the target has immunity
-        const immunity = cooldownManager.getCooldown(target.id, 'shush_immunity');
-        if (immunity) {
-            return message.reply(`The target is immune for ${Math.round((immunity - Date.now()) / 1000)} more seconds.`);
-        }
+            // Streak logic
+            let currentStreak = 0; // Default current streak
+            let success = false; // Track success status
+            let resultMessage; // Message to display the result
+            let powerRoll; // Declare powerRoll
+            let accuracyRoll; // Declare accuracyRoll
+            let muteTarget; // Variable to hold the mute target
 
-        // Roll for success based on luck
-        const successRoll = Math.random() * 100;
-        const success = successRoll <= userLuck;
+            // Read streaks data from streaks.json
+            fs.readFile(streakPath, 'utf8', (err, streakData) => {
+                let streaks = {};
+                if (!err) {
+                    streaks = JSON.parse(streakData);
+                }
 
-        // Roll for power
-        const powerRoll = Math.random() * 100;
-        const muteDuration = powerRoll >= 95 ? 69 : Math.max(30, Math.round(powerRoll * (39 / 50) + 30)); // 30-69 seconds
+                // Check if user has a streak entry
+                if (streaks[message.author.id]) {
+                    currentStreak = streaks[message.author.id];
+                }
 
-        // Prepare power and accuracy bars
-        const powerBars = generateBars(powerRoll, 'p');
-        const accuracyBars = generateBars(userLuck, 'a');
+                // Determine target user
+                let targetUser;
+                if (message.reference) {
+                    targetUser = message.reference.messageId
+                        ? message.channel.messages.cache.get(message.reference.messageId)?.author
+                        : null;
+                } else {
+                    const mentionedUser = message.mentions.users.first();
+                    targetUser = mentionedUser || message.guild.members.cache.find(member => 
+                        member.user.username.toLowerCase() === message.content.split(' ')[1]?.toLowerCase() || 
+                        member.id === message.content.split(' ')[1]
+                    )?.user || null;
+                }
 
-        // Embed response
-        const embed = new MessageEmbed()
-            .setColor(success ? 'GREEN' : 'RED')
-            .setTitle('Shush Command')
-            .setDescription(
-                `Power: ${Math.round(powerRoll)}\n${powerBars}\n` +
-                `Accuracy: ${Math.round(successRoll)}\n${accuracyBars}\n\n` +
-                (success ? `You hit ${target} and muted them for ${muteDuration} seconds.` : `You missed and muted yourself for ${muteDuration} seconds.`) +
-                `\n\n:streak: Streak: ${success ? (streak + 1) : 0}\n:idk: Luck: ${userLuck}%`
-            );
+                // Proceed if a target user is found
+                if (!targetUser) {
+                    return message.channel.send('Please specify a valid user to mute.');
+                }
 
-        await message.reply({ embeds: [embed] });
+                // Determine success or failure based on luck
+                const luckCheckRoll = Math.floor(Math.random() * 101); // Roll between 0-100
 
-        // Apply mute
-        const muteTarget = success ? target : message.member;
-        await muteTarget.roles.add(muteRoleID);
+                let previousStreak = currentStreak; // Save the previous streak value for display
+                if (luckCheckRoll <= totalLuck) {
+                    // Success
+                    success = true;
+                    currentStreak += 1;
+                    muteTarget = targetUser;
 
-        // Set cooldowns
-        cooldownManager.setCooldown(message.author.id, 'shush', cooldown);
-        cooldownManager.setCooldown(muteTarget.id, 'shush_immunity', 60 * 1000); // 1-minute immunity
+                    // Roll power and accuracy after determining success
+                    powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
+                    accuracyRoll = Math.floor(Math.random() * 51) + 50; // Accuracy between 50-100
 
-        // Unmute after duration
-        setTimeout(async () => {
-            await muteTarget.roles.remove(muteRoleID);
-        }, muteDuration * 1000);
+                    const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
+                    resultMessage = `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`;
+                } else {
+                    // Failure
+                    currentStreak = 0; // Reset streak on failure
+                    muteTarget = message.author;
+
+                    powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
+                    accuracyRoll = Math.min(50, Math.floor(Math.random() * 51)); // Accuracy can't be greater than 50
+                    resultMessage = `> You missed **${targetUser.username}** and they managed to escape!`;
+                }
+
+                // Update the streak data
+                streaks[message.author.id] = currentStreak;
+                fs.writeFile(streakPath, JSON.stringify(streaks), (err) => {
+                    if (err) console.error('Error writing streaks data:', err);
+                });
+
+                // Get the bars based on the random rolls
+                const powerBar = getBar(powerRoll, 'power');
+                const accuracyBar = getBar(accuracyRoll, 'accuracy');
+
+                // Create buttons
+                const actionRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('info')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('<:infom:1064823078162538497>'),
+                        new ButtonBuilder()
+                            .setCustomId('lb')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('<:lbtest:1064919048242090054>'),
+                        new ButtonBuilder()
+                            .setCustomId('edit')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setEmoji('<:edit:1064822995014651914>'),
+                        new ButtonBuilder()
+                            .setCustomId('risk')
+                            .setStyle(ButtonStyle.Danger)
+                            .setEmoji('<:creepypp:1060554596310843553>')
+                    );
+
+                // Embed with the updated format and image
+                const embed = new EmbedBuilder()
+                    .setColor('#FFA500') // You can change the color if needed
+                    .setDescription(
+                        '## Dope!!\n<:invisible:1277372701710749777>\n' + // Using invisible emoji for spacing
+                        `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
+                        `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
+                        resultMessage + `\n\n` + // Separate the result message from the streak
+                        `<:YJ_streak:1259258046924853421> Streak: **${currentStreak}**\n` +
+                        `<:idk:1064831073881694278> Luck: **${totalLuck}**`
+                    )
+                    .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251');
+
+                // Send the embed message with buttons
+                message.channel.send({ embeds: [embed], components: [actionRow] });
+            });
+        });
     },
 };
-
-function generateBars(percentage, type) {
-    const bars = [];
-    const fullBars = Math.floor(percentage / 20);
-    const halfBars = percentage % 20 >= 10 ? 1 : 0;
-    const emptyBars = 5 - fullBars - halfBars;
-
-    for (let i = 0; i < fullBars; i++) bars.push(`:${type}sf:`);
-    if (halfBars) bars.push(`:${type}mh:`);
-    for (let i = 0; i < emptyBars; i++) bars.push(`:${type}ee:`);
-
-    return bars.join('');
-}

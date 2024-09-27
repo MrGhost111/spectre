@@ -5,16 +5,12 @@ const dataPath = path.join(__dirname, '../data/channels.json');
 
 module.exports = {
     name: 'seec',
-    description: 'Admin command to list all channels an admin user is part of',
+    description: 'List all channels the user is part of and add them if not already added.',
     async execute(message) {
-        // Check for admin permissions
-        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            return message.reply('This command is only available to admins.');
-        }
-
         const userId = message.author.id;
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         const userChannels = [];
+        const addedChannels = [];
 
         // Loop through all channels in channels.json
         for (const [_, channelInfo] of Object.entries(channelsData)) {
@@ -28,6 +24,22 @@ module.exports = {
             return message.reply('You are not listed in any channels.');
         }
 
+        // Check if the user is in those channels and add if not
+        for (const channelId of userChannels) {
+            const channel = message.guild.channels.cache.get(channelId);
+            if (channel && !channel.members.has(userId)) {
+                try {
+                    // Use PermissionsBitField to set the VIEW_CHANNEL permission
+                    await channel.permissionOverwrites.edit(userId, { 
+                        [PermissionsBitField.Flags.ViewChannel]: true 
+                    });
+                    addedChannels.push(channel);
+                } catch (error) {
+                    console.error(`Failed to add ${message.author.tag} to channel ${channel.name}:`, error);
+                }
+            }
+        }
+
         // Create embed to display the channels
         const embed = new EmbedBuilder()
             .setTitle('Your Channels')
@@ -35,5 +47,11 @@ module.exports = {
             .setColor(Colors.Green);
 
         await message.reply({ embeds: [embed] });
+
+        // Inform the user about added channels
+        if (addedChannels.length > 0) {
+            const addedChannelNames = addedChannels.map(channel => channel.name).join(', ');
+            await message.channel.send(`You weren't in the following channels, but you've been added: ${addedChannelNames}`);
+        }
     }
 };
