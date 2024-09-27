@@ -93,10 +93,7 @@ module.exports = {
                     modal.addComponents(actionRow);
 
                     await interaction.showModal(modal);
-                }
-
-
- else if (interaction.customId === 'rename_channel') {
+                } else if (interaction.customId === 'rename_channel') {
                     if (!userChannel || userChannel.userId !== interaction.user.id) {
                         await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
                         return;
@@ -133,55 +130,62 @@ module.exports = {
                     await interaction.reply({ embeds: [embed], ephemeral: true });
                 }
             }
-// New interaction handler for the 'lb' button
-else if (interaction.customId === 'lb') {
-    // Load the streaks from the JSON file
-    const streaksPath = './data/streaks.json';
-    let streaks = {};
 
-    try {
-        const data = fs.readFileSync(streaksPath, 'utf8');
-        streaks = JSON.parse(data);
-    } catch (error) {
-        console.error(`Error reading streaks file: ${error}`);
-        return await interaction.reply({ content: 'Failed to load leaderboard data.', ephemeral: true });
-    }
+            // Updated interaction handler for the 'lb' button
+            else if (interaction.customId === 'lb') {
+                const streaksPath = './data/streaks.json';
+                let streakData = {};
 
-    // Sort streaks and prepare the leaderboard
-    const sortedStreaks = Object.entries(streaks)
-        .sort(([, a], [, b]) => b - a) // Sort in descending order
-        .slice(0, 5); // Get top 5
+                try {
+                    const data = fs.readFileSync(streaksPath, 'utf8');
+                    streakData = JSON.parse(data);
+                } catch (error) {
+                    console.error(`Error reading streaks file: ${error}`);
+                    return await interaction.reply({ content: 'Failed to load leaderboard data.', ephemeral: true });
+                }
 
-    const leaderboardEntries = sortedStreaks.map(([userId, streak], index) => {
-        const rankEmojis = [
-            '<:One:1043063155653357568>',
-            '<:Two:1043063239493300294>',
-            '<:Three:1043063324423757885>',
-            '<:Four:1043085748796129301>',
-            '<:Five:1043085910432030760>'
-        ];
-        
-        const rankEmoji = rankEmojis[index] || '';
-        const userTag = `${interaction.client.users.cache.get(userId)?.tag || 'Unknown User'}`;
+                // Ensure that the JSON has the correct structure
+                if (!streakData.users || !Array.isArray(streakData.users)) {
+                    return await interaction.reply({ content: 'No streak data available.', ephemeral: true });
+                }
 
-        // Check if the interaction author is in the leaderboard
-        const userEmoji = interaction.user.id === userId ? '<:sweg:1010054002202906634>' : '';
-        
-        return `${rankEmoji} ┊ ${userTag} - ${streak} ${userEmoji}`;
-    });
+                // Sort streaks by the "streak" value and get the top 5 users
+                const sortedStreaks = streakData.users
+                    .sort((a, b) => b.streak - a.streak)
+                    .slice(0, 5); // Get top 5
 
-    const yourRank = sortedStreaks.findIndex(([userId]) => userId === interaction.user.id) + 1 || 0;
+                // Fetch the user tags for the leaderboard
+                const leaderboardEntries = await Promise.all(sortedStreaks.map(async (user, index) => {
+                    const rankEmojis = [
+                        '<:One:1043063155653357568>',
+                        '<:Two:1043063239493300294>',
+                        '<:Three:1043063324423757885>',
+                        '<:Four:1043085748796129301>',
+                        '<:Five:1043085910432030760>'
+                    ];
+                    const rankEmoji = rankEmojis[index] || '';
 
-    // Create the embed for the leaderboard
-    const lbEmbed = new EmbedBuilder()
-        .setTitle('Leaderboard: Streak')
-        .setColor(0x6666FF) // Change to cyan color
-        .setDescription(leaderboardEntries.join('\n') || 'No streaks available.')
-        .setFooter({ text: `Your rank: ${yourRank}` });
+                    // Fetch the user tag using client.users.fetch()
+                    const fetchedUser = await interaction.client.users.fetch(user.userId).catch(() => null);
+                    const userTag = fetchedUser ? fetchedUser.tag : 'Unknown User';
 
-    await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
-}
+                    // Check if the interaction author is in the leaderboard
+                    const userEmoji = interaction.user.id === user.userId ? '<:sweg:1010054002202906634>' : '';
+                    
+                    return `${rankEmoji} ┊ ${userTag} - ${user.streak} ${userEmoji}`;
+                }));
 
+                const yourRank = sortedStreaks.findIndex(user => user.userId === interaction.user.id) + 1 || 0;
+
+                // Create the embed for the leaderboard
+                const lbEmbed = new EmbedBuilder()
+                    .setTitle('Leaderboard: Streak')
+                    .setColor(0x6666FF) // Change to cyan color
+                    .setDescription(leaderboardEntries.join('\n') || 'No streaks available.')
+                    .setFooter({ text: `Your rank: ${yourRank}` });
+
+                await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
+            }
 
             // New interaction handler for the 'info' button
             else if (interaction.customId === 'info') {

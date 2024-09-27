@@ -81,31 +81,34 @@ module.exports = {
             // Booster roles luck addition
             let boosterLuck = 0;
             if (message.member.roles.cache.has('721331975847411754')) boosterLuck += 5;
-            if (message.member.roles.cache.has('721020858818232343')) boosterLuck += 5;
+            if (message.member.roles.cache.has('795693315978166292')) boosterLuck += 5;
             if (message.member.roles.cache.has('713452411720827013')) boosterLuck += 5;
 
             // Total luck is base luck + booster luck
             const totalLuck = Math.min(luck + boosterLuck, 100); // Ensure luck does not exceed 100
 
             // Streak logic
-            let currentStreak = 0; // Default current streak
-            let success = false; // Track success status
-            let resultMessage; // Message to display the result
-            let powerRoll; // Declare powerRoll
-            let accuracyRoll; // Declare accuracyRoll
-            let muteTarget; // Variable to hold the mute target
+            // Streak logic
+let currentStreak = 0; // Default current streak
+let success = false; // Track success status
+let resultMessage; // Message to display the result
+let powerRoll; // Declare powerRoll
+let accuracyRoll; // Declare accuracyRoll
+let muteTarget; // Variable to hold the mute target
 
-            // Read streaks data from streaks.json
-            fs.readFile(streakPath, 'utf8', (err, streakData) => {
-                let streaks = {};
-                if (!err) {
-                    streaks = JSON.parse(streakData);
-                }
+// Read streaks data from streaks.json
+fs.readFile(streakPath, 'utf8', (err, streakData) => {
+    let streaks = { users: [] };
+    if (!err) {
+        streaks = JSON.parse(streakData);
+    }
 
-                // Check if user has a streak entry
-                if (streaks[message.author.id]) {
-                    currentStreak = streaks[message.author.id];
-                }
+    // Find the user's streak entry
+    const userStreakEntry = streaks.users.find(entry => entry.userId === message.author.id);
+    if (userStreakEntry) {
+        currentStreak = userStreakEntry.streak;
+    }
+
 
                 // Determine target user
                 let targetUser;
@@ -181,10 +184,17 @@ module.exports = {
                 }
 
                 // Update the streak data
-                streaks[message.author.id] = currentStreak;
-                fs.writeFile(streakPath, JSON.stringify(streaks), (err) => {
-                    if (err) console.error('Error writing streaks data:', err);
-                });
+const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
+if (existingUserIndex !== -1) {
+    streaks.users[existingUserIndex].streak = currentStreak;
+} else {
+    streaks.users.push({ userId: message.author.id, streak: currentStreak });
+}
+
+fs.writeFile(streakPath, JSON.stringify(streaks, null, 4), (err) => {
+    if (err) console.error('Error writing streaks data:', err);
+});
+
 
                 // Get the bars based on the random rolls
                 const powerBar = getBar(powerRoll, 'power');
@@ -201,6 +211,10 @@ module.exports = {
                             .setCustomId('lb')
                             .setStyle(ButtonStyle.Secondary)
                             .setEmoji('<:lbtest:1064919048242090054>'),
+                        new ButtonBuilder()
+                            .setCustomId('risk1')
+                            .setStyle(ButtonStyle.Danger)
+                            .setEmoji('<:creepypp:1060554596310843553>'),
                         new ButtonBuilder()
                             .setCustomId('risk')
                             .setStyle(ButtonStyle.Danger)
