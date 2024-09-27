@@ -93,7 +93,10 @@ module.exports = {
                     modal.addComponents(actionRow);
 
                     await interaction.showModal(modal);
-                } else if (interaction.customId === 'rename_channel') {
+                }
+
+
+ else if (interaction.customId === 'rename_channel') {
                     if (!userChannel || userChannel.userId !== interaction.user.id) {
                         await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
                         return;
@@ -130,6 +133,55 @@ module.exports = {
                     await interaction.reply({ embeds: [embed], ephemeral: true });
                 }
             }
+// New interaction handler for the 'lb' button
+else if (interaction.customId === 'lb') {
+    // Load the streaks from the JSON file
+    const streaksPath = './data/streaks.json';
+    let streaks = {};
+
+    try {
+        const data = fs.readFileSync(streaksPath, 'utf8');
+        streaks = JSON.parse(data);
+    } catch (error) {
+        console.error(`Error reading streaks file: ${error}`);
+        return await interaction.reply({ content: 'Failed to load leaderboard data.', ephemeral: true });
+    }
+
+    // Sort streaks and prepare the leaderboard
+    const sortedStreaks = Object.entries(streaks)
+        .sort(([, a], [, b]) => b - a) // Sort in descending order
+        .slice(0, 5); // Get top 5
+
+    const leaderboardEntries = sortedStreaks.map(([userId, streak], index) => {
+        const rankEmojis = [
+            '<:One:1043063155653357568>',
+            '<:Two:1043063239493300294>',
+            '<:Three:1043063324423757885>',
+            '<:Four:1043085748796129301>',
+            '<:Five:1043085910432030760>'
+        ];
+        
+        const rankEmoji = rankEmojis[index] || '';
+        const userTag = `${interaction.client.users.cache.get(userId)?.tag || 'Unknown User'}`;
+
+        // Check if the interaction author is in the leaderboard
+        const userEmoji = interaction.user.id === userId ? '<:sweg:1010054002202906634>' : '';
+        
+        return `${rankEmoji} ┊ ${userTag} - ${streak} ${userEmoji}`;
+    });
+
+    const yourRank = sortedStreaks.findIndex(([userId]) => userId === interaction.user.id) + 1 || 0;
+
+    // Create the embed for the leaderboard
+    const lbEmbed = new EmbedBuilder()
+        .setTitle('Leaderboard: Streak')
+        .setColor(0x00FFFF) // Change to cyan color
+        .setDescription(leaderboardEntries.join('\n') || 'No streaks available.')
+        .setFooter({ text: `Your rank: ${yourRank}` });
+
+    await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
+}
+
 
             // New interaction handler for the 'info' button
             else if (interaction.customId === 'info') {
