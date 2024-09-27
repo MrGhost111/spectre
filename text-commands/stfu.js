@@ -28,7 +28,7 @@ module.exports = {
         const hasRequiredRole = requiredRoles.some(roleId => message.member.roles.cache.has(roleId));
 
         if (!hasRequiredRole) {
-            return message.channel.send(`You cannot use this command. Check <#862927749802885150> for more info.`);
+            return message.channel.send('You cannot use this command. Check <#862927749802885150> for more info.');
         }
 
         const barsPath = path.join(__dirname, '../data/bars.json');
@@ -81,7 +81,7 @@ module.exports = {
             // Booster roles luck addition
             let boosterLuck = 0;
             if (message.member.roles.cache.has('721331975847411754')) boosterLuck += 5;
-            if (message.member.roles.cache.has('795693315978166292')) boosterLuck += 5;
+            if (message.member.roles.cache.has('721020858818232343')) boosterLuck += 5;
             if (message.member.roles.cache.has('713452411720827013')) boosterLuck += 5;
 
             // Total luck is base luck + booster luck
@@ -142,6 +142,21 @@ module.exports = {
 
                     const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
                     resultMessage = `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`;
+
+                    // Mute logic for success case
+                    const mutedRole = message.guild.roles.cache.get('673978861335085107');
+                    if (mutedRole) {
+                        const targetMember = message.guild.members.cache.get(targetUser.id);
+                        if (targetMember) {
+                            targetMember.roles.add(mutedRole)
+                                .then(() => {
+                                    setTimeout(() => {
+                                        targetMember.roles.remove(mutedRole).catch(console.error);
+                                    }, muteDuration * 1000);
+                                })
+                                .catch(console.error);
+                        }
+                    }
                 } else {
                     // Failure
                     currentStreak = 0; // Reset streak on failure
@@ -150,6 +165,19 @@ module.exports = {
                     powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
                     accuracyRoll = Math.min(50, Math.floor(Math.random() * 51)); // Accuracy can't be greater than 50
                     resultMessage = `> You missed **${targetUser.username}** and they managed to escape!`;
+
+                    // Mute logic for failure case
+                    const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
+                    const mutedRole = message.guild.roles.cache.get('673978861335085107');
+                    if (mutedRole) {
+                        message.member.roles.add(mutedRole)
+                            .then(() => {
+                                setTimeout(() => {
+                                    message.member.roles.remove(mutedRole).catch(console.error);
+                                }, muteDuration * 1000);
+                            })
+                            .catch(console.error);
+                    }
                 }
 
                 // Update the streak data
@@ -174,10 +202,6 @@ module.exports = {
                             .setStyle(ButtonStyle.Secondary)
                             .setEmoji('<:lbtest:1064919048242090054>'),
                         new ButtonBuilder()
-                            .setCustomId('edit')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('<:edit:1064822995014651914>'),
-                        new ButtonBuilder()
                             .setCustomId('risk')
                             .setStyle(ButtonStyle.Danger)
                             .setEmoji('<:creepypp:1060554596310843553>')
@@ -190,7 +214,7 @@ module.exports = {
                         '## Dope!!\n<:invisible:1277372701710749777>\n' + // Using invisible emoji for spacing
                         `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
                         `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
-                        resultMessage + `\n\n` + // Separate the result message from the streak
+                        resultMessage + '\n\n' + // Separate the result message from the streak
                         `<:YJ_streak:1259258046924853421> Streak: **${currentStreak}**\n` +
                         `<:idk:1064831073881694278> Luck: **${totalLuck}**`
                     )

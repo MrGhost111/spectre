@@ -175,7 +175,7 @@ else if (interaction.customId === 'lb') {
     // Create the embed for the leaderboard
     const lbEmbed = new EmbedBuilder()
         .setTitle('Leaderboard: Streak')
-        .setColor(0x00FFFF) // Change to cyan color
+        .setColor(0x6666FF) // Change to cyan color
         .setDescription(leaderboardEntries.join('\n') || 'No streaks available.')
         .setFooter({ text: `Your rank: ${yourRank}` });
 
@@ -244,7 +244,7 @@ else if (interaction.customId === 'lb') {
                 // Create an embed with all information
                 const luckEmbed = new EmbedBuilder()
                     .setTitle('Luck Information')
-                    .setColor(0x00FF00) // Green color for the embed
+                    .setColor(0x6666FF) // Green color for the embed
                     .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
                     .addFields(
                         { name: 'Highest Base Role', value: highestBaseRole || 'None' },
