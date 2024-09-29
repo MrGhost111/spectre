@@ -2,7 +2,8 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const fs = require('fs');
 const path = require('path');
 
-const streakPath = path.join(__dirname, '../data/streaks.json'); // Path to streaks.json
+const streakPath = path.join(__dirname, '../data/streaks.json');
+const mutesPath = path.join(__dirname, '../data/mutes.json');
 
 module.exports = {
     name: 'shush',
@@ -10,18 +11,18 @@ module.exports = {
     execute(message) {
         // Define base roles required to use the command
         const requiredRoles = [
-            '866641313754251297',
-            '1038106794200932512',
-            '866641299355861022',
-            '946729964328337408',
-            '866641249452556309',
-            '768449168297033769',
-            '1028256279124250624',
-            '866641177943080960',
-            '1028256286560763984',
-            '768448955804811274',
-            '866641062441254932',
-            '1030707878597763103',
+            '866641313754251297', // 100$
+            '1038106794200932512', // 500 tickets
+            '866641299355861022', // 50$
+            '946729964328337408', // 5bil 
+            '866641249452556309', // 25$ 
+            '768449168297033769', // 2.5b
+            '1028256279124250624', // 300 tickets
+            '866641177943080960', // 10$
+            '1028256286560763984', // 100 tickets
+            '768448955804811274', // 1 bil
+            '866641062441254932', // 5$
+            '1030707878597763103', // 50 tickets
         ];
 
         // Check if the user has at least one of the required roles
@@ -88,27 +89,25 @@ module.exports = {
             const totalLuck = Math.min(luck + boosterLuck, 100); // Ensure luck does not exceed 100
 
             // Streak logic
-            // Streak logic
-let currentStreak = 0; // Default current streak
-let success = false; // Track success status
-let resultMessage; // Message to display the result
-let powerRoll; // Declare powerRoll
-let accuracyRoll; // Declare accuracyRoll
-let muteTarget; // Variable to hold the mute target
+            let currentStreak = 0;
+            let success = false;
+            let resultMessage;
+            let powerRoll;
+            let accuracyRoll;
+            let muteUser;
 
-// Read streaks data from streaks.json
-fs.readFile(streakPath, 'utf8', (err, streakData) => {
-    let streaks = { users: [] };
-    if (!err) {
-        streaks = JSON.parse(streakData);
-    }
+            // Read streaks data from streaks.json
+            fs.readFile(streakPath, 'utf8', (err, streakData) => {
+                let streaks = { users: [] };
+                if (!err) {
+                    streaks = JSON.parse(streakData);
+                }
 
-    // Find the user's streak entry
-    const userStreakEntry = streaks.users.find(entry => entry.userId === message.author.id);
-    if (userStreakEntry) {
-        currentStreak = userStreakEntry.streak;
-    }
-
+                // Find the user's streak entry
+                const userStreakEntry = streaks.users.find(entry => entry.userId === message.author.id);
+                if (userStreakEntry) {
+                    currentStreak = userStreakEntry.streak;
+                }
 
                 // Determine target user
                 let targetUser;
@@ -137,64 +136,93 @@ fs.readFile(streakPath, 'utf8', (err, streakData) => {
                     // Success
                     success = true;
                     currentStreak += 1;
-                    muteTarget = targetUser;
+                    muteUser = targetUser.id;
 
-                    // Roll power and accuracy after determining success
                     powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
                     accuracyRoll = Math.floor(Math.random() * 51) + 50; // Accuracy between 50-100
 
                     const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
                     resultMessage = `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`;
-
-                    // Mute logic for success case
-                    const mutedRole = message.guild.roles.cache.get('673978861335085107');
-                    if (mutedRole) {
-                        const targetMember = message.guild.members.cache.get(targetUser.id);
-                        if (targetMember) {
-                            targetMember.roles.add(mutedRole)
-                                .then(() => {
-                                    setTimeout(() => {
-                                        targetMember.roles.remove(mutedRole).catch(console.error);
-                                    }, muteDuration * 1000);
-                                })
-                                .catch(console.error);
-                        }
-                    }
                 } else {
                     // Failure
                     currentStreak = 0; // Reset streak on failure
-                    muteTarget = message.author;
+                    muteUser = message.author.id;
 
                     powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
                     accuracyRoll = Math.min(50, Math.floor(Math.random() * 51)); // Accuracy can't be greater than 50
-                    resultMessage = `> You missed **${targetUser.username}** and they managed to escape!`;
-
-                    // Mute logic for failure case
+                    
                     const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
-                    const mutedRole = message.guild.roles.cache.get('673978861335085107');
-                    if (mutedRole) {
-                        message.member.roles.add(mutedRole)
+                    resultMessage = `> You missed **${targetUser.username}** and they managed to escape! You muted yourself for **${muteDuration} seconds**.`;
+                }
+
+                // Mute logic
+                const mutedRole = message.guild.roles.cache.get('673978861335085107');
+                if (mutedRole) {
+                    const targetMember = message.guild.members.cache.get(muteUser);
+                    if (targetMember) {
+                        const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
+                        const muteStartTime = Math.floor(Date.now() / 1000);
+                        const muteEndTime = muteStartTime + muteDuration;
+
+                        // Add muted role
+                        targetMember.roles.add(mutedRole)
                             .then(() => {
-                                setTimeout(() => {
-                                    message.member.roles.remove(mutedRole).catch(console.error);
-                                }, muteDuration * 1000);
+                                // Save mute info to mutes.json
+                                fs.readFile(mutesPath, 'utf8', (err, mutesData) => {
+                                    let mutes = { users: [] };
+                                    if (!err) {
+                                        mutes = JSON.parse(mutesData);
+                                    }
+
+                                    mutes.users.push({
+                                        userId: muteUser,
+                                        muteStartTime: muteStartTime,
+                                        muteEndTime: muteEndTime,
+                                        button_clicked: false
+                                    });
+
+                                    fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), (err) => {
+                                        if (err) console.error('Error writing mutes data:', err);
+                                    });
+
+                                    // Set up unmute function
+                                    setTimeout(() => {
+                                        fs.readFile(mutesPath, 'utf8', (err, latestMutesData) => {
+                                            if (err) {
+                                                console.error('Error reading mutes data:', err);
+                                                return;
+                                            }
+
+                                            let latestMutes = JSON.parse(latestMutesData);
+                                            const userMute = latestMutes.users.find(mute => mute.userId === muteUser && mute.muteEndTime === muteEndTime);
+
+                                            if (userMute && !userMute.button_clicked) {
+                                                targetMember.roles.remove(mutedRole).catch(console.error);
+                                                // Remove the mute entry from mutes.json
+                                                latestMutes.users = latestMutes.users.filter(mute => !(mute.userId === muteUser && mute.muteEndTime === muteEndTime));
+                                                fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4), (err) => {
+                                                    if (err) console.error('Error updating mutes data:', err);
+                                                });
+                                            }
+                                        });
+                                    }, muteDuration * 1000);
+                                });
                             })
                             .catch(console.error);
                     }
                 }
 
                 // Update the streak data
-const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
-if (existingUserIndex !== -1) {
-    streaks.users[existingUserIndex].streak = currentStreak;
-} else {
-    streaks.users.push({ userId: message.author.id, streak: currentStreak });
-}
+                const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
+                if (existingUserIndex !== -1) {
+                    streaks.users[existingUserIndex].streak = currentStreak;
+                } else {
+                    streaks.users.push({ userId: message.author.id, streak: currentStreak });
+                }
 
-fs.writeFile(streakPath, JSON.stringify(streaks, null, 4), (err) => {
-    if (err) console.error('Error writing streaks data:', err);
-});
-
+                fs.writeFile(streakPath, JSON.stringify(streaks, null, 4), (err) => {
+                    if (err) console.error('Error writing streaks data:', err);
+                });
 
                 // Get the bars based on the random rolls
                 const powerBar = getBar(powerRoll, 'power');
@@ -212,10 +240,6 @@ fs.writeFile(streakPath, JSON.stringify(streaks, null, 4), (err) => {
                             .setStyle(ButtonStyle.Secondary)
                             .setEmoji('<:lbtest:1064919048242090054>'),
                         new ButtonBuilder()
-                            .setCustomId('risk1')
-                            .setStyle(ButtonStyle.Danger)
-                            .setEmoji('<:creepypp:1060554596310843553>'),
-                        new ButtonBuilder()
                             .setCustomId('risk')
                             .setStyle(ButtonStyle.Danger)
                             .setEmoji('<:creepypp:1060554596310843553>')
@@ -223,12 +247,12 @@ fs.writeFile(streakPath, JSON.stringify(streaks, null, 4), (err) => {
 
                 // Embed with the updated format and image
                 const embed = new EmbedBuilder()
-                    .setColor('#FFA500') // You can change the color if needed
+                    .setColor('#FFA500')
                     .setDescription(
-                        '## Dope!!\n<:invisible:1277372701710749777>\n' + // Using invisible emoji for spacing
+                        '## Dope!!\n<:invisible:1277372701710749777>\n' +
                         `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
                         `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
-                        resultMessage + '\n\n' + // Separate the result message from the streak
+                        resultMessage + '\n\n' +
                         `<:YJ_streak:1259258046924853421> Streak: **${currentStreak}**\n` +
                         `<:idk:1064831073881694278> Luck: **${totalLuck}**`
                     )
