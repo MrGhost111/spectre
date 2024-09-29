@@ -5,6 +5,7 @@ const fs = require('fs');
 // Importing the mychannel command
 const myChannelCommand = require(path.join(__dirname, '../commands/myc.js'));
 const dataPath = './data/channels.json';
+const riskPath = './data/risk.json';
 
 module.exports = {
     name: 'interactionCreate',
@@ -24,9 +25,9 @@ module.exports = {
             // Check if it's the delete_snipe or delete_esnipe button
             if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                 const message = interaction.message;
-                const originalAuthorId = message.interaction?.user?.id; // Added safe navigation to prevent null errors
+                const repliedUser = message.interaction?.user || message.author;
 
-                if (!originalAuthorId || interaction.user.id !== originalAuthorId) {
+                if (!repliedUser || interaction.user.id !== repliedUser.id) {
                     console.log(`Unauthorized delete attempt by ${interaction.user.tag}`);
                     return await interaction.reply({
                         content: 'You are not allowed to delete this message.',
@@ -205,8 +206,7 @@ module.exports = {
                     '1038106794200932512': 75, 
                     '1028256279124250624': 70, 
                     '1028256286560763984': 65,
-'1030707878597763103': 60, 
-                   
+                    '1030707878597763103': 60, 
                 };
 
                 // Booster roles
@@ -264,6 +264,48 @@ module.exports = {
                     .setFooter({ text: 'Luck is calculated based on your roles.' });
 
                 await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
+            }
+            else if (interaction.customId === 'risk') {
+                // New risk button logic
+                const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
+                if (!interaction.member.roles.cache.has(mutedRole.id)) {
+                    return await interaction.reply({ content: 'This button is only for muted users.', ephemeral: true });
+                }
+
+                let riskData = { users: [] };
+                try {
+                    const data = fs.readFileSync(riskPath, 'utf8');
+                    riskData = JSON.parse(data);
+                } catch (error) {
+                    console.error(`Error reading risk file: ${error}`);
+                }
+
+                const userRiskData = riskData.users.find(user => user.userId === interaction.user.id);
+                const currentTime = Date.now();
+
+                if (userRiskData && (currentTime - userRiskData.timestamp) < 120000) { // 2 minutes in milliseconds
+                    return await interaction.reply({ content: 'You can only use the risk button once every 2 minutes.', ephemeral: true });
+                }
+
+                // Update or add user's risk data
+                if (userRiskData) {
+                    userRiskData.timestamp = currentTime;
+                } else {
+                    riskData.users.push({ userId: interaction.user.id, timestamp: currentTime });
+                }
+
+                // Save updated risk data
+                fs.writeFileSync(riskPath, JSON.stringify(riskData, null, 2));
+
+                // 50/50 chance of success
+                const success = Math.random() < 0.5;
+
+                if (success) {
+                    await interaction.member.roles.remove(mutedRole);
+                    await interaction.reply(`${interaction.user} took the risk and succeeded. They are no longer muted!`);
+                } else {
+                    await interaction.reply(`${interaction.user} took the risk and failed miserably <:LOL:1016784080546832484>`);
+                }
             }
         }
     }
