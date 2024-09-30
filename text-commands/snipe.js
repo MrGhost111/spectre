@@ -18,12 +18,10 @@ module.exports = {
             '946729964328337408': 3,
             '866641313754251297': 3,
             '713452411720827013': 5,
-        }; 
-
+        };
 
         const userRoles = message.member.roles.cache.map(role => role.id);
         const highestRole = userRoles.reduce((max, roleId) => Math.max(max, rolePermissions[roleId] || 0), 0);
-
         if (highestRole === 0) {
             return message.reply('You do not meet the role requirements to use this command.');
         }
@@ -41,15 +39,12 @@ module.exports = {
         }
 
         const messagesToDisplay = snipedMessages.slice(-snipeCount);
-
         const embed = new EmbedBuilder().setColor(0x0099ff);
-
         let description = '';
         messagesToDisplay.forEach(msg => {
-            const timestamp = `<t:${msg.timestamp}:t>`; // Discord timestamp formatting
+            const timestamp = `<t:${msg.timestamp}:t>`;
             description += `**[${timestamp}] ${msg.author}:** ${msg.content}\n`;
         });
-
         embed.setDescription(description.trim());
         embed.setFooter({ text: `Command used by ${message.author.username}` });
 
@@ -68,12 +63,7 @@ module.exports = {
                 try {
                     await replyMessage.edit({ components: [] });
                 } catch (error) {
-                    if (error.code === 10008) {
-                        // Message not found error, handle gracefully
-                        console.log('The snipe message was not found, likely already deleted or edited.');
-                    } else {
-                        console.error('Error editing snipe message:', error);
-                    }
+                    console.log('Error removing button:', error);
                 }
             }, 15000);
 

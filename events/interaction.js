@@ -40,9 +40,25 @@ module.exports = {
 
 async function handleDeleteSnipe(interaction) {
     const message = interaction.message;
-    const repliedUser = message.interaction?.user || message.author;
+    
+    // Find the original command message
+    const originalCommandMessage = await interaction.channel.messages.fetch({ limit: 100 }).then(messages => {
+        return messages.find(msg => 
+            msg.content.startsWith(',snipe') || 
+            msg.content.startsWith(',esnipe')
+        );
+    });
 
-    if (!repliedUser || interaction.user.id !== repliedUser.id) {
+    if (!originalCommandMessage) {
+        console.log('Original command message not found');
+        return await interaction.reply({
+            content: 'Unable to verify the original command user.',
+            ephemeral: true
+        });
+    }
+
+    // Compare the interaction user with the original command user
+    if (interaction.user.id !== originalCommandMessage.author.id) {
         console.log(`Unauthorized delete attempt by ${interaction.user.tag}`);
         return await interaction.reply({
             content: 'You are not allowed to delete this message.',
@@ -57,13 +73,6 @@ async function handleDeleteSnipe(interaction) {
             console.log('Embed message deleted.');
         }
 
-        const originalCommandMessage = await interaction.channel.messages.fetch({ limit: 100 }).then(messages => {
-            return messages.find(msg => 
-                msg.content.startsWith(',snipe') || 
-                msg.content.startsWith(',esnipe')
-            );
-        });
-
         if (originalCommandMessage) {
             console.log('Original command message found. Deleting...');
             await originalCommandMessage.delete();
@@ -76,7 +85,6 @@ async function handleDeleteSnipe(interaction) {
         await interaction.reply({ content: 'Failed to delete the message.', ephemeral: true });
     }
 }
-
 async function handleChannelButtons(interaction) {
     const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
     const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
