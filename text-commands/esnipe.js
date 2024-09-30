@@ -17,10 +17,8 @@ module.exports = {
             '765988972596822036': 3,
             '946729964328337408': 3,
             '866641313754251297': 3,
-           '713452411720827013': 5,
-
-        }; 
-
+            '713452411720827013': 5,
+        };
 
         const userRoles = message.member.roles.cache.map(role => role.id);
         const highestRole = userRoles.reduce((max, roleId) => Math.max(max, rolePermissions[roleId] || 0), 0);
@@ -43,9 +41,7 @@ module.exports = {
 
         const messagesToDisplay = editedMessages.slice(-snipeCount);
 
-        const embed = new EmbedBuilder()
-            .setColor(0x0099ff);
-
+        const embed = new EmbedBuilder().setColor(0x0099ff);
         let description = '';
         messagesToDisplay.forEach(msg => {
             const timestamp = `<t:${msg.timestamp}:t>`; // Discord timestamp formatting
@@ -62,13 +58,25 @@ module.exports = {
 
         const row = new ActionRowBuilder().addComponents(deleteButton);
 
-        const replyMessage = await message.reply({ embeds: [embed], components: [row] });
+        try {
+            const replyMessage = await message.reply({ embeds: [embed], components: [row] });
 
-        // Remove the button after 15 seconds
-        setTimeout(async () => {
-            await replyMessage.edit({ components: [] });
-        }, 15000);
+            // Remove the button after 15 seconds with error handling
+            setTimeout(async () => {
+                try {
+                    await replyMessage.edit({ components: [] });
+                } catch (error) {
+                    // Ignore error if the message was already deleted or can't be found
+                    if (error.code !== 10008) { // 10008: Unknown Message
+                        console.error('Error removing button:', error);
+                    }
+                }
+            }, 15000);
 
-        console.log(`Esnipe command executed with ${snipeCount} messages.`);
+            // Logging successful execution
+            console.log(`Esnipe command executed with ${snipeCount} messages.`);
+        } catch (error) {
+            console.error('Error sending esnipe message:', error);
+        }
     },
 };
