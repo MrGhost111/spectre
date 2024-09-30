@@ -128,6 +128,17 @@ module.exports = {
                     return message.channel.send('Please specify a valid user to mute.');
                 }
 
+const mutesData = fs.readFileSync(mutesPath, 'utf8');
+const mutes = JSON.parse(mutesData);
+
+// Check if the target user was muted in the last 2 minutes (120 seconds)
+const recentMute = mutes.users.find(mute => mute.userId === targetUser.id && (Math.floor(Date.now() / 1000) - mute.muteStartTime) < 120);
+if (recentMute) {
+    return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh.`);
+}
+
+
+
                 // Determine success or failure based on luck
                 const luckCheckRoll = Math.floor(Math.random() * 101); // Roll between 0-100
 
@@ -154,63 +165,91 @@ module.exports = {
                     const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
                     resultMessage = `> You missed **${targetUser.username}** and they managed to escape! You muted yourself for **${muteDuration} seconds**.`;
                 }
+// Check if the target user was muted in the last 2 minutes
+const mutedRole = message.guild.roles.cache.get('673978861335085107');
+if (mutedRole) {
+    const targetMember = message.guild.members.cache.get(muteUser);
+    if (targetMember) {
+        // Read the mute data from mutes.json
+        fs.readFile(mutesPath, 'utf8', (err, mutesData) => {
+            if (err) {
+                console.error('Error reading mutes data:', err);
+                return;
+            }
 
-                // Mute logic
-                const mutedRole = message.guild.roles.cache.get('673978861335085107');
-                if (mutedRole) {
-                    const targetMember = message.guild.members.cache.get(muteUser);
-                    if (targetMember) {
-                        const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
-                        const muteStartTime = Math.floor(Date.now() / 1000);
-                        const muteEndTime = muteStartTime + muteDuration;
+            const mutes = JSON.parse(mutesData);
 
-                        // Add muted role
-                        targetMember.roles.add(mutedRole)
-                            .then(() => {
-                                // Save mute info to mutes.json
-                                fs.readFile(mutesPath, 'utf8', (err, mutesData) => {
-                                    let mutes = { users: [] };
-                                    if (!err) {
-                                        mutes = JSON.parse(mutesData);
-                                    }
+            // Find the existing user entry
+            const existingMute = mutes.users.find(mute => mute.userId === muteUser);
 
-                                    mutes.users.push({
-                                        userId: muteUser,
-                                        muteStartTime: muteStartTime,
-                                        muteEndTime: muteEndTime,
-                                        button_clicked: false
-                                    });
+            if (existingMute) {
+                // Calculate the time since the last mute started
+                const currentTime = Math.floor(Date.now() / 1000); // Current time in Unix seconds
+                const timeSinceLastMute = currentTime - existingMute.muteStartTime;
 
-                                    fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), (err) => {
-                                        if (err) console.error('Error writing mutes data:', err);
-                                    });
-
-                                    // Set up unmute function
-                                    setTimeout(() => {
-                                        fs.readFile(mutesPath, 'utf8', (err, latestMutesData) => {
-                                            if (err) {
-                                                console.error('Error reading mutes data:', err);
-                                                return;
-                                            }
-
-                                            let latestMutes = JSON.parse(latestMutesData);
-                                            const userMute = latestMutes.users.find(mute => mute.userId === muteUser && mute.muteEndTime === muteEndTime);
-
-                                            if (userMute && !userMute.button_clicked) {
-                                                targetMember.roles.remove(mutedRole).catch(console.error);
-                                                // Remove the mute entry from mutes.json
-                                                latestMutes.users = latestMutes.users.filter(mute => !(mute.userId === muteUser && mute.muteEndTime === muteEndTime));
-                                                fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4), (err) => {
-                                                    if (err) console.error('Error updating mutes data:', err);
-                                                });
-                                            }
-                                        });
-                                    }, muteDuration * 1000);
-                                });
-                            })
-                            .catch(console.error);
-                    }
+                // If the last mute was applied less than 120 seconds ago, prevent the command
+                if (timeSinceLastMute < 120) {
+                    message.channel.send(`<@${muteUser}> was muted recently. Please wait for at least 2 minutes before attempting to mute them again.`).catch(console.error);
+                    return; // Stop further execution of the command
                 }
+            }
+
+            // Proceed with the rest of the mute logic if the user is not muted recently
+            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
+            const muteStartTime = Math.floor(Date.now() / 1000);
+            const muteEndTime = muteStartTime + muteDuration;
+
+            // Add the muted role to the target user
+            targetMember.roles.add(mutedRole)
+                .then(() => {
+                    // Save the mute info to mutes.json
+                    if (existingMute) {
+                        // Update the existing mute entry
+                        existingMute.muteStartTime = muteStartTime;
+                        existingMute.muteEndTime = muteEndTime;
+                        existingMute.button_clicked = false;
+                    } else {
+                        // Add new mute entry if no previous record found
+                        mutes.users.push({
+                            userId: muteUser,
+                            muteStartTime: muteStartTime,
+                            muteEndTime: muteEndTime,
+                            button_clicked: false
+                        });
+                    }
+
+                    fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), (err) => {
+                        if (err) console.error('Error writing mutes data:', err);
+                    });
+
+                    // Set up the unmute function
+                    setTimeout(() => {
+                        fs.readFile(mutesPath, 'utf8', (err, latestMutesData) => {
+                            if (err) {
+                                console.error('Error reading mutes data:', err);
+                                return;
+                            }
+
+                            const latestMutes = JSON.parse(latestMutesData);
+                            const userMute = latestMutes.users.find(mute => mute.userId === muteUser && mute.muteEndTime === muteEndTime);
+
+                            if (userMute && !userMute.button_clicked) {
+                                targetMember.roles.remove(mutedRole).catch(console.error);
+
+                                // Remove the mute entry from mutes.json
+                                latestMutes.users = latestMutes.users.filter(mute => !(mute.userId === muteUser && mute.muteEndTime === muteEndTime));
+                                fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4), (err) => {
+                                    if (err) console.error('Error updating mutes data:', err);
+                                });
+                            }
+                        });
+                    }, muteDuration * 1000);
+                })
+                .catch(console.error);
+        });
+    }
+}
+
 
                 // Update the streak data
                 const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
