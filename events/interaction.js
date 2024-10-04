@@ -217,7 +217,8 @@ async function handleInfoButton(interaction) {
         '1038106794200932512': 75, 
         '1028256279124250624': 70, 
         '1028256286560763984': 65,
-        '1030707878597763103': 60, 
+        '1030707878597763103': 60,
+        '721331975847411754': 65, 
     };
 
     const boosterRoles = {
@@ -339,3 +340,23 @@ async function handleRiskButton(interaction) {
 
 
 
+function calculateMaxFriends(member) {
+    const roleLimits = {
+        '768448955804811274': 5,
+        '768449168297033769': 5,
+        '946729964328337408': 5,
+        '1028256286560763984': 5,
+        '1028256279124250624': 5,
+        '1038106794200932512': 5,
+    };
+
+    let maxFriends = 0;
+
+    for (const [roleId, limit] of Object.entries(roleLimits)) {
+        if (member.roles.cache.has(roleId)) {
+            maxFriends += limit;
+        }
+    }
+
+    return maxFriends;
+}

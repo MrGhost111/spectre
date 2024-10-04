@@ -23,6 +23,7 @@ module.exports = {
             '768448955804811274', // 1 bil
             '866641062441254932', // 5$
             '1030707878597763103', // 50 tickets
+            '721331975847411754', // server booster
         ];
 
         // Check if the user has at least one of the required roles
@@ -60,24 +61,26 @@ module.exports = {
             // Calculate luck based on roles
             let luck = 0;
 
-            // Base roles luck calculation
-            if (message.member.roles.cache.has('866641313754251297') || 
-                message.member.roles.cache.has('1038106794200932512') || 
-                message.member.roles.cache.has('866641299355861022') || 
-                message.member.roles.cache.has('946729964328337408')) {
-                luck = 75;
-            } else if (message.member.roles.cache.has('866641249452556309') || 
-                       message.member.roles.cache.has('768449168297033769') || 
-                       message.member.roles.cache.has('1028256279124250624')) {
-                luck = 70;
-            } else if (message.member.roles.cache.has('866641177943080960') || 
-                       message.member.roles.cache.has('1028256286560763984') || 
-                       message.member.roles.cache.has('768448955804811274')) {
-                luck = 65;
-            } else if (message.member.roles.cache.has('866641062441254932') || 
-                       message.member.roles.cache.has('1030707878597763103')) {
-                luck = 60;
-            }
+           // Base roles luck calculation
+if (message.member.roles.cache.has('866641313754251297') || 
+    message.member.roles.cache.has('1038106794200932512') || 
+    message.member.roles.cache.has('866641299355861022') || 
+    message.member.roles.cache.has('946729964328337408')) {
+    luck = 75;
+} else if (message.member.roles.cache.has('866641249452556309') || 
+           message.member.roles.cache.has('768449168297033769') || 
+           message.member.roles.cache.has('1028256279124250624')) {
+    luck = 70;
+} else if (message.member.roles.cache.has('866641177943080960') || 
+           message.member.roles.cache.has('1028256286560763984') || 
+           message.member.roles.cache.has('768448955804811274') || 
+           message.member.roles.cache.has('721331975847411754')) { // Corrected line
+    luck = 65;
+} else if (message.member.roles.cache.has('866641062441254932') || 
+           message.member.roles.cache.has('1030707878597763103')) {
+    luck = 60;
+}
+
 
             // Booster roles luck addition
             let boosterLuck = 0;

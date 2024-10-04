@@ -105,7 +105,7 @@
   "Birthday Cake": 1172017,
   "Chocolate Cake": 7856000,
   "Coin Voucher": 11200000,
-  "Candy Corn": 3500000,
+  "Candy Corn": 4000000,
   "Corn Seeds": 85000,
   "Carrot Seeds": 100000,
   "Christmas Gift": 6050000,
@@ -265,7 +265,7 @@
   "Crypto Scam Coin": 33274000,
   "ZomB's ZomBee": 9000000,
   "Zara's Pirate Sword": 13101000,
-  "Beggars Bowl": 42000000,
+  "Beggars Bowl": 26000000,
   "Soggy Boots": 235000,
   "Fake ID": 44000,
   "Pet Feeder": 80193000,
@@ -276,5 +276,6 @@
   "Chet's USB": 10000000,
   "Pepe's Bathwater": 1000000,
   "Skeleton Key": 1,
-  "Prismatic Delight": 42339000
+  "Prismatic Delight": 42339000,
+  "Zombie Hand": 1000000
 }
