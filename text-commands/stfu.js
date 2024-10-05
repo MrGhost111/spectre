@@ -6,7 +6,7 @@ const streakPath = path.join(__dirname, '../data/streaks.json');
 const mutesPath = path.join(__dirname, '../data/mutes.json');
 
 module.exports = {
-    name: 'stfu',
+    name: 'shush',
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     execute(message) {
         // Define base roles required to use the command
@@ -100,9 +100,9 @@ module.exports = {
 
             // Booster roles luck addition
             let boosterLuck = 0;
-            if (message.member.roles.cache.has('721331975847411754')) boosterLuck += 5;
-            if (message.member.roles.cache.has('795693315978166292')) boosterLuck += 5;
             if (message.member.roles.cache.has('713452411720827013')) boosterLuck += 5;
+            if (message.member.roles.cache.has('795693315978166292')) boosterLuck += 5;
+            if (message.member.roles.cache.has('721020858818232343')) boosterLuck += 5;
 
             // Total luck is base luck + booster luck
             const totalLuck = Math.min(luck + boosterLuck, 100); // Ensure luck does not exceed 100

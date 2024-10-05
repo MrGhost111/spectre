@@ -295,8 +295,8 @@ async function handleRiskButton(interaction) {
         const userRiskData = riskData.users.find(user => user.userId === interaction.user.id);
         const currentTime = Date.now();
 
-        if (userRiskData && (currentTime - userRiskData.timestamp) < 120000) {
-            return await interaction.followUp({ content: 'You can only use the risk button once every 2 minutes.', ephemeral: true });
+        if (userRiskData && (currentTime - userRiskData.timestamp) < 300000) {
+            return await interaction.followUp({ content: 'stop spamming this wont help you', ephemeral: true });
         }
 
         if (userRiskData) {
