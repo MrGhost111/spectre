@@ -6,7 +6,7 @@ const streakPath = path.join(__dirname, '../data/streaks.json');
 const mutesPath = path.join(__dirname, '../data/mutes.json');
 
 module.exports = {
-    name: 'shush',
+    name: 'stfu',
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     execute(message) {
         // Define base roles required to use the command

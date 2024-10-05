@@ -1,22 +1,52 @@
 {
-    "users": [
-        {
-            "userId": "749951391249727598",
-            "cooldownEnd": 1728030707
-        },
-        {
-            "userId": "693463277442826240",
-            "muteStartTime": 1728030132,
-            "muteEndTime": 1728030179,
-            "button_clicked": false
-        },
-        {
-            "userId": "766557798183469076",
-            "cooldownEnd": 1728031935
-        },
-        {
-            "userId": "753491023208120321",
-            "cooldownEnd": 1728058344
-        }
-    ]
+  "users": [
+    {
+      "userId": "749951391249727598",
+      "cooldownEnd": 1728030707
+    },
+    {
+      "userId": "693463277442826240",
+      "muteStartTime": 1728030132,
+      "muteEndTime": 1728030179,
+      "button_clicked": false
+    },
+    {
+      "userId": "766557798183469076",
+      "cooldownEnd": 1728031935,
+      "muteStartTime": 1728103821,
+      "muteEndTime": 1728103876,
+      "button_clicked": false
+    },
+    {
+      "userId": "440270582672654356",
+      "cooldownEnd": 1728102224
+    },
+    {
+      "userId": "743429269207646299",
+      "cooldownEnd": 1728102306,
+      "muteStartTime": 1728100514,
+      "muteEndTime": 1728100574,
+      "button_clicked": false
+    },
+    {
+      "userId": "432610292342587392",
+      "muteStartTime": 1728103785,
+      "muteEndTime": 1728103846,
+      "button_clicked": false
+    },
+    {
+      "userId": "632872758665281567",
+      "muteStartTime": 1728103798,
+      "muteEndTime": 1728103859,
+      "button_clicked": false
+    }
+  ],
+  "730401940311244880": {
+    "muteStartTime": 1728102841,
+    "muteEndTime": 1728102884,
+    "button_clicked": false
+  },
+  "753491023208120321": {
+    "cooldownEnd": 1728104641
+  }
 }

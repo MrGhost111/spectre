@@ -15,7 +15,7 @@ module.exports = {
 ////////////////////////////////////////////////////
 ///////////////////////////////////////////////////
 
-    name: 'resetcds',
+    name: 'resetcd',
     description: 'Resets the stfu command cooldown for a specified user.',
     execute(message, args) {
         // The ID of the user who can bypass the cooldown for resetcd command

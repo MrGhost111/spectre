@@ -282,27 +282,29 @@ async function handleRiskButton(interaction) {
             return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
 
-        let riskData = { users: [] };
-        let mutesData = {};
+        let mutesData = { users: [] };
         try {
-            riskData = JSON.parse(fs.readFileSync(riskPath, 'utf8'));
-            mutesData = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
+            const data = fs.readFileSync(mutesPath, 'utf8');
+            mutesData = JSON.parse(data);
         } catch (error) {
-            console.error(`Error reading data files: ${error}`);
+            console.error(`Error reading mutes.json: ${error}`);
             return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
 
-        const userRiskData = riskData.users.find(user => user.userId === interaction.user.id);
-        const currentTime = Date.now();
-
-        if (userRiskData && (currentTime - userRiskData.timestamp) < 300000) {
-            return await interaction.followUp({ content: 'stop spamming this wont help you', ephemeral: true });
+        const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
+        if (!userMute) {
+            return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
 
-        if (userRiskData) {
-            userRiskData.timestamp = currentTime;
-        } else {
-            riskData.users.push({ userId: interaction.user.id, timestamp: currentTime });
+        if (userMute.button_clicked) {
+            return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
+        }
+
+        const currentTime = Math.floor(Date.now() / 1000);
+        const remainingTime = userMute.muteEndTime - currentTime;
+
+        if (remainingTime <= 0) {
+            return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
 
         const success = Math.random() < 0.5;
@@ -312,29 +314,35 @@ async function handleRiskButton(interaction) {
             await interaction.member.roles.remove(mutedRole);
             responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
 
-            if (mutesData[interaction.user.id]) {
-                delete mutesData[interaction.user.id];
-            }
+            // Remove the user's mute data
+            mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
         } else {
-            const currentDuration = mutesData[interaction.user.id]?.duration || 35; // Default duration if not set
-            const newDuration = currentDuration * 2;
-            responseMessage = `${interaction.user} took the risk and failed miserably <:LOL:1016784080546832484>. Mute duration is now doubled to **${newDuration}** seconds.`;
+            const newDuration = remainingTime * 2;
+            const newEndTime = currentTime + newDuration;
+            responseMessage = `${interaction.user} took the risk and failed miserably <:LOL:1016784080546832484>. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
 
-            if (mutesData[interaction.user.id]) {
-                mutesData[interaction.user.id].duration = newDuration;
-            }
+            // Update the user's mute data
+            userMute.muteEndTime = newEndTime;
+            userMute.button_clicked = true;
+
+            // Set up the new unmute timeout
+            setTimeout(() => {
+                interaction.member.roles.remove(mutedRole).catch(console.error);
+                mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
+                fs.writeFile(mutesPath, JSON.stringify(mutesData, null, 2), (err) => {
+                    if (err) console.error('Error updating mutes data:', err);
+                });
+            }, newDuration * 1000);
         }
 
-        fs.writeFileSync(riskPath, JSON.stringify(riskData, null, 2));
-        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
+        fs.writeFile(mutesPath, JSON.stringify(mutesData, null, 2), (err) => {
+            if (err) console.error('Error writing mutes data:', err);
+        });
 
         await interaction.followUp({ content: responseMessage }); // Non-ephemeral message for success/failure
     } catch (error) {
-        if (error.code === 10062) {
-            console.log('Interaction expired before response. Ignoring.');
-        } else {
-            console.error('Error in handleRiskButton:', error);
-        }
+        console.error('Error in handleRiskButton:', error);
+        await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
 
