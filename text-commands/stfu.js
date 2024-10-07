@@ -103,7 +103,7 @@ module.exports = {
 
         // Booster roles luck addition
         let boosterLuck = 0;
-        const boosterRoles = ['713452411720827013', '795693315978166292', '721020858818232343'];
+        const boosterRoles = ['713452411720827013', '721331975847411754', '721020858818232343'];
         boosterRoles.forEach(roleId => {
             if (message.member.roles.cache.has(roleId)) boosterLuck += 5;
         });
