@@ -11,28 +11,39 @@ const streaksPath = './data/streaks.json';
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
-        if (interaction.isCommand()) {
-            const command = client.commands.get(interaction.commandName);
-            if (!command) return;
-            try {
+        try {
+            if (interaction.isCommand()) {
+                const command = client.commands.get(interaction.commandName);
+                if (!command) return;
                 await command.execute(interaction);
-            } catch (error) {
-                console.error(`Error executing command: ${error}`);
-                await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
-            }
-        } else if (interaction.isButton()) {
-            console.log(`Button Interaction Detected: ${interaction.customId}`);
+            } else if (interaction.isButton()) {
+                console.log(`Button Interaction Detected: ${interaction.customId}`);
 
-            if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
-                await handleDeleteSnipe(interaction);
-            } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
-                await handleChannelButtons(interaction);
-            } else if (interaction.customId === 'lb') {
-                await handleLeaderboardButton(interaction);
-            } else if (interaction.customId === 'info') {
-                await handleInfoButton(interaction);
-            } else if (interaction.customId === 'risk') {
-                await handleRiskButton(interaction);
+                if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+                    await handleDeleteSnipe(interaction);
+                } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
+                    await handleChannelButtons(interaction);
+                } else if (interaction.customId === 'lb') {
+                    await handleLeaderboardButton(interaction);
+                } else if (interaction.customId === 'info') {
+                    await handleInfoButton(interaction);
+                } else if (interaction.customId === 'risk') {
+                    await handleRiskButton(interaction);
+                }
+            }
+        } catch (error) {
+            if (error.name === 'InteractionAlreadyReplied') {
+                console.log('Interaction already acknowledged, ignoring:', error.message);
+            } else {
+                console.error('Error handling interaction:', error);
+                try {
+                    await interaction.followUp({ 
+                        content: 'There was an error while executing this command!', 
+                        ephemeral: true 
+                    });
+                } catch (followUpError) {
+                    console.error('Error sending follow-up message:', followUpError);
+                }
             }
         }
     }
@@ -85,6 +96,7 @@ async function handleDeleteSnipe(interaction) {
         await interaction.reply({ content: 'Failed to delete the message.', ephemeral: true });
     }
 }
+
 async function handleChannelButtons(interaction) {
     const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
     const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
@@ -254,7 +266,7 @@ async function handleInfoButton(interaction) {
         contributingRoles.push('No base luck roles assigned.');
     }
 
-    const luckEmbed = new EmbedBuilder()
+ const luckEmbed = new EmbedBuilder()
         .setTitle('Luck Information')
         .setColor(0x6666FF)
         .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
@@ -345,8 +357,6 @@ async function handleRiskButton(interaction) {
         await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
-
-
 
 function calculateMaxFriends(member) {
     const roleLimits = {
