@@ -42,6 +42,8 @@ module.exports = {
             mutes = JSON.parse(mutesData);
         } catch (error) {
             console.error('Error reading mutes.json:', error);
+            // Initialize mutes with an empty structure if file doesn't exist or is malformed
+            fs.writeFileSync(mutesPath, JSON.stringify({ users: [] }), 'utf8');
         }
 
         const userMute = mutes.users.find(mute => mute.userId === message.author.id);
@@ -59,7 +61,13 @@ module.exports = {
                 return message.channel.send('Error loading bars. Please try again later.');
             }
 
-            const bars = JSON.parse(data).bars;
+            let bars;
+            try {
+                bars = JSON.parse(data).bars;
+            } catch (error) {
+                console.error('Error parsing bars.json:', error);
+                return message.channel.send('Error processing bars data. Please try again later.');
+            }
 
             // Function to get the corresponding bar based on the rolled number
             const getBar = (value, barType) => {
@@ -119,7 +127,13 @@ module.exports = {
             fs.readFile(streakPath, 'utf8', (err, streakData) => {
                 let streaks = { users: [] };
                 if (!err) {
-                    streaks = JSON.parse(streakData);
+                    try {
+                        streaks = JSON.parse(streakData);
+                    } catch (error) {
+                        console.error('Error parsing streaks.json:', error);
+                        // Initialize streaks with an empty structure if file is malformed
+                        fs.writeFileSync(streakPath, JSON.stringify({ users: [] }), 'utf8');
+                    }
                 }
 
                 // Find the user's streak entry
@@ -147,8 +161,14 @@ module.exports = {
                     return message.channel.send('Please specify a valid user to mute.');
                 }
 
-                const mutesData = fs.readFileSync(mutesPath, 'utf8');
-                const mutes = JSON.parse(mutesData);
+                let mutesData;
+                try {
+                    mutesData = fs.readFileSync(mutesPath, 'utf8');
+                    mutes = JSON.parse(mutesData);
+                } catch (error) {
+                    console.error('Error reading or parsing mutes.json:', error);
+                    mutes = { users: [] };
+                }
 
                 // Check if the target user was muted in the last 2 minutes (120 seconds)
                 const recentMute = mutes.users.find(mute => mute.userId === targetUser.id && (Math.floor(Date.now() / 1000) - mute.muteStartTime) < 120);
@@ -195,7 +215,13 @@ module.exports = {
                                 return;
                             }
 
-                            const mutes = JSON.parse(mutesData);
+                            let mutes;
+                            try {
+                                mutes = JSON.parse(mutesData);
+                            } catch (error) {
+                                console.error('Error parsing mutes data:', error);
+                                mutes = { users: [] };
+                            }
 
                             // Find the existing user entry
                             const existingMute = mutes.users.find(mute => mute.userId === muteUser);
@@ -248,7 +274,14 @@ module.exports = {
                                                 return;
                                             }
 
-                                            const latestMutes = JSON.parse(latestMutesData);
+                                            let latestMutes;
+                                            try {
+                                                latestMutes = JSON.parse(latestMutesData);
+                                            } catch (error) {
+                                                console.error('Error parsing latest mutes data:', error);
+                                                latestMutes = { users: [] };
+                                            }
+
                                             const userMute = latestMutes.users.find(mute => mute.userId === muteUser && mute.muteEndTime === muteEndTime);
 
                                             if (userMute && !userMute.button_clicked) {
@@ -266,9 +299,8 @@ module.exports = {
                                 .catch(console.error);
                         });
                     }
-                }
-
-                // Update the streak data
+}
+  // Update the streak data
                 const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
                 if (existingUserIndex !== -1) {
                     streaks.users[existingUserIndex].streak = currentStreak;
@@ -284,7 +316,7 @@ module.exports = {
                 const powerBar = getBar(powerRoll, 'power');
                 const accuracyBar = getBar(accuracyRoll, 'accuracy');
 
-               // Create buttons
+                // Create buttons
                 const actionRow = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -336,3 +368,4 @@ module.exports = {
         });
     },
 };
+
