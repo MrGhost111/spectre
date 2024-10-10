@@ -6,34 +6,22 @@ const streakPath = path.join(__dirname, '../data/streaks.json');
 const mutesPath = path.join(__dirname, '../data/mutes.json');
 
 module.exports = {
-    name: 'stfu',
+    name: 'shut',
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     async execute(message) {
-        // Define base roles required to use the command
         const requiredRoles = [
-            '866641313754251297', // 100$
-            '1038106794200932512', // 500 tickets
-            '866641299355861022', // 50$
-            '946729964328337408', // 5bil 
-            '866641249452556309', // 25$ 
-            '768449168297033769', // 2.5b
-            '1028256279124250624', // 300 tickets
-            '866641177943080960', // 10$
-            '1028256286560763984', // 100 tickets
-            '768448955804811274', // 1 bil
-            '866641062441254932', // 5$
-            '1030707878597763103', // 50 tickets
-            '721331975847411754', // server booster
+            '866641313754251297', '1038106794200932512', '866641299355861022', '946729964328337408', 
+            '866641249452556309', '768449168297033769', '1028256279124250624', '866641177943080960', 
+            '1028256286560763984', '768448955804811274', '866641062441254932', '1030707878597763103', 
+            '721331975847411754'
         ];
 
-        // Check if the user has at least one of the required roles
         const hasRequiredRole = requiredRoles.some(roleId => message.member.roles.cache.has(roleId));
 
         if (!hasRequiredRole) {
             return message.channel.send('You cannot use this command. Check <#862927749802885150> for more info.');
         }
 
-        // Check cooldown
         const currentTime = Math.floor(Date.now() / 1000);
         let mutes = { users: [] };
 
@@ -42,7 +30,6 @@ module.exports = {
             mutes = JSON.parse(mutesData);
         } catch (error) {
             console.error('Error reading mutes.json:', error);
-            // Initialize mutes with an empty structure if file doesn't exist or is malformed
             await fs.writeFile(mutesPath, JSON.stringify({ users: [] }), 'utf8');
         }
 
@@ -54,7 +41,6 @@ module.exports = {
 
         const barsPath = path.join(__dirname, '../data/bars.json');
 
-        // Read the bars.json file
         let bars;
         try {
             const data = await fs.readFile(barsPath, 'utf8');
@@ -64,7 +50,6 @@ module.exports = {
             return message.channel.send('Error processing bars data. Please try again later.');
         }
 
-        // Function to get the corresponding bar based on the rolled number
         const getBar = (value, barType) => {
             if (value <= 10) return bars[barType]['0-10'];
             if (value <= 20) return bars[barType]['11-20'];
@@ -78,10 +63,8 @@ module.exports = {
             return bars[barType]['91-100'];
         };
 
-        // Calculate luck based on roles
         let luck = 0;
 
-        // Base roles luck calculation
         if (message.member.roles.cache.has('866641313754251297') || 
             message.member.roles.cache.has('1038106794200932512') || 
             message.member.roles.cache.has('866641299355861022') || 
@@ -101,16 +84,13 @@ module.exports = {
             luck = 60;
         }
 
-        // Booster roles luck addition
         let boosterLuck = 0;
         const boosterRoles = ['713452411720827013', '721331975847411754', '721020858818232343'];
         boosterRoles.forEach(roleId => {
             if (message.member.roles.cache.has(roleId)) boosterLuck += 5;
         });
 
-        // Total luck is base luck + booster luck
-        const totalLuck = Math.min(luck + boosterLuck, 100); // Ensure luck does not exceed 100
-        // Streak logic
+        const totalLuck = Math.min(luck + boosterLuck, 100);
         let currentStreak = 0;
         let success = false;
         let resultMessage;
@@ -118,24 +98,20 @@ module.exports = {
         let accuracyRoll;
         let muteUser;
 
-        // Read streaks data from streaks.json
         let streaks = { users: [] };
         try {
             const streakData = await fs.readFile(streakPath, 'utf8');
             streaks = JSON.parse(streakData);
         } catch (error) {
             console.error('Error reading or parsing streaks.json:', error);
-            // Initialize streaks with an empty structure if file doesn't exist or is malformed
             await fs.writeFile(streakPath, JSON.stringify({ users: [] }), 'utf8');
         }
 
-        // Find the user's streak entry
         const userStreakEntry = streaks.users.find(entry => entry.userId === message.author.id);
         if (userStreakEntry) {
             currentStreak = userStreakEntry.streak;
         }
 
-        // Determine target user
         let targetUser;
         if (message.reference) {
             const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -156,55 +132,47 @@ module.exports = {
             }
         }
 
-        // Proceed if a target user is found
         if (!targetUser) {
             return message.channel.send('Please specify a valid user to mute.');
         }
 
-        // Check if the user is trying to mute themselves
         if (targetUser.id === message.author.id) {
-            return message.channel.send("You can't use this command on yourself.");
+            return message.channel.send("Don't be like pres 🤡");
         }
 
-        // Check if the target user is a bot
         if (targetUser.bot) {
-            return message.channel.send("You can't use this command on bots.");
+            return message.channel.send("You can't use this on bots.");
         }
 
-        // Check if the target user was muted in the last 2 minutes (120 seconds)
         const recentMute = mutes.users.find(mute => mute.userId === targetUser.id && (currentTime - mute.muteStartTime) < 120);
         if (recentMute) {
             return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh.`);
         }
 
-        // Determine success or failure based on luck
-        const luckCheckRoll = Math.floor(Math.random() * 101); // Roll between 0-100
+        const luckCheckRoll = Math.floor(Math.random() * 101);
 
-        let previousStreak = currentStreak; // Save the previous streak value for display
+        let previousStreak = currentStreak;
         if (luckCheckRoll <= totalLuck) {
-            // Success
             success = true;
             currentStreak += 1;
             muteUser = targetUser.id;
 
-            powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
-            accuracyRoll = Math.floor(Math.random() * 51) + 50; // Accuracy between 50-100
+            powerRoll = Math.floor(Math.random() * 71) + 30;
+            accuracyRoll = Math.floor(Math.random() * 51) + 50;
 
-            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
+            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
             resultMessage = `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`;
         } else {
-            // Failure
-            currentStreak = 0; // Reset streak on failure
+            currentStreak = 0;
             muteUser = message.author.id;
 
-            powerRoll = Math.floor(Math.random() * 71) + 30; // Roll power between 30-100
-            accuracyRoll = Math.min(50, Math.floor(Math.random() * 51)); // Accuracy can't be greater than 50
+            powerRoll = Math.floor(Math.random() * 71) + 30;
+            accuracyRoll = Math.min(50, Math.floor(Math.random() * 51));
             
-            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35); // Map power to mute duration
+            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
             resultMessage = `> You tried to hit  **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue.**.`;
         }
 
-        // Apply mute
         const mutedRole = message.guild.roles.cache.get('673978861335085107');
         if (mutedRole) {
             const targetMember = await message.guild.members.fetch(muteUser);
@@ -213,10 +181,8 @@ module.exports = {
                 const muteStartTime = Math.floor(Date.now() / 1000);
                 const muteEndTime = muteStartTime + muteDuration;
 
-                // Add the muted role to the target user
                 await targetMember.roles.add(mutedRole);
 
-                // Update mutes.json
                 const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === muteUser);
                 if (existingMuteIndex !== -1) {
                     mutes.users[existingMuteIndex] = {
@@ -236,7 +202,6 @@ module.exports = {
 
                 await fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4));
 
-                // Set up the unmute function
                 setTimeout(async () => {
                     const latestMutesData = await fs.readFile(mutesPath, 'utf8');
                     const latestMutes = JSON.parse(latestMutesData);
@@ -245,7 +210,6 @@ module.exports = {
                     if (userMute && !userMute.button_clicked) {
                         await targetMember.roles.remove(mutedRole);
 
-                        // Remove the mute entry from mutes.json
                         latestMutes.users = latestMutes.users.filter(mute => !(mute.userId === muteUser && mute.muteEndTime === muteEndTime));
                         await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4));
                     }
@@ -253,7 +217,6 @@ module.exports = {
             }
         }
 
-        // Update the streak data
         const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
         if (existingUserIndex !== -1) {
             streaks.users[existingUserIndex].streak = currentStreak;
@@ -263,11 +226,9 @@ module.exports = {
 
         await fs.writeFile(streakPath, JSON.stringify(streaks, null, 4));
 
-        // Get the bars based on the random rolls
         const powerBar = getBar(powerRoll, 'power');
         const accuracyBar = getBar(accuracyRoll, 'accuracy');
 
-        // Create buttons
         const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -284,7 +245,6 @@ module.exports = {
                     .setEmoji('<:creepypp:1060554596310843553>')
             );
 
-        // Embed with the updated format and image
         const embed = new EmbedBuilder()
             .setColor('#FFA500')
             .setDescription(
@@ -297,11 +257,9 @@ module.exports = {
             )
             .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251');
 
-        // Send the embed message with buttons
         await message.channel.send({ embeds: [embed], components: [actionRow] });
 
-        // Update cooldown in mutes.json
-        const cooldownEnd = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes from now
+        const cooldownEnd = Math.floor(Date.now() / 1000) + 30 * 60;
         const userIndex = mutes.users.findIndex(user => user.userId === message.author.id);
         if (userIndex !== -1) {
             mutes.users[userIndex].cooldownEnd = cooldownEnd;
