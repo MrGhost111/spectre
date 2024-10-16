@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ChannelType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
@@ -21,46 +21,66 @@ module.exports = {
         // Acknowledge the interaction to prevent timeouts
         await interaction.deferReply();
 
+        // IDs of the categories to process
+        const categoryIds = [
+            '799997847931977749',
+            '842471433238347786',
+            '1064095644811284490'
+        ];
+
         try {
             console.log('Loading channels data from', dataPath);
             const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-
-            console.log('Channels data loaded:', channelsData);
-
+            const missingChannels = [];
             const results = [];
 
-            for (const [userId, channelInfo] of Object.entries(channelsData)) {
-                if (userId === 'channels') continue; // Skip the 'channels' key
+            // Loop through each category
+            for (const categoryId of categoryIds) {
+                const category = await interaction.guild.channels.fetch(categoryId);
 
-                console.log(`Processing channel ${channelInfo.channelId} for owner ${channelInfo.userId}`);
+                if (category && category.type === ChannelType.GuildCategory) {
+                    console.log(`Processing category: ${category.name} (${categoryId})`);
 
-                if (!channelInfo.channelId || !channelInfo.userId) {
-                    console.error(`Missing channelId or userId in data:`, channelInfo);
-                    results.push(`Skipped channel due to missing data.`);
-                    continue;
-                }
+                    // Loop through each channel in the category
+                    for (const channel of category.children.cache.values()) {
+                        console.log(`Checking channel: ${channel.name} (${channel.id})`);
 
-                try {
-                    const channel = await interaction.guild.channels.fetch(channelInfo.channelId);
-                    if (channel && channel.isTextBased()) {
-                        await channel.setTopic(`Owner: <@${channelInfo.userId}>`);
-                        results.push(`Updated description for channel: <#${channel.id}>`);
-                        console.log(`Updated description for channel ${channel.id}`);
-                    } else {
-                        results.push(`Channel not found or not a text channel: ${channelInfo.channelId}`);
-                        console.log(`Channel not found or not a text channel: ${channelInfo.channelId}`);
+                        const channelInfo = channelsData[channel.id];
+
+                        if (channelInfo) {
+                            // If channel is in channels.json, update the topic
+                            console.log(`Found channel in database: ${channel.id}, updating topic.`);
+                            if (channel.isTextBased()) {
+                                await channel.setTopic(`Owner: <@${channelInfo.userId}>`);
+                                results.push(`Updated description for channel: <#${channel.id}>`);
+                            } else {
+                                results.push(`Channel is not a text channel: ${channel.id}`);
+                            }
+                        } else {
+                            // If channel is not in channels.json, add it to the missing list
+                            missingChannels.push(channel.id);
+                            console.log(`Channel not found in database: ${channel.id}`);
+                        }
                     }
-                } catch (error) {
-                    console.log(`Error fetching or updating channel ${channelInfo.channelId}:`, error);
-                    results.push(`Error updating channel: <#${channelInfo.channelId}>`);
+                } else {
+                    console.log(`Category not found or not a category: ${categoryId}`);
                 }
             }
 
             console.log('Results:', results);
+            console.log('Missing channels:', missingChannels);
 
+            // Reply with the results of the operation
             await interaction.editReply({
-                content: results.join('\n'),
+                content: results.length > 0 ? results.join('\n') : 'No channels were updated.'
             });
+
+            // Send a follow-up message for missing channels
+            if (missingChannels.length > 0) {
+                await interaction.channel.send({
+                    content: `Channels not found in the database:\n${missingChannels.map(id => `<#${id}>`).join('\n')}`
+                });
+            }
         } catch (error) {
             console.error('Error executing updatechanneldesc command:', error);
             await interaction.editReply({
