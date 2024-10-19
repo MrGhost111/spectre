@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, Colors } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
@@ -54,15 +54,31 @@ module.exports = {
             }
         }
 
-        // Prepare a message to send after processing
-        const resultMessage = processedChannels.length > 0
-            ? processedChannels.join('\n')
-            : 'No channels were processed.';
-        const missingMessage = missingChannels.length > 0
-            ? `\n\nChannels not found in the database:\n${missingChannels.join('\n')}`
-            : '';
+        // Combine the results into a single message
+        const results = [
+            `Processed all categories and channels:`,
+            ...processedChannels,
+            '',
+            'Channels not found in the database:',
+            ...missingChannels,
+        ];
 
-        // Send the follow-up message with results
-        await interaction.followUp(`Processed all categories and channels:\n${resultMessage}${missingMessage}`);
+        // Function to send the message in parts if it exceeds the character limit
+        const sendInChunks = async (interaction, messages) => {
+            let chunk = '';
+            for (const message of messages) {
+                if (chunk.length + message.length > 2000) {
+                    await interaction.followUp({ embeds: [new EmbedBuilder().setDescription(chunk).setColor(Colors.Blue)] });
+                    chunk = '';
+                }
+                chunk += `${message}\n`;
+            }
+            if (chunk.length > 0) {
+                await interaction.followUp({ embeds: [new EmbedBuilder().setDescription(chunk).setColor(Colors.Blue)] });
+            }
+        };
+
+        // Send the result messages in chunks
+        await sendInChunks(interaction, results);
     },
 };

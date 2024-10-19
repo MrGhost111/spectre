@@ -17,7 +17,6 @@ module.exports = {
                 .setRequired(true)
         )
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
-        
     async execute(interaction) {
         const targetUser = interaction.options.getUser('user');
         const selectedChannel = interaction.options.getChannel('channel');
@@ -33,14 +32,12 @@ module.exports = {
 
             // Check if the user already has a channel
             const existingChannel = channelsData[targetUser.id];
-
             if (existingChannel) {
                 // Remove permissions for the old channel
                 const oldChannel = interaction.guild.channels.cache.get(existingChannel.channelId);
                 if (oldChannel) {
                     await oldChannel.permissionOverwrites.edit(targetUser, { ViewChannel: false });
                 }
-
                 // Replace the old channel with the new one in channels.json
                 delete channelsData[targetUser.id];
             }
@@ -71,6 +68,9 @@ module.exports = {
             // Write updated data back to channels.json
             fs.writeFileSync(channelsDataPath, JSON.stringify(channelsData, null, 2));
 
+            // Add the owner to the new channel with ViewChannel permission
+            await selectedChannel.permissionOverwrites.edit(targetUser, { ViewChannel: true });
+
             // Prepare the embed response message
             const embed = new EmbedBuilder()
                 .setColor(0x0099FF)
@@ -97,7 +97,6 @@ module.exports = {
 
             // Send the final response as an edited deferred reply
             await interaction.editReply({ embeds: [embed] });
-
         } catch (error) {
             console.error('Error assigning channel:', error);
             // Only reply once if not already replied
