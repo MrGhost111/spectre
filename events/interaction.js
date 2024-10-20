@@ -325,18 +325,15 @@ async function handleRiskButton(interaction) {
         if (success) {
             await interaction.member.roles.remove(mutedRole);
             responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
-
-            // Remove the user's mute data
-            mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
+            // Mark the button as clicked but don't remove the mute data
+            userMute.button_clicked = true;
         } else {
             const newDuration = remainingTime * 2;
             const newEndTime = currentTime + newDuration;
-            responseMessage = `${interaction.user} took the risk and failed miserably <:LOL:1016784080546832484>. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
-
+            responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
             // Update the user's mute data
             userMute.muteEndTime = newEndTime;
             userMute.button_clicked = true;
-
             // Set up the new unmute timeout
             setTimeout(() => {
                 interaction.member.roles.remove(mutedRole).catch(console.error);
