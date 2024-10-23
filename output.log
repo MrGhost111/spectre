@@ -1,142 +1,44 @@
 Logged in as Spectre#6450!
-Fetched category ID: 799997847931977749, Result: Found
-Fetched category ID: 842471433238347786, Result: Found
-Fetched category ID: 1064095644811284490, Result: Found
-Error handling interaction: DiscordAPIError[50035]: Invalid Form Body
-content[BASE_TYPE_MAX_LENGTH]: Must be 2000 or fewer in length.
+Error in modal submission: DiscordAPIError[50035]: Invalid Form Body
+parent_id[CHANNEL_PARENT_INVALID]: Category does not exist
     at handleErrors (/home/ubuntu/spectre/node_modules/@discordjs/rest/dist/index.js:730:13)
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async SequentialHandler.runRequest (/home/ubuntu/spectre/node_modules/@discordjs/rest/dist/index.js:1133:23)
     at async SequentialHandler.queueRequest (/home/ubuntu/spectre/node_modules/@discordjs/rest/dist/index.js:963:14)
     at async _REST.request (/home/ubuntu/spectre/node_modules/@discordjs/rest/dist/index.js:1278:22)
-    at async InteractionWebhook.send (/home/ubuntu/spectre/node_modules/discord.js/src/structures/Webhook.js:224:15)
-    at async Object.execute (/home/ubuntu/spectre/commands/faizlame.js:66:9)
-    at async Object.execute (/home/ubuntu/spectre/events/interaction.js:18:17) {
+    at async GuildChannelManager.create (/home/ubuntu/spectre/node_modules/discord.js/src/managers/GuildChannelManager.js:183:18)
+    at async handleModalSubmit (/home/ubuntu/spectre/events/interaction.js:64:29)
+    at async Object.execute (/home/ubuntu/spectre/events/interaction.js:31:17) {
   requestBody: {
-    files: [],
+    files: undefined,
     json: {
-      content: 'Processed all categories and channels:\n' +
-        'Updated channel: <#744344290779463801> to topic: <@334775655315275776>.\n' +
-        'Updated channel: <#760168540891775006> to topic: <@688024477103423580>.\n' +
-        'Updated channel: <#800252045231652865> to topic: <@753491023208120321>.\n' +
-        'Updated channel: <#800264728991236106> to topic: <@747048507856388096>.\n' +
-        'Updated channel: <#801882202572455966> to topic: <@393889222496616468>.\n' +
-        'Updated channel: <#807513016404410378> to topic: <@597727501174964224>.\n' +
-        'Updated channel: <#811655044750770226> to topic: <@560093267497189396>.\n' +
-        'Updated channel: <#812413367590322248> to topic: <@698165110765649951>.\n' +
-        'Updated channel: <#813054426675019826> to topic: <@549753335406919680>.\n' +
-        'Updated channel: <#822888675590799371> to topic: <@839441992974073867>.\n' +
-        'Updated channel: <#825558710838624307> to topic: <@642271523956326414>.\n' +
-        'Updated channel: <#830531998983389214> to topic: <@763487741194272809>.\n' +
-        'Updated channel: <#835096510957879336> to topic: <@825607869012901888>.\n' +
-        'Updated channel: <#836889741407420436> to topic: <@770347118681915403>.\n' +
-        'Updated channel: <#838379645279535125> to topic: <@431756523761434624>.\n' +
-        'Updated channel: <#844417970063278110> to topic: <@821609257573023755>.\n' +
-        'Updated channel: <#844485773695647754> to topic: <@616188391704363008>.\n' +
-        'Updated channel: <#851673647990308895> to topic: <@749951391249727598>.\n' +
-        'Updated channel: <#858548183369908234> to topic: <@654164440471699496>.\n' +
-        'Updated channel: <#864700822156083240> to topic: <@772348411093319692>.\n' +
-        'Updated channel: <#869461252236259338> to topic: <@733727599582248970>.\n' +
-        'Updated channel: <#869773758074863627> to topic: <@592470061462061056>.\n' +
-        'Updated channel: <#870197732671885322> to topic: <@795568905955049482>.\n' +
-        'Updated channel: <#871449035767152640> to topic: <@693463277442826240>.\n' +
-        'Updated channel: <#872031572143013928> to topic: <@827983414308241448>.\n' +
-        'Updated channel: <#904963433999527966> to topic: <@780698465797013514>.\n' +
-        'Updated channel: <#918347135521529856> to topic: <@714614442284810330>.\n' +
-        'Updated channel: <#935106488656076821> to topic: <@279926356794408961>.\n' +
-        'Updated channel: <#960756314001264661> to topic: <@877789480956866601>.\n' +
-        'Updated channel: <#965145742991831061> to topic: <@743429269207646299>.\n' +
-        'Updated channel: <#971270660942856232> to topic: <@707384479295209472>.\n' +
-        'Updated channel: <#973101814356521010> to topic: <@802556469575942164>.\n' +
-        'Updated channel: <#977747598888816700> to topic: <@659361315957243904>.\n' +
-        'Updated channel: <#988488891751346276> to topic: <@715429997657194508>.\n' +
-        'Updated channel: <#997817201438511124> to topic: <@966974322172383232>.\n' +
-        'Updated channel: <#1004703521746194473> to topic: <@740108592283385868>.\n' +
-        'Updated channel: <#1030097780208848936> to topic: <@947149661389590578>.\n' +
-        'Updated channel: <#1033293448721215488> to topic: <@719160226271461416>.\n' +
-        'Updated channel: <#1038855699767234580> to topic: <@772715627089100831>.\n' +
-        'Updated channel: <#1039103237829177396> to topic: <@756458147027222528>.\n' +
-        'Updated channel: <#1040290588936904735> to topic: <@794808542611636224>.\n' +
-        'Updated channel: <#1040993838753394708> to topic: <@1193260295565611120>.\n' +
-        'Updated channel: <#1046373744689557544> to topic: <@667863234807595040>.\n' +
-        'Updated channel: <#1048938314658492556> to topic: <@714932050259345448>.\n' +
-        'Updated channel: <#1052077818869190717> to topic: <@667269787818131456>.\n' +
-        'Updated channel: <#1053370871210835978> to topic: <@937384278801653790>.\n' +
-        'Updated channel: <#1069887995219558490> to topic: <@874970115161063466>.\n' +
-        'Updated channel: <#1075816882784964688> to topic: <@906899371436683264>.\n' +
-        'Updated channel: <#815171341283622945> to topic: <@621379895104372757>.\n' +
-        'Updated channel: <#817715022909276160> to topic: <@786612324588060713>.\n' +
-        'Updated channel: <#822919798245031966> to topic: <@701253650395430952>.\n' +
-        'Updated channel: <#831084962487861287> to topic: <@768262663280656414>.\n' +
-        'Updated channel: <#832483709550198794> to topic: <@755717152362856539>.\n' +
-        'Updated channel: <#842513350537773107> to topic: <@440270582672654356>.\n' +
-        'Updated channel: <#844474253138853918> to topic: <@502076841880977452>.\n' +
-        'Updated channel: <#848850477055082496> to topic: <@801649978409222165>.\n' +
-        'Updated channel: <#872477897137487922> to topic: <@424458115560243201>.\n' +
-        'Updated channel: <#882138339355009034> to topic: <@630017764748427283>.\n' +
-        'Updated channel: <#891794033528156210> to topic: <@795072813093355542>.\n' +
-        'Updated channel: <#894169412519755776> to topic: <@855430731902484500>.\n' +
-        'Updated channel: <#895003702841180222> to topic: <@757150574591475742>.\n' +
-        'Updated channel: <#903289123652124692> to topic: <@720655204181082203>.\n' +
-        'Updated channel: <#916916290835349554> to topic: <@822087145568075846>.\n' +
-        'Updated channel: <#935171593519398962> to topic: <@736599653373706262>.\n' +
-        'Updated channel: <#947826381381857291> to topic: <@766557798183469076>.\n' +
-        'Updated channel: <#953311037011132446> to topic: <@619478431591038986>.\n' +
-        'Updated channel: <#978997005898645524> to topic: <@712277766032326666>.\n' +
-        'Updated channel: <#984282297366896640> to topic: <@692726971054030879>.\n' +
-        'Updated channel: <#987705777621962762> to topic: <@770593236129284126>.\n' +
-        'Updated channel: <#990092247452241980> to topic: <@592523784397914112>.\n' +
-        'Updated channel: <#999984982682505306> to topic: <@743149570480930856>.\n' +
-        'Updated channel: <#1006970583550013591> to topic: <@1088021868100997185>.\n' +
-        'Updated channel: <#1008145107792437300> to topic: <@893684030724259850>.\n' +
-        'Updated channel: <#1010164741261492375> to topic: <@809088632882200647>.\n' +
-        'Updated channel: <#1012020311761367100> to topic: <@700403909856067766>.\n' +
-        'Updated channel: <#1028178324893224960> to topic: <@706310256954966086>.\n' +
-        'Updated channel: <#1036529523681919017> to topic: <@939741533077393458>.\n' +
-        'Updated channel: <#1038479359259983912> to topic: <@790225987891232789>.\n' +
-        'Updated channel: <#1039022852059435049> to topic: <@815300251820359700>.\n' +
-        'Updated channel: <#1039704455295291413> to topic: <@625438792102445066>.\n' +
-        'Updated channel: <#1041041217229697124> to topic: <@795973345404911636>.\n' +
-        'Updated channel: <#1041791259519496263> to topic: <@821126996268548097>.\n' +
-        'Updated channel: <#1043032683556646922> to topic: <@712548875998855179>.\n' +
-        'Updated channel: <#1051085243899203604> to topic: <@756011318913531917>.\n' +
-        'Updated channel: <#1064085609938948187> to topic: <@648897052536864768>.\n' +
-        'Updated channel: <#1074056206513090560> to topic: <@797150536418852904>.\n' +
-        'Updated channel: <#1077230218407858186> to topic: <@782914833418944522>.\n' +
-        'Updated channel: <#1079365263427907625> to topic: <@1288415074033336371>.\n' +
-        'Updated channel: <#1284378618935382057> to topic: <@981454454077403176>.\n' +
-        'Updated channel: <#1288577285590351944> to topic: <@1002158937224781856>.\n' +
-        'Updated channel: <#848814157604454420> to topic: <@730401940311244880>.\n' +
-        'Updated channel: <#1021657233089630238> to topic: <@631092568246976513>.\n' +
-        '\n' +
-        'Channels not found in the database:\n' +
-        'Channel ID 1062380771018551346 not found in the database.\n' +
-        'Channel ID 1254465640819855381 not found in the database.\n' +
-        'Channel ID 1254499819662348369 not found in the database.',
-      tts: false,
-      nonce: undefined,
-      enforce_nonce: false,
-      embeds: undefined,
-      components: undefined,
-      username: undefined,
-      avatar_url: undefined,
-      allowed_mentions: undefined,
-      flags: undefined,
-      message_reference: undefined,
-      attachments: undefined,
-      sticker_ids: undefined,
-      thread_name: undefined,
-      applied_tags: undefined,
-      poll: undefined
+      name: 'test',
+      topic: undefined,
+      type: 0,
+      nsfw: undefined,
+      bitrate: undefined,
+      user_limit: undefined,
+      parent_id: '766935903308300298',
+      position: undefined,
+      permission_overwrites: [Array],
+      rate_limit_per_user: undefined,
+      rtc_region: undefined,
+      video_quality_mode: undefined,
+      default_thread_rate_limit_per_user: undefined,
+      available_tags: undefined,
+      default_reaction_emoji: undefined,
+      default_auto_archive_duration: undefined,
+      default_sort_order: undefined,
+      default_forum_layout: undefined
     }
   },
   rawError: {
     message: 'Invalid Form Body',
     code: 50035,
-    errors: { content: [Object] }
+    errors: { parent_id: [Object] }
   },
   code: 50035,
   status: 400,
   method: 'POST',
-  url: 'https://discord.com/api/v10/webhooks/829741386558865510/aW50ZXJhY3Rpb246MTI5NjE4NzUwODIzNjc1MDk2MTpFc0xxZ05YOUh1NUxmcHRlRFdqQlN0TzNPbWJodjgwWk9ROVE2dGNJQzRQNmdWc2JudWN0UHRiZTlRQU5mR0lkOWpBMTA5TDF6MGsxSkdjT2sxRWpGS3A2NWNuSlZSb3Bqa0gwd0lIZHNhT2M5TVBRMWdCZE1mekNMbEFQcGpmRg?wait=true'
+  url: 'https://discord.com/api/v10/guilds/673970118744735764/channels'
 }
