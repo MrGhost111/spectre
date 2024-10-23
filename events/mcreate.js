@@ -79,6 +79,39 @@ module.exports = {
         const fullCommand = args.shift().toLowerCase();
         const textCommand = client.textCommands.find(cmd => fullCommand.startsWith(cmd.name));
 
+        if (fullCommand === 'resetsns') {
+            // Check if user has permission (you might want to add your own permission check)
+            if (!message.member.permissions.has('ADMINISTRATOR')) {
+                return message.reply('You do not have permission to use this command.');
+            }
+
+            const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
+            fs.writeFileSync(donoLogsPath, JSON.stringify({}, null, 2), 'utf8');
+            return message.reply('Successfully reset the donation note tracking system!');
+        }
+
+        // Handle lb command
+        if (fullCommand === 'lb') {
+            const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
+            const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
+
+            // Convert to array and sort by count
+            const sortedUsers = Object.entries(donoLogs)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 10); // Top 10 users
+
+            if (sortedUsers.length === 0) {
+                return message.reply('No donation notes have been set yet!');
+            }
+
+            let lbMessage = '**🏆 Donation Note Setters Leaderboard**\n\n';
+            for (let i = 0; i < sortedUsers.length; i++) {
+                const [userId, count] = sortedUsers[i];
+                lbMessage += `${i + 1}. <@${userId}>: ${count} notes\n`;
+            }
+
+            return message.reply(lbMessage);
+        }
         if (textCommand) {
             try {
                 await textCommand.execute(message, args);

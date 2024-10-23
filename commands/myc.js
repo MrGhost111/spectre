@@ -17,7 +17,7 @@ module.exports = {
         ];
 
         if (!interaction.member.roles.cache.some(role => requiredRoles.includes(role.id))) {
-            return interaction.reply('You do not have the required role to run this command.');
+            return interaction.reply({ content: 'You do not have the required role to run this command.', ephemeral: true });
         }
 
         await handleMyChannelCommand(interaction);
@@ -25,98 +25,121 @@ module.exports = {
 };
 
 async function handleMyChannelCommand(interaction) {
-    const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+    let channelsData;
+    try {
+        channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    } catch (error) {
+        console.error('Error reading channels.json:', error);
+        return interaction.reply({ content: 'Error reading channel data. Please contact an administrator.', ephemeral: true });
+    }
+
+    const userChannel = channelsData[interaction.user.id] || Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
 
     if (userChannel) {
         const channel = interaction.guild.channels.cache.get(userChannel.channelId);
+        
+        // Debug logging
+        console.log('User Channel Data:', userChannel);
+        console.log('Fetched Channel:', channel ? channel.id : 'not found');
+        
         if (!channel) {
-            return interaction.reply('Channel not found.');
+            // Try to fetch the channel directly from the guild
+            try {
+                const fetchedChannel = await interaction.guild.channels.fetch(userChannel.channelId);
+                if (fetchedChannel) {
+                    return handleExistingChannel(interaction, fetchedChannel, userChannel);
+                }
+            } catch (error) {
+                console.error('Error fetching channel:', error);
+                // Remove invalid channel data
+                delete channelsData[interaction.user.id];
+                fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+                
+                return interaction.reply({ 
+                    content: 'Your channel could not be found. The data has been cleared. Please use the command again to create a new channel.',
+                    ephemeral: true 
+                });
+            }
+        } else {
+            return handleExistingChannel(interaction, channel, userChannel);
         }
+    }
 
-        const maxFriends = calculateMaxFriends(interaction.member);
-        const roles = [
-            { id: '768448955804811274', limit: 5 },
-            { id: '768449168297033769', limit: 5 },
-            { id: '946729964328337408', limit: 5 },
-            { id: '1028256286560763984', limit: 5 },
-            { id: '1028256279124250624', limit: 5 },
-            { id: '1038106794200932512', limit: 5 },
-        ];
+    // No channel found - offer to create one
+    const embed = new EmbedBuilder()
+        .setTitle('No Channel Found')
+        .setDescription('You do not own any channel. Would you like to create one?')
+        .setColor(0xFF0000);
 
-        const roleThresholds = roles.map(role => {
-            const hasRole = interaction.member.roles.cache.has(role.id);
-            const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
-            return `${emoji} <@&${role.id}> ${role.limit}`;
-        }).join('\n');
+    const button = new ButtonBuilder()
+        .setCustomId('create_channel')
+        .setLabel('Create Channel')
+        .setStyle(ButtonStyle.Primary);
 
-        // Check friends and ensure they're in the channel
-        const responses = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
+    const row = new ActionRowBuilder().addComponents(button);
+    await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+}
 
-        const embed = new EmbedBuilder()
-            .setTitle('Channel Information')
-            .setDescription(
-                `**Channel:** <#${channel.id}>\n\n` +
-                `**Owner:** <@${interaction.user.id}>\n\n` +
-                `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-                `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
-                `**Role Thresholds:**\n${roleThresholds}`
-            )
-            .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
-            .setColor(0x6666ff);
+async function handleExistingChannel(interaction, channel, userChannel) {
+    const maxFriends = calculateMaxFriends(interaction.member);
+    const roles = [
+        { id: '768448955804811274', limit: 5 },
+        { id: '768449168297033769', limit: 5 },
+        { id: '946729964328337408', limit: 5 },
+        { id: '1028256286560763984', limit: 5 },
+        { id: '1028256279124250624', limit: 5 },
+        { id: '1038106794200932512', limit: 5 },
+    ];
 
-        const isOwner = interaction.user.id === userChannel.userId;
+    const roleThresholds = roles.map(role => {
+        const hasRole = interaction.member.roles.cache.has(role.id);
+        const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
+        return `${emoji} <@&${role.id}> ${role.limit}`;
+    }).join('\n');
 
-        const renameButton = new ButtonBuilder()
-            .setCustomId('rename_channel')
-            .setLabel('Rename Channel')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(!isOwner);
+    const responses = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
 
-        const viewFriendsButton = new ButtonBuilder()
-            .setCustomId('view_friends')
-            .setLabel('View Friends')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('<:user:1273754877646082048>')
-            .setDisabled(!isOwner);
+    const embed = new EmbedBuilder()
+        .setTitle('Channel Information')
+        .setDescription(
+            `**Channel:** <#${channel.id}>\n\n` +
+            `**Owner:** <@${interaction.user.id}>\n\n` +
+            `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
+            `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
+            `**Role Thresholds:**\n${roleThresholds}`
+        )
+        .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
+        .setColor(0x6666ff);
 
-        const row = new ActionRowBuilder().addComponents(renameButton, viewFriendsButton);
-        await interaction.reply({ embeds: [embed], components: [row] });
+    const isOwner = interaction.user.id === userChannel.userId;
 
-        // Send response about added friends if any
-        if (responses.length > 0) {
-            await interaction.followUp({ content: responses.join('\n'), ephemeral: true });
-        }
+    const renameButton = new ButtonBuilder()
+        .setCustomId('rename_channel')
+        .setLabel('Rename Channel')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!isOwner);
 
-    } else {
-        const embed = new EmbedBuilder()
-            .setTitle('No Channel Found')
-            .setDescription('You do not own any channel. Would you like to create one?')
-            .setColor(0xFF0000);
+    const viewFriendsButton = new ButtonBuilder()
+        .setCustomId('view_friends')
+        .setLabel('View Friends')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('<:user:1273754877646082048>')
+        .setDisabled(!isOwner);
 
-        const button = new ButtonBuilder()
-            .setCustomId('create_channel')
-            .setLabel('Create Channel')
-            .setStyle(ButtonStyle.Primary);
+    const row = new ActionRowBuilder().addComponents(renameButton, viewFriendsButton);
+    await interaction.reply({ embeds: [embed], components: [row] });
 
-        const row = new ActionRowBuilder().addComponents(button);
-        const reply = await interaction.reply({ embeds: [embed], components: [row] });
-
-        setTimeout(async () => {
-            button.setDisabled(true);
-            await reply.edit({ components: [new ActionRowBuilder().addComponents(button)] });
-        }, 10000);
+    if (responses.length > 0) {
+        await interaction.followUp({ content: responses.join('\n'), ephemeral: true });
     }
 }
 
-// Function to ensure all friends are in the channel and add if not
 async function ensureFriendsInChannel(friends, channel, maxFriends) {
     const responses = [];
     let currentFriendsCount = friends.length;
 
     for (const friendId of friends) {
         if (!channel.permissionOverwrites.cache.has(friendId)) {
-            // Check if adding this friend would exceed the max friends limit
             if (currentFriendsCount >= maxFriends) {
                 responses.push(`Tried to add <@${friendId}> back to the channel, but the max friends limit has been reached.`);
                 continue;
@@ -125,7 +148,7 @@ async function ensureFriendsInChannel(friends, channel, maxFriends) {
                 await channel.permissionOverwrites.create(friendId, {
                     [PermissionsBitField.Flags.ViewChannel]: true,
                 });
-                currentFriendsCount++; // Increment count after successful addition
+                currentFriendsCount++;
                 responses.push(`Added <@${friendId}> back to the channel.`);
             } catch (error) {
                 console.error('Error creating permission overwrite:', error);
@@ -137,7 +160,6 @@ async function ensureFriendsInChannel(friends, channel, maxFriends) {
     return responses;
 }
 
-// Helper function to calculate the maximum number of friends based on roles
 function calculateMaxFriends(member) {
     const roleLimits = {
         '768448955804811274': 5,
