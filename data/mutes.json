@@ -10,14 +10,7 @@
         },
         {
             "userId": "823904633944539196",
-            "cooldownEnd": 1729623259
-        },
-        {
-            "userId": "826115461623054336",
-            "muteStartTime": 1729690571,
-            "muteEndTime": 1729690619,
-            "button_clicked": true,
-            "cooldownEnd": 1729692393
+            "cooldownEnd": 1729800009
         },
         {
             "userId": "786612324588060713",
@@ -25,13 +18,6 @@
             "muteEndTime": 1729621458,
             "button_clicked": true,
             "cooldownEnd": 1729623230
-        },
-        {
-            "userId": "827983414308241448",
-            "muteStartTime": 1729621960,
-            "muteEndTime": 1729622011,
-            "button_clicked": true,
-            "cooldownEnd": 1729623761
         },
         {
             "userId": "667863234807595040",
@@ -47,35 +33,45 @@
             "button_clicked": false
         },
         {
-            "userId": "621379895104372757",
-            "muteStartTime": 1729711932,
-            "muteEndTime": 1729711993,
+            "userId": "659361315957243904",
+            "cooldownEnd": 1729773885
+        },
+        {
+            "userId": "775572568437555250",
+            "muteStartTime": 1729772740,
+            "muteEndTime": 1729772776,
             "button_clicked": true
         },
         {
-            "userId": "743429269207646299",
-            "muteStartTime": 1729696213,
-            "muteEndTime": 1729696322,
-            "button_clicked": true,
-            "cooldownEnd": 1729698014
+            "userId": "560093267497189396",
+            "muteStartTime": 1729791917,
+            "muteEndTime": 1729791983,
+            "button_clicked": false,
+            "cooldownEnd": 1729799005
         },
         {
-            "userId": "743149570480930856",
-            "muteStartTime": 1729717731,
-            "muteEndTime": 1729717794,
-            "button_clicked": false,
-            "cooldownEnd": 1729720478
+            "userId": "837546505216196608",
+            "cooldownEnd": 1729783377
+        },
+        {
+            "userId": "839330683335737374",
+            "cooldownEnd": 1729791457
+        },
+        {
+            "userId": "950713854613155890",
+            "cooldownEnd": 1729798516
+        },
+        {
+            "userId": "827983414308241448",
+            "cooldownEnd": 1729803050
         },
         {
             "userId": "753491023208120321",
-            "muteStartTime": 1729718676,
-            "muteEndTime": 1729718714,
-            "button_clicked": true,
-            "cooldownEnd": 1729728469
+            "cooldownEnd": 1729804250
         },
         {
-            "userId": "693463277442826240",
-            "cooldownEnd": 1729719736
+            "userId": "730401940311244880",
+            "cooldownEnd": 1729804993
         }
     ]
 }

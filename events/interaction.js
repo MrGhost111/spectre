@@ -50,7 +50,180 @@ module.exports = {
 };
 
 // Re-add the missing button-handling functions from the old code:
+async function updateEmbed(interaction, weeklyData) {
+    const sortedUsers = Object.entries(weeklyData)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10);
 
+    let description = sortedUsers.length > 0
+        ? sortedUsers.map(([userId, count], index) => 
+            `${index + 1}. <@${userId}> - ${count}`).join('\n')
+        : 'No activities recorded this week.';
+
+    const updatedEmbed = new EmbedBuilder()
+        .setTitle('Weekly Activity Tracking')
+        .setColor(0x6666FF)
+        .setDescription(description)
+        .setFooter({ text: 'Last updated' })
+        .setTimestamp();
+
+    await interaction.message.edit({ embeds: [updatedEmbed] });
+}
+
+// Add this to the existing interaction create event handler
+if (interaction.isButton()) {
+    // Add this case to your existing button handling switch statement
+    if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
+        const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
+        const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
+        let activityData = JSON.parse(fs.readFileSync(activityLogsPath, 'utf8'));
+        let donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
+
+        if (!activityData.weekly) activityData.weekly = {};
+        if (!activityData.logs) activityData.logs = [];
+
+        switch (interaction.customId) {
+            case 'add_one':
+                activityData.weekly[interaction.user.id] = (activityData.weekly[interaction.user.id] || 0) + 1;
+                donoLogs[interaction.user.id] = (donoLogs[interaction.user.id] || 0) + 1;
+                
+                activityData.logs.push({
+                    userId: interaction.user.id,
+                    action: 'add',
+                    amount: 1,
+                    timestamp: Date.now()
+                });
+
+                await interaction.reply({ content: 'Added 1 to your count!', ephemeral: true });
+                break;
+
+            case 'add_manual':
+                const addModal = new ModalBuilder()
+                    .setCustomId('add_manual_modal')
+                    .setTitle('Add Activity Count');
+
+                const countInput = new TextInputBuilder()
+                    .setCustomId('count_input')
+                    .setLabel('Enter the count to add')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(countInput);
+                addModal.addComponents(firstActionRow);
+
+                await interaction.showModal(addModal);
+                return;
+
+            case 'remove_manual':
+                const removeModal = new ModalBuilder()
+                    .setCustomId('remove_manual_modal')
+                    .setTitle('Remove Activity Count');
+
+                const removeInput = new TextInputBuilder()
+                    .setCustomId('count_input')
+                    .setLabel('Enter the count to remove')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const removeActionRow = new ActionRowBuilder().addComponents(removeInput);
+                removeModal.addComponents(removeActionRow);
+
+                await interaction.showModal(removeModal);
+                return;
+
+            case 'view_logs':
+                const recentLogs = activityData.logs.slice(-10).reverse()
+                    .map(log => {
+                        const action = log.action === 'add' ? 'added' : 'removed';
+                        return `<@${log.userId}> ${action} ${log.amount} at <t:${Math.floor(log.timestamp / 1000)}:R>`;
+                    }).join('\n');
+
+                const logsEmbed = new EmbedBuilder()
+                    .setTitle('Recent Activity Logs')
+                    .setDescription(recentLogs || 'No recent logs')
+                    .setColor(0x6666FF);
+
+                await interaction.reply({ embeds: [logsEmbed], ephemeral: true });
+                break;
+
+            case 'view_overall':
+                const sortedOverall = Object.entries(donoLogs)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 10);
+
+                const overallEmbed = new EmbedBuilder()
+                    .setTitle('Overall Top 10 Activities')
+                    .setDescription(
+                        sortedOverall.map(([userId, count], index) => 
+                            `${index + 1}. <@${userId}> - ${count}`).join('\n')
+                    )
+                    .setColor(0x6666FF);
+
+                await interaction.reply({ embeds: [overallEmbed], ephemeral: true });
+                break;
+
+            case 'reset_weekly':
+                if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+                    return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
+                }
+
+                activityData.weekly = {};
+                await interaction.reply({ content: 'Weekly tracking has been reset!', ephemeral: true });
+                break;
+        }
+
+        fs.writeFileSync(donoLogsPath, JSON.stringify(donoLogs, null, 2));
+        fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
+        await updateEmbed(interaction, activityData.weekly);
+    }
+} else if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
+        const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
+        const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
+        let activityData = JSON.parse(fs.readFileSync(activityLogsPath, 'utf8'));
+        let donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
+
+        const count = parseInt(interaction.fields.getTextInputValue('count_input'));
+        if (isNaN(count) || count < 1) {
+            return await interaction.reply({ content: 'Please enter a valid positive number.', ephemeral: true });
+        }
+
+        if (interaction.customId === 'add_manual_modal') {
+            activityData.weekly[interaction.user.id] = (activityData.weekly[interaction.user.id] || 0) + count;
+            donoLogs[interaction.user.id] = (donoLogs[interaction.user.id] || 0) + count;
+
+            activityData.logs.push({
+                userId: interaction.user.id,
+                action: 'add',
+                amount: count,
+                timestamp: Date.now()
+            });
+
+            await interaction.reply({ content: `Added ${count} to your count!`, ephemeral: true });
+        } else if (interaction.customId === 'remove_manual_modal') {
+            const currentCount = activityData.weekly[interaction.user.id] || 0;
+            if (count > currentCount) {
+                return await interaction.reply({ content: 'Cannot remove more than your current count.', ephemeral: true });
+            }
+
+            activityData.weekly[interaction.user.id] = currentCount - count;
+            donoLogs[interaction.user.id] = (donoLogs[interaction.user.id] || 0) - count;
+
+            activityData.logs.push({
+                userId: interaction.user.id,
+                action: 'remove',
+                amount: count,
+                timestamp: Date.now()
+            });
+
+            await interaction.reply({ content: `Removed ${count} from your count!`, ephemeral: true });
+        }
+
+        fs.writeFileSync(donoLogsPath, JSON.stringify(donoLogs, null, 2));
+        fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
+        await updateEmbed(interaction, activityData.weekly);
+    }
+}
 async function handleDeleteSnipe(interaction) {
     const message = interaction.message;
 
