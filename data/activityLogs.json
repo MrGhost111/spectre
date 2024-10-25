@@ -131,9 +131,169 @@
       "action": "remove",
       "amount": 1,
       "timestamp": 1729807511768
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729809022584
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729809674200
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729809687207
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "remove",
+      "amount": 2,
+      "timestamp": 1729809938615
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729810679503
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729810681452
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729810683426
+    },
+    {
+      "userId": "730401940311244880",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729810709005
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "remove",
+      "amount": 3,
+      "timestamp": 1729810879297
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729811881666
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729811997661
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729812019983
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729812185105
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729812700416
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729814108302
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729814110880
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "remove",
+      "amount": 4,
+      "timestamp": 1729814662260
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729814681264
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815204791
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815665242
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815666857
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815667774
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815668430
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815669271
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815693160
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815693894
+    },
+    {
+      "userId": "753491023208120321",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1729815694809
     }
   ],
-  "weekly": {
-    "753491023208120321": 0
-  }
+  "weekly": {}
 }

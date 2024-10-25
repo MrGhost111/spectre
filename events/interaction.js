@@ -163,13 +163,91 @@ async function handleActivityButtons(interaction) {
             break;
 
         case 'reset_weekly':
-            if (!interaction.member.permissions.has('ADMINISTRATOR')) {
-                return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
-            }
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+        return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
+    }
 
+    // Ask for confirmation to reset
+    const confirmEmbed = new EmbedBuilder()
+        .setTitle('Reset Weekly Tracking')
+        .setDescription('Are you sure you want to reset the weekly tracking? This action cannot be undone.')
+        .setColor(0xFF0000);
+
+    const yesButton = new ButtonBuilder()
+        .setCustomId('confirm_reset_yes')
+        .setLabel('Yes')
+        .setStyle(ButtonStyle.Danger);
+
+    const noButton = new ButtonBuilder()
+        .setCustomId('confirm_reset_no')
+        .setLabel('No')
+        .setStyle(ButtonStyle.Secondary);
+
+    const confirmRow = new ActionRowBuilder().addComponents(yesButton, noButton);
+
+    await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow], ephemeral: true });
+
+    // Define a collector to handle the confirmation response
+    const filter = i => ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) && i.user.id === interaction.user.id;
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+
+    collector.on('collect', async i => {
+        if (i.customId === 'confirm_reset_yes') {
+            // Save the current weekly data to a file before resetting
+            const weeklyPath = './data/weekly.json';
+            fs.writeFileSync(weeklyPath, JSON.stringify(activityData.weekly, null, 2));
+            
+            // Reset the weekly tracking
             activityData.weekly = {};
-            await interaction.reply({ content: 'Weekly tracking has been reset!', ephemeral: true });
-            break;
+
+            fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
+            await updateEmbed(interaction, activityData.weekly);
+
+            // Notify user about reset and ask if they want to assign the role
+            const assignRoleEmbed = new EmbedBuilder()
+                .setTitle('Assign Ultimate Staff Host Role')
+                .setDescription('Do you want to assign the Ultimate Staff Host role to the top user?')
+                .setColor(0x0099FF);
+
+            const assignYesButton = new ButtonBuilder()
+                .setCustomId('assign_role_yes')
+                .setLabel('Yes')
+                .setStyle(ButtonStyle.Primary);
+
+            const assignNoButton = new ButtonBuilder()
+                .setCustomId('assign_role_no')
+                .setLabel('No')
+                .setStyle(ButtonStyle.Secondary);
+
+            const assignRoleRow = new ActionRowBuilder().addComponents(assignYesButton, assignNoButton);
+
+            await i.update({ embeds: [assignRoleEmbed], components: [assignRoleRow], ephemeral: true });
+        } else if (i.customId === 'confirm_reset_no') {
+            await i.update({ content: 'Reset action has been canceled.', components: [], ephemeral: true });
+        } else if (i.customId === 'assign_role_yes') {
+            const weeklyPath = './data/weekly.json';
+            const savedWeeklyData = JSON.parse(fs.readFileSync(weeklyPath, 'utf8'));
+            const topUser = Object.entries(savedWeeklyData)
+                .sort(([, a], [, b]) => b - a)[0];
+
+            if (topUser) {
+                const topUserId = topUser[0];
+                const topMember = await interaction.guild.members.fetch(topUserId);
+                if (topMember) {
+                    await topMember.roles.add('713452411720827013');
+                    await i.update({ content: 'Ultimate Staff Host role has been assigned to the top user!', components: [], ephemeral: true });
+                } else {
+                    await i.update({ content: 'Top user not found in the guild!', components: [], ephemeral: true });
+                }
+            } else {
+                await i.update({ content: 'No top user found to assign the role to.', components: [], ephemeral: true });
+            }
+        } else if (i.customId === 'assign_role_no') {
+            await i.update({ content: 'Ultimate Staff Host role assignment has been skipped.', components: [], ephemeral: true });
+        }
+    });
+    break;
+
     }
 
     fs.writeFileSync(donoLogsPath, JSON.stringify(donoLogs, null, 2));
@@ -177,7 +255,8 @@ async function handleActivityButtons(interaction) {
     await updateEmbed(interaction, activityData.weekly);
 }
 async function handleModalSubmit(interaction) {
-    if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
+ 
+   if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
         const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
         const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
         let activityData = JSON.parse(fs.readFileSync(activityLogsPath, 'utf8'));
@@ -477,4 +556,3 @@ function calculateMaxFriends(member) {
 
     return maxFriends;
 }
-
