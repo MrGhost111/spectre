@@ -301,7 +301,7 @@ module.exports = {
         await message.channel.send({ embeds: [embed], components: [actionRow] });
 
         // Update cooldown in mutes.json
-        const cooldownEnd = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes from now
+        const cooldownEnd = Math.floor(Date.now() / 1000) + 60 * 60; // 30 minutes from now
         const userIndex = mutes.users.findIndex(user => user.userId === message.author.id);
         if (userIndex !== -1) {
             mutes.users[userIndex].cooldownEnd = cooldownEnd;
