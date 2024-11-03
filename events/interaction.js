@@ -1,4 +1,4 @@
-const { ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
@@ -338,79 +338,91 @@ async function handleModalSubmit(interaction) {
  if (interaction.customId === 'create_channel_modal' || interaction.customId === 'rename_channel_modal') {
             const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
-            if (interaction.customId === 'create_channel_modal') {
-                const channelName = interaction.fields.getTextInputValue('channel_name_input');
-                
-                if (!channelName || channelName.length < 1) {
-                    return await interaction.reply({ content: 'Please provide a valid channel name.', ephemeral: true });
-                }
+if (interaction.customId === 'create_channel_modal') {
+    const channelName = interaction.fields.getTextInputValue('channel_name_input');
+    
+    if (!channelName || channelName.length < 1) {
+        return await interaction.reply({ content: 'Please provide a valid channel name.', ephemeral: true });
+    }
 
-                const categoryIds = [
-                    '799997847931977749',
-                    '842471433238347786',
-                    '1064095644811284490'
-                ];
+    const categoryIds = [
+        '799997847931977749',
+        '842471433238347786',
+        '1064095644811284490'
+    ];
 
-                let channelCreated = false;
-                let error = null;
-                let channel = null;
+    let channelCreated = false;
+    let error = null;
+    let channel = null;
 
-                for (const categoryId of categoryIds) {
-                    try {
-                        const category = await interaction.guild.channels.fetch(categoryId);
-                        
-                        if (!category) continue;
+    for (const categoryId of categoryIds) {
+        try {
+            const category = await interaction.guild.channels.fetch(categoryId);
+            if (!category) continue;
 
-                        // Check if category has space
-                        const channelsInCategory = (await interaction.guild.channels.fetch())
-                            .filter(ch => ch.parentId === categoryId);
+            // Fetch all channels and properly count ones in this category
+            const channels = await interaction.guild.channels.fetch();
+            const channelsInCategory = channels.filter(ch => ch.parentId === categoryId);
+            
+            // Debug log to help identify issues
+            console.log(`Category ${categoryId} has ${channelsInCategory.size} channels`);
 
-                        if (channelsInCategory.size >= 50) continue;
+            if (channelsInCategory.size >= 50) {
+                console.log(`Category ${categoryId} is full, trying next category`);
+                continue;
+            }
 
-                        // Create the channel in this category
-                        channel = await interaction.guild.channels.create({
-                            name: channelName,
-                            type: ChannelType.GuildText,
-                            parent: categoryId,
-                            permissionOverwrites: [
-                                {
-                                    id: interaction.guild.id,
-                                    deny: ['ViewChannel'],
-                                },
-                                {
-                                    id: interaction.user.id,
-                                    allow: ['ViewChannel'],
-                                }
-                            ]
-                        });
-
-                        channelCreated = true;
-                        break;
-                    } catch (e) {
-                        error = e;
-                        continue;
+            // Create the channel in this category
+            channel = await interaction.guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                parent: categoryId,
+                permissionOverwrites: [
+                    {
+                        id: interaction.guild.id,
+                        deny: ['ViewChannel'],
+                    },
+                    {
+                        id: interaction.user.id,
+                        allow: ['ViewChannel'],
                     }
-                }
+                ]
+            });
 
-                if (!channelCreated) {
-                    return await interaction.reply({
-                        content: 'Failed to create channel. All categories are either full or unavailable.',
-                        ephemeral: true
-                    });
-                }
+            channelCreated = true;
+            break;
+        } catch (e) {
+            error = e;
+            console.error(`Error creating channel in category ${categoryId}:`, e);
+            continue;
+        }
+    }
 
-                channelsData[channel.id] = {
-                    channelId: channel.id,
-                    userId: interaction.user.id,
-                    friends: []
-                };
+    if (!channelCreated) {
+        let errorMessage = 'Failed to create channel. ';
+        if (error) {
+            errorMessage += `Error: ${error.message}`;
+        } else {
+            errorMessage += 'All categories are either full or unavailable.';
+        }
+        return await interaction.reply({
+            content: errorMessage,
+            ephemeral: true
+        });
+    }
 
-                fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+    channelsData[channel.id] = {
+        channelId: channel.id,
+        userId: interaction.user.id,
+        friends: []
+    };
+    fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+    
+    await interaction.reply({
+        content: `Channel ${channel} has been created successfully!`,
+        ephemeral: true
+    });
 
-                await interaction.reply({
-                    content: `Channel ${channel} has been created successfully!`,
-                    ephemeral: true
-                });
 
             } else if (interaction.customId === 'rename_channel_modal') {
                 const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');

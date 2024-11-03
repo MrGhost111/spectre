@@ -1,11 +1,10 @@
 const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
-const dataPath = './data/channels.json'; // Path to channels.json
+const dataPath = './data/channels.json';
 
 module.exports = {
     name: 'myc',
     async execute(message, args) {
-        // Role check
         const requiredRoles = [
             '768448955804811274',
             '768449168297033769',
@@ -19,13 +18,11 @@ module.exports = {
             return message.reply({ content: 'You do not have the required role to run this command.', allowedMentions: { repliedUser: false } });
         }
 
-        // Read channels data from channels.json
         let channels;
         try {
             const data = fs.readFileSync(dataPath, 'utf8');
             channels = JSON.parse(data);
 
-            // Ensure channels is an object
             if (typeof channels !== 'object' || channels === null) {
                 throw new Error('Channels data is not an object');
             }
@@ -34,11 +31,9 @@ module.exports = {
             return message.reply({ content: 'There was an error reading the channels data.', allowedMentions: { repliedUser: false } });
         }
 
-        // Check if the user has a channel
         const userChannel = channels[message.author.id];
 
         if (userChannel) {
-            // Fetch the channel object from Discord
             let channel;
             try {
                 channel = await message.client.channels.fetch(userChannel.channelId);
@@ -47,10 +42,8 @@ module.exports = {
                 return message.reply({ content: 'There was an error fetching the channel.', allowedMentions: { repliedUser: false } });
             }
 
-            // Calculate max friends
             const maxFriends = calculateMaxFriends(message.member);
 
-            // Define roles and their limits
             const roles = [
                 { id: '768448955804811274', limit: 5 },
                 { id: '768449168297033769', limit: 5 },
@@ -60,24 +53,22 @@ module.exports = {
                 { id: '1038106794200932512', limit: 5 },
             ];
 
-            // Generate role thresholds
             const roleThresholds = roles.map(role => {
                 const hasRole = message.member.roles.cache.has(role.id);
                 const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
                 return `${emoji} <@&${role.id}> ${role.limit}`;
             }).join('\n');
 
-            // Check friends and ensure they're in the channel
-            const responses = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
+            const { responses, updatedFriends, friendsChanged } = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
+            const currentFriendsCount = friendsChanged ? updatedFriends.length : userChannel.friends.length;
 
-            // Create embed
             const embed = new EmbedBuilder()
                 .setTitle('Channel Information')
                 .setDescription(
                     `**Channel:** <#${userChannel.channelId}>\n\n` +
                     `**Owner:** <@${message.author.id}>\n\n` +
                     `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-                    `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
+                    `**Invited Friends:** ${currentFriendsCount} / ${maxFriends}\n\n` +
                     `**Role Thresholds:**\n${roleThresholds}`
                 )
                 .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
@@ -93,12 +84,11 @@ module.exports = {
                         .setCustomId('view_friends')
                         .setLabel('View Friends')
                         .setStyle(ButtonStyle.Secondary)
-                        .setEmoji('<:user:1273754877646082048>')  // Use setEmoji() for custom emoji
+                        .setEmoji('<:user:1273754877646082048>')
                 );
 
             await message.reply({ embeds: [embed], components: [row] });
 
-            // Send response about added friends if any
             if (responses.length > 0) {
                 await message.channel.send(responses.join('\n'));
             }
@@ -120,35 +110,76 @@ module.exports = {
     }
 }
 
-// Function to ensure all friends are in the channel and add if not
 async function ensureFriendsInChannel(friends, channel, maxFriends) {
     const responses = [];
-    let currentFriendsCount = friends.length;
+    let currentFriendsCount = 0;
+    const updatedFriends = [];
+    let friendsChanged = false;
 
     for (const friendId of friends) {
-        if (!channel.permissionOverwrites.cache.has(friendId)) {
-            // Check if adding this friend would exceed the max friends limit
-            if (currentFriendsCount >= maxFriends) {
-                responses.push(`Tried to add <@${friendId}> back to the channel, but the max friends limit has been reached.`);
-                continue;
+        try {
+            const member = await channel.guild.members.fetch(friendId);
+            
+            if (member) {
+                if (!channel.permissionOverwrites.cache.has(friendId)) {
+                    if (currentFriendsCount >= maxFriends) {
+                        responses.push(`Couldn't add <@${friendId}> back to the channel - max friends limit (${maxFriends}) reached.`);
+                        continue;
+                    }
+
+                    try {
+                        await channel.permissionOverwrites.create(friendId, {
+                            [PermissionsBitField.Flags.ViewChannel]: true,
+                        });
+                        responses.push(`Added <@${friendId}> back to the channel.`);
+                    } catch (error) {
+                        console.error('Error creating permission overwrite:', error);
+                        responses.push(`Failed to add <@${friendId}> back to the channel.`);
+                        continue;
+                    }
+                }
+                
+                currentFriendsCount++;
+                updatedFriends.push(friendId);
+            } else {
+                responses.push(`Removed <@${friendId}> from friends list - user no longer in server.`);
+                friendsChanged = true;
             }
-            try {
-                await channel.permissionOverwrites.create(friendId, {
-                    [PermissionsBitField.Flags.ViewChannel]: true,
-                });
-                currentFriendsCount++; // Increment count after successful addition
-                responses.push(`Added <@${friendId}> back to the channel.`);
-            } catch (error) {
-                console.error('Error creating permission overwrite:', error);
-                responses.push(`Failed to add <@${friendId}> back to the channel.`);
+        } catch (error) {
+            if (error.code === 10007) {
+                responses.push(`Removed <@${friendId}> from friends list - user no longer in server.`);
+                friendsChanged = true;
+            } else {
+                console.error('Error fetching member:', error);
+                responses.push(`Error checking member <@${friendId}>.`);
+                updatedFriends.push(friendId);
             }
         }
     }
 
-    return responses;
+    if (friendsChanged) {
+        try {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            const channels = JSON.parse(data);
+            
+            if (channels[channel.permissionOverwrites.cache.first().id]) {
+                channels[channel.permissionOverwrites.cache.first().id].friends = updatedFriends;
+                fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2));
+                responses.push('Friends list has been updated.');
+            }
+        } catch (error) {
+            console.error('Error updating channels.json:', error);
+            responses.push('Failed to update friends list in database.');
+        }
+    }
+
+    return {
+        responses,
+        updatedFriends,
+        friendsChanged
+    };
 }
 
-// Helper function to calculate the maximum number of friends based on roles
 function calculateMaxFriends(member) {
     const roleLimits = {
         '768448955804811274': 5,
@@ -169,4 +200,3 @@ function calculateMaxFriends(member) {
 
     return maxFriends;
 }
-
