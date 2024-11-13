@@ -142,13 +142,20 @@ module.exports = {
             const messageWords = message.content.toLowerCase().split(/\s+/);
             const notifiedUsers = new Set();
 
-            const recentMessages = await message.channel.messages.fetch({ limit: 50 });
+const THRESHOLD_TIME = 60 * 1000; // 1 minute in milliseconds
+const currentTime = Date.now();
 
-            for (const [userId, userHighlights] of Object.entries(highlights)) {
-                if (userId === message.author.id) continue;
+// Fetch recent messages and filter based on user activity within the last 1 minute
+const recentMessages = await message.channel.messages.fetch({ limit: 50 });
 
-                const wasRecentlyActive = recentMessages.some(msg => msg.author.id === userId);
-                if (wasRecentlyActive) continue;
+for (const [userId, userHighlights] of Object.entries(highlights)) {
+    if (userId === message.author.id) continue;
+
+    const wasRecentlyActive = recentMessages.some(msg => 
+        msg.author.id === userId && (currentTime - msg.createdTimestamp <= THRESHOLD_TIME)
+    );
+
+    if (wasRecentlyActive) continue;
 
                 for (const word of userHighlights) {
                     // Check each word in the message against the highlight word
