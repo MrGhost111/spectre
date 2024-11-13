@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 
-// Required role IDs for using highlight commands
 const REQUIRED_ROLES = [
     '1030707878597763103',
     '768448257495531570',
@@ -37,27 +36,16 @@ function createErrorEmbed(message) {
         .setTimestamp();
 }
 
-// New function to check if a word matches the highlight
 function checkHighlightMatch(messageWord, highlightWord) {
-    // Convert both to lowercase for case-insensitive matching
     messageWord = messageWord.toLowerCase();
     highlightWord = highlightWord.toLowerCase();
-
-    // Check if the message word contains the highlight word as a whole word
     return messageWord.includes(highlightWord);
-
-    // Check for plural forms (basic check for 's' at the end)
-    if (messageWord === `${highlightWord}s` || messageWord === `${highlightWord}es`) return true;
-    if (highlightWord === `${messageWord}s` || highlightWord === `${messageWord}es`) return true;
-
-    return false;
 }
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle Dank Memer bot item price detection
- if (message.channelId === '1299069910751903857') {
+        if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
                 await message.react('<:downvote:1303963004915679232>');
@@ -75,21 +63,15 @@ module.exports = {
                     const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
                     if (averageValueMatch) {
                         const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
-                        // Path to items.json
                         const itemsPath = path.join(__dirname, '../data/items.json');
-                        // Load items from JSON file
                         let items = JSON.parse(fs.readFileSync(itemsPath, 'utf8'));
-                        // Check if item exists and update the price
                         if (!(itemName in items)) {
-                            // Item not found, add it
                             items[itemName] = averageValue;
                             message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
                         } else if (items[itemName] !== averageValue) {
-                            // Item found but price is different, update it
                             items[itemName] = averageValue;
                             message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
                         }
-                        // Save updated items to JSON file
                         fs.writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf8');
                     }
                 }
@@ -97,7 +79,6 @@ module.exports = {
             return;
         }
 
-        // Handle muterole update command
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -134,7 +115,6 @@ module.exports = {
 
         const prefix = ',';
 
-        // Handle highlight notifications for non-command messages
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
 
@@ -142,23 +122,27 @@ module.exports = {
             const messageWords = message.content.toLowerCase().split(/\s+/);
             const notifiedUsers = new Set();
 
-const THRESHOLD_TIME = 60 * 1000; // 1 minute in milliseconds
-const currentTime = Date.now();
+            const THRESHOLD_TIME = 60 * 1000;
+            const currentTime = Date.now();
 
-// Fetch recent messages and filter based on user activity within the last 1 minute
-const recentMessages = await message.channel.messages.fetch({ limit: 50 });
+            const recentMessages = await message.channel.messages.fetch({ limit: 50 });
 
-for (const [userId, userHighlights] of Object.entries(highlights)) {
-    if (userId === message.author.id) continue;
+            for (const [userId, userHighlights] of Object.entries(highlights)) {
+                if (userId === message.author.id) continue;
 
-    const wasRecentlyActive = recentMessages.some(msg => 
-        msg.author.id === userId && (currentTime - msg.createdTimestamp <= THRESHOLD_TIME)
-    );
+                const member = await message.guild.members.fetch(userId).catch(() => null);
+                if (!member) continue;
 
-    if (wasRecentlyActive) continue;
+                const canViewChannel = message.channel.permissionsFor(member)?.has('ViewChannel');
+                if (!canViewChannel) continue;
+
+                const wasRecentlyActive = recentMessages.some(msg => 
+                    msg.author.id === userId && (currentTime - msg.createdTimestamp <= THRESHOLD_TIME)
+                );
+
+                if (wasRecentlyActive) continue;
 
                 for (const word of userHighlights) {
-                    // Check each word in the message against the highlight word
                     const hasMatch = messageWords.some(messageWord => 
                         checkHighlightMatch(messageWord, word)
                     );
@@ -203,12 +187,10 @@ for (const [userId, userHighlights] of Object.entries(highlights)) {
             return;
         }
 
-        // Rest of the code remains the same...
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const fullCommand = args.shift().toLowerCase();
         const textCommand = client.textCommands.find(cmd => fullCommand.startsWith(cmd.name));
 
-        // Handle resetsns command
         if (fullCommand === 'resetsns') {
             if (!message.member.permissions.has('ADMINISTRATOR')) {
                 return message.reply('You do not have permission to use this command.');
@@ -219,7 +201,6 @@ for (const [userId, userHighlights] of Object.entries(highlights)) {
             return message.reply('Successfully reset the donation note tracking system!');
         }
 
-        // Handle lb command
         if (fullCommand === 'lb') {
             const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
             const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
@@ -241,7 +222,6 @@ for (const [userId, userHighlights] of Object.entries(highlights)) {
             return message.reply(lbMessage);
         }
 
-        // Handle highlight commands
         if (fullCommand === 'highlight' || fullCommand === 'hl') {
             if (!message.guild) {
                 return message.reply({ 
@@ -251,7 +231,7 @@ for (const [userId, userHighlights] of Object.entries(highlights)) {
 
             if (!hasRequiredRole(message.member)) {
                 return message.reply({ 
-                    embeds: [createErrorEmbed('You need one of the required roles to use highlight commands!')] 
+                    embeds: [createErrorEmbed('This command is a server perk. Please check <#862927749802885150> for more info.')] 
                 });
             }
 
@@ -355,7 +335,6 @@ for (const [userId, userHighlights] of Object.entries(highlights)) {
             return;
         }
 
-        // Handle other text commands
         if (textCommand) {
             try {
                 await textCommand.execute(message, args);

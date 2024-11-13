@@ -12,43 +12,48 @@ module.exports = {
         }
 
         try {
-            // Path to donoLogs.json file (which contains setnote data)
-            const setnotePath = path.join(__dirname, '../data/donoLogs.json'); // Adjust path if needed
+            // Path to donoLogs.json file
+            const setnotePath = path.join(__dirname, '../data/donoLogs.json');
             const setnoteData = JSON.parse(fs.readFileSync(setnotePath, 'utf8'));
 
             // Convert to array and sort by count
             const sortedUsers = Object.entries(setnoteData)
-                .sort(([, a], [, b]) => b - a); // Sort in descending order by the count value
+                .sort(([, a], [, b]) => b - a); // Sort in descending order
 
             if (sortedUsers.length === 0) {
                 return message.reply('No setnote data available to display!');
             }
 
-            // Create leaderboard entries, checking for message size limit
-            let lbMessage = '';
-            const leaderboardEntries = await Promise.all(
-                sortedUsers.map(async ([userId, count], index) => {
-                    const position = index + 1; // Ranking position (1-based index)
-                    const fetchedUser = await message.client.users.fetch(userId).catch(() => null);
-                    const userTag = fetchedUser ? fetchedUser.tag : 'Unknown User';
-
-                    // Show the emoji only for the top user
-                    const userEmoji = index === 0 ? ' <:sweg:1010054002202906634> ' : '';
-
-                    const entry = `**${position}.** ┊ <@${userId}>: ${count}${userEmoji}\n`;
-
-                    // Check if adding this entry exceeds the message limit
-                    if ((lbMessage + entry).length > 2000) {
-                        return message.reply('Leaderboard too long! Displaying as many users as possible:');
+            // First, fetch all users to avoid race conditions
+            const usersFetched = await Promise.all(
+                sortedUsers.map(async ([userId]) => {
+                    try {
+                        return await message.client.users.fetch(userId);
+                    } catch {
+                        return null;
                     }
-
-                    lbMessage += entry;
-                    return entry;
                 })
             );
 
-            // Get user's rank (if they exist in the logs)
-            const userRank = Object.keys(setnoteData).findIndex(user => user === message.author.id) + 1 || 0;
+            // Then build the leaderboard string in order
+            let lbMessage = '';
+            for (let i = 0; i < sortedUsers.length; i++) {
+                const [userId, count] = sortedUsers[i];
+                const position = i + 1;
+                const fetchedUser = usersFetched[i];
+                const userTag = fetchedUser ? fetchedUser.tag : 'Unknown User';
+                const userEmoji = i === 0 ? ' <:sweg:1010054002202906634> ' : '';
+                const entry = `**${position}.** ┊ <@${userId}>: ${count}${userEmoji}\n`;
+
+                // Check message length limit
+                if ((lbMessage + entry).length > 2000) {
+                    break;
+                }
+                lbMessage += entry;
+            }
+
+            // Get user's rank
+            const userRank = sortedUsers.findIndex(([userId]) => userId === message.author.id) + 1 || 0;
 
             // Create the embed
             const lbEmbed = new EmbedBuilder()
@@ -64,4 +69,3 @@ module.exports = {
         }
     },
 };
-
