@@ -1,20 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-
-const mutesPath = path.join(__dirname, '../data/mutes.json');
-const cooldowns = new Map(); // In-memory cooldown storage for the resetcd command
+const cooldownsPath = path.join(__dirname, '../data/cooldowns.json');
+const commandCooldowns = new Map(); // In-memory cooldown storage for the resetcd command
 
 module.exports = {
-///////////////////////////////////////////////////
-/////////////////////////////////////////////////
-/////////////////////////////////////////////////
-///////////////////////////////////////////////
-///////////////////////////////////////////////
-//////////////////////////////////////////////////
-// change export thing name later 
-////////////////////////////////////////////////////
-///////////////////////////////////////////////////
-
     name: 'resetcd',
     description: 'Resets the stfu command cooldown for a specified user.',
     execute(message, args) {
@@ -24,46 +13,46 @@ module.exports = {
         // Check if the user is the one who can bypass the resetcd command cooldown
         if (message.author.id !== bypassUserId) {
             const currentTime = Math.floor(Date.now() / 1000);
-            const userCooldown = cooldowns.get(message.author.id);
-
+            const userCommandCooldown = commandCooldowns.get(message.author.id);
+            
             // Check if the user is still on cooldown for resetcd command
-            if (userCooldown && userCooldown > currentTime) {
-                return message.channel.send(`You can use it again at <t:${userCooldown}:t> (<t:${userCooldown}:R>).`);
+            if (userCommandCooldown && userCommandCooldown > currentTime) {
+                return message.channel.send(`You can use it again at <t:${userCommandCooldown}:t> (<t:${userCommandCooldown}:R>).`);
             }
         }
 
-        // Read the mutes.json file
-        let mutes = { users: [] };
+        // Read the cooldowns.json file
+        let cooldowns = { users: [] };
         try {
-            const mutesData = fs.readFileSync(mutesPath, 'utf8');
-            mutes = JSON.parse(mutesData);
+            const cooldownData = fs.readFileSync(cooldownsPath, 'utf8');
+            cooldowns = JSON.parse(cooldownData);
         } catch (error) {
-            console.error('Error reading mutes.json:', error);
-            return message.channel.send('An error occurred while trying to read the mutes data.');
+            console.error('Error reading cooldowns.json:', error);
+            return message.channel.send('An error occurred while trying to read the cooldown data.');
         }
 
         const targetUserId = message.author.id; // Use the command invoker's ID by default
-        const userMute = mutes.users.find(mute => mute.userId === targetUserId);
+        const userCooldown = cooldowns.users.find(user => user.userId === targetUserId);
 
         // Check if the user has a cooldown to reset
-        if (!userMute) {
+        if (!userCooldown) {
             return message.channel.send('You do not have an active cooldown to reset.');
         }
 
-        // Remove the user from the mutes list
-        mutes.users = mutes.users.filter(mute => mute.userId !== targetUserId);
+        // Remove the user from the cooldowns list
+        cooldowns.users = cooldowns.users.filter(user => user.userId !== targetUserId);
 
-        // Write the updated mutes data back to mutes.json
-        fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), (err) => {
+        // Write the updated cooldowns data back to cooldowns.json
+        fs.writeFile(cooldownsPath, JSON.stringify(cooldowns, null, 4), (err) => {
             if (err) {
-                console.error('Error writing mutes data:', err);
+                console.error('Error writing cooldown data:', err);
                 return message.channel.send('An error occurred while trying to reset the cooldown.');
             }
 
             // Set a 24-hour cooldown for the command, unless the user bypasses it
             if (message.author.id !== bypassUserId) {
                 const cooldownEnd = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours in seconds
-                cooldowns.set(message.author.id, cooldownEnd);
+                commandCooldowns.set(message.author.id, cooldownEnd);
             }
 
             // React with the specified emoji upon successful cooldown reset

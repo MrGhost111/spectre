@@ -334,97 +334,122 @@ async function handleActivityButtons(interaction) {
     fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
     await updateEmbed(interaction, activityData.weekly);
 }
+
 async function handleModalSubmit(interaction) {
- if (interaction.customId === 'create_channel_modal' || interaction.customId === 'rename_channel_modal') {
-            const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    if (interaction.customId === 'create_channel_modal' || interaction.customId === 'rename_channel_modal') {
+        await interaction.deferReply({ ephemeral: true });
 
-if (interaction.customId === 'create_channel_modal') {
-    const channelName = interaction.fields.getTextInputValue('channel_name_input');
-    
-    if (!channelName || channelName.length < 1) {
-        return await interaction.reply({ content: 'Please provide a valid channel name.', ephemeral: true });
-    }
-
-    const categoryIds = [
-        '799997847931977749',
-        '842471433238347786',
-        '1064095644811284490'
-    ];
-
-    let channelCreated = false;
-    let error = null;
-    let channel = null;
-
-    for (const categoryId of categoryIds) {
+        let channelsData;
         try {
-            const category = await interaction.guild.channels.fetch(categoryId);
-            if (!category) continue;
+            const data = fs.readFileSync(dataPath, 'utf8');
+            channelsData = JSON.parse(data);
+        } catch (error) {
+            channelsData = { channels: {} };
+        }
 
-            // Fetch all channels and properly count ones in this category
-            const channels = await interaction.guild.channels.fetch();
-            const channelsInCategory = channels.filter(ch => ch.parentId === categoryId);
-            
-            // Debug log to help identify issues
-            console.log(`Category ${categoryId} has ${channelsInCategory.size} channels`);
+        if (interaction.customId === 'create_channel_modal') {
+            const channelName = interaction.fields.getTextInputValue('channel_name_input');
 
-            if (channelsInCategory.size >= 50) {
-                console.log(`Category ${categoryId} is full, trying next category`);
-                continue;
+            if (!channelName || channelName.length < 1) {
+                return await interaction.followUp({ content: 'Please provide a valid channel name.', ephemeral: true });
             }
 
-            // Create the channel in this category
-            channel = await interaction.guild.channels.create({
-                name: channelName,
-                type: ChannelType.GuildText,
-                parent: categoryId,
-                permissionOverwrites: [
-                    {
-                        id: interaction.guild.id,
-                        deny: ['ViewChannel'],
-                    },
-                    {
-                        id: interaction.user.id,
-                        allow: ['ViewChannel'],
+            // Check if user already has a channel
+            const hasChannel = Object.values(channelsData).some(entry => 
+                entry.userId === interaction.user.id && entry.channelId && entry.createdAt
+            );
+
+            if (hasChannel) {
+                return await interaction.followUp({ content: "You already own a channel.", ephemeral: true });
+            }
+
+            const categoryIds = [
+                '799997847931977749',
+                '842471433238347786',
+                '1064095644811284490'
+            ];
+
+            let channelCreated = false;
+            let error = null;
+            let channel = null;
+            let category = null;
+
+            for (const categoryId of categoryIds) {
+                try {
+                    category = await interaction.guild.channels.fetch(categoryId);
+                    if (!category) continue;
+
+                    const channels = await interaction.guild.channels.fetch();
+                    const channelsInCategory = channels.filter(ch => ch.parentId === categoryId);
+
+                    console.log(`Category ${categoryId} has ${channelsInCategory.size} channels`);
+
+                    if (channelsInCategory.size >= 50) {
+                        console.log(`Category ${categoryId} is full, trying next category`);
+                        continue;
                     }
-                ]
+
+                    // Create channel with inherited permissions
+                    channel = await interaction.guild.channels.create({
+                        name: channelName,
+                        type: ChannelType.GuildText,
+                        parent: categoryId,
+                        permissionOverwrites: [
+                            ...category.permissionOverwrites.cache.map(permission => ({
+                                id: permission.id,
+                                allow: permission.allow,
+                                deny: permission.deny
+                            })),
+                            {
+                                id: interaction.user.id,
+                                allow: ['ViewChannel'],
+                            }
+                        ]
+                    });
+
+                    channelCreated = true;
+                    break;
+                } catch (e) {
+                    error = e;
+                    console.error(`Error creating channel in category ${categoryId}:`, e);
+                    continue;
+                }
+            }
+
+            if (!channelCreated) {
+                let errorMessage = 'Failed to create channel. ';
+                if (error) {
+                    errorMessage += `Error: ${error.message}`;
+                } else {
+                    errorMessage += 'All categories are either full or unavailable.';
+                }
+                return await interaction.followUp({
+                    content: errorMessage,
+                    ephemeral: true
+                });
+            }
+
+            // Save channel data in the correct format
+            const channelData = {
+                userId: interaction.user.id,
+                channelId: channel.id,
+                createdAt: new Date().toISOString(),
+                friends: []
+            };
+
+            // Add new channel data to channels.json
+            channelsData[interaction.user.id] = channelData;
+
+            // Save updated data to file
+            fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
+
+            await interaction.followUp({
+                content: `Channel ${channel} has been created successfully!`,
+                ephemeral: true
             });
-
-            channelCreated = true;
-            break;
-        } catch (e) {
-            error = e;
-            console.error(`Error creating channel in category ${categoryId}:`, e);
-            continue;
         }
-    }
 
-    if (!channelCreated) {
-        let errorMessage = 'Failed to create channel. ';
-        if (error) {
-            errorMessage += `Error: ${error.message}`;
-        } else {
-            errorMessage += 'All categories are either full or unavailable.';
-        }
-        return await interaction.reply({
-            content: errorMessage,
-            ephemeral: true
-        });
-    }
-
-    channelsData[channel.id] = {
-        channelId: channel.id,
-        userId: interaction.user.id,
-        friends: []
-    };
-    fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
-    
-    await interaction.reply({
-        content: `Channel ${channel} has been created successfully!`,
-        ephemeral: true
-    });
-
-
-            } else if (interaction.customId === 'rename_channel_modal') {
+ else if (interaction.customId === 'rename_channel_modal') {
                 const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
                 
                 if (!newChannelName || newChannelName.length < 1) {
