@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const dataPath = './data/channels.json';
 
@@ -59,8 +59,7 @@ module.exports = {
                 return `${emoji} <@&${role.id}> ${role.limit}`;
             }).join('\n');
 
-            const { responses, updatedFriends, friendsChanged } = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
-            const currentFriendsCount = friendsChanged ? updatedFriends.length : userChannel.friends.length;
+            const currentFriendsCount = userChannel.friends.length;
 
             const embed = new EmbedBuilder()
                 .setTitle('Channel Information')
@@ -69,7 +68,8 @@ module.exports = {
                     `**Owner:** <@${message.author.id}>\n\n` +
                     `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
                     `**Invited Friends:** ${currentFriendsCount} / ${maxFriends}\n\n` +
-                    `**Role Thresholds:**\n${roleThresholds}`
+                    `**Role Thresholds:**\n${roleThresholds}\n\n` +
+                    `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage the channel members**`
                 )
                 .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
                 .setColor(0x6666ff);
@@ -89,10 +89,6 @@ module.exports = {
 
             await message.reply({ embeds: [embed], components: [row] });
 
-            if (responses.length > 0) {
-                await message.channel.send(responses.join('\n'));
-            }
-
         } else {
             const embed = new EmbedBuilder()
                 .setTitle('No Channel Found')
@@ -108,77 +104,7 @@ module.exports = {
             await message.reply({ embeds: [embed], components: [row] });
         }
     }
-}
-
-async function ensureFriendsInChannel(friends, channel, maxFriends) {
-    const responses = [];
-    let currentFriendsCount = 0;
-    const updatedFriends = [];
-    let friendsChanged = false;
-
-    for (const friendId of friends) {
-        try {
-            const member = await channel.guild.members.fetch(friendId);
-            
-            if (member) {
-                if (!channel.permissionOverwrites.cache.has(friendId)) {
-                    if (currentFriendsCount >= maxFriends) {
-                        responses.push(`Couldn't add <@${friendId}> back to the channel - max friends limit (${maxFriends}) reached.`);
-                        continue;
-                    }
-
-                    try {
-                        await channel.permissionOverwrites.create(friendId, {
-                            [PermissionsBitField.Flags.ViewChannel]: true,
-                        });
-                        responses.push(`Added <@${friendId}> back to the channel.`);
-                    } catch (error) {
-                        console.error('Error creating permission overwrite:', error);
-                        responses.push(`Failed to add <@${friendId}> back to the channel.`);
-                        continue;
-                    }
-                }
-                
-                currentFriendsCount++;
-                updatedFriends.push(friendId);
-            } else {
-                responses.push(`Removed <@${friendId}> from friends list - user no longer in server.`);
-                friendsChanged = true;
-            }
-        } catch (error) {
-            if (error.code === 10007) {
-                responses.push(`Removed <@${friendId}> from friends list - user no longer in server.`);
-                friendsChanged = true;
-            } else {
-                console.error('Error fetching member:', error);
-                responses.push(`Error checking member <@${friendId}>.`);
-                updatedFriends.push(friendId);
-            }
-        }
-    }
-
-    if (friendsChanged) {
-        try {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            const channels = JSON.parse(data);
-            
-            if (channels[channel.permissionOverwrites.cache.first().id]) {
-                channels[channel.permissionOverwrites.cache.first().id].friends = updatedFriends;
-                fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2));
-                responses.push('Friends list has been updated.');
-            }
-        } catch (error) {
-            console.error('Error updating channels.json:', error);
-            responses.push('Failed to update friends list in database.');
-        }
-    }
-
-    return {
-        responses,
-        updatedFriends,
-        friendsChanged
-    };
-}
+};
 
 function calculateMaxFriends(member) {
     const roleLimits = {

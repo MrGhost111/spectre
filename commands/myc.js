@@ -106,7 +106,8 @@ async function handleExistingChannel(interaction, channel, userChannel) {
             `**Owner:** <@${interaction.user.id}>\n\n` +
             `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
             `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
-            `**Role Thresholds:**\n${roleThresholds}`
+            `**Role Thresholds:**\n${roleThresholds}\n\n` +
+            `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage channel members**`
         )
         .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
         .setColor(0x6666ff);
