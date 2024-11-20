@@ -10,6 +10,7 @@ const REQUIRED_ROLES = [
 ];
 
 const MAX_HIGHLIGHTS = 5;
+const MAX_BLACKLIST = 10;
 
 function loadHighlights() {
     const highlightsPath = path.join(__dirname, '../data/highlights.json');
@@ -36,9 +37,14 @@ function createErrorEmbed(message) {
         .setTimestamp();
 }
 
-function checkHighlightMatch(messageWord, highlightWord) {
+function checkHighlightMatch(messageWord, highlightWord, blacklistedWords) {
     messageWord = messageWord.toLowerCase();
     highlightWord = highlightWord.toLowerCase();
+    
+    if (blacklistedWords?.some(word => messageWord.includes(word.toLowerCase()))) {
+        return false;
+    }
+    
     return messageWord.includes(highlightWord);
 }
 
@@ -78,8 +84,7 @@ module.exports = {
             }
             return;
         }
-
-        if (message.content.startsWith('!muterole update')) {
+if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
                 '1296077996435832902',
                 '815478998283976704',
@@ -127,8 +132,20 @@ module.exports = {
 
             const recentMessages = await message.channel.messages.fetch({ limit: 50 });
 
-            for (const [userId, userHighlights] of Object.entries(highlights)) {
+            for (const [userId, userData] of Object.entries(highlights)) {
                 if (userId === message.author.id) continue;
+
+                // Skip if user has no highlights
+                if (!userData.words || userData.words.length === 0) continue;
+
+                // Check blacklists
+                if (userData.blacklist) {
+                    // Skip if channel is blacklisted
+                    if (userData.blacklist.channels?.includes(message.channel.id)) continue;
+                    
+                    // Skip if user is blacklisted
+                    if (userData.blacklist.users?.includes(message.author.id)) continue;
+                }
 
                 const member = await message.guild.members.fetch(userId).catch(() => null);
                 if (!member) continue;
@@ -142,9 +159,9 @@ module.exports = {
 
                 if (wasRecentlyActive) continue;
 
-                for (const word of userHighlights) {
+                for (const word of userData.words) {
                     const hasMatch = messageWords.some(messageWord => 
-                        checkHighlightMatch(messageWord, word)
+                        checkHighlightMatch(messageWord, word, userData.blacklist?.words)
                     );
 
                     if (hasMatch && !notifiedUsers.has(userId)) {
@@ -221,8 +238,7 @@ module.exports = {
 
             return message.reply(lbMessage);
         }
-
-        if (fullCommand === 'highlight' || fullCommand === 'hl') {
+if (fullCommand === 'highlight' || fullCommand === 'hl') {
             if (!message.guild) {
                 return message.reply({ 
                     embeds: [createErrorEmbed('This command can only be used in a server!')] 
@@ -239,8 +255,39 @@ module.exports = {
             const subCommand = args[0]?.toLowerCase();
             
             if (!highlights[message.author.id]) {
-                highlights[message.author.id] = [];
+                highlights[message.author.id] = {
+                    words: [],
+                    blacklist: {
+                        words: [],
+                        users: [],
+                        channels: []
+                    }
+                };
             }
+
+            // Convert old format to new format if needed
+            if (Array.isArray(highlights[message.author.id])) {
+                const oldWords = highlights[message.author.id];
+                highlights[message.author.id] = {
+                    words: oldWords,
+                    blacklist: {
+                        words: [],
+                        users: [],
+                        channels: []
+                    }
+                };
+            }
+
+            // Ensure blacklist exists
+            if (!highlights[message.author.id].blacklist) {
+                highlights[message.author.id].blacklist = {
+                    words: [],
+                    users: [],
+                    channels: []
+                };
+            }
+
+            const userData = highlights[message.author.id];
 
             switch (subCommand) {
                 case 'add': {
@@ -256,19 +303,19 @@ module.exports = {
                         });
                     }
                     
-                    if (highlights[message.author.id].length >= MAX_HIGHLIGHTS) {
+                    if (userData.words.length >= MAX_HIGHLIGHTS) {
                         return message.reply({ 
                             embeds: [createErrorEmbed(`You can only have up to ${MAX_HIGHLIGHTS} highlight words!`)] 
                         });
                     }
                     
-                    if (!highlights[message.author.id].includes(word)) {
-                        highlights[message.author.id].push(word);
+                    if (!userData.words.includes(word)) {
+                        userData.words.push(word);
                         saveHighlights(highlights);
                         
                         const successEmbed = new EmbedBuilder()
                             .setColor(0x00FF00)
-                            .setDescription(` Added "${word}" to your highlights`)
+                            .setDescription(`✅ Added "${word}" to your highlights`)
                             .setTimestamp();
                         message.reply({ embeds: [successEmbed] });
                     } else {
@@ -287,14 +334,14 @@ module.exports = {
                         });
                     }
                     
-                    const index = highlights[message.author.id].indexOf(wordToRemove);
+                    const index = userData.words.indexOf(wordToRemove);
                     if (index > -1) {
-                        highlights[message.author.id].splice(index, 1);
+                        userData.words.splice(index, 1);
                         saveHighlights(highlights);
                         
                         const successEmbed = new EmbedBuilder()
                             .setColor(0x00FF00)
-                            .setDescription(` Removed "${wordToRemove}" from your highlights`)
+                            .setDescription(`✅ Removed "${wordToRemove}" from your highlights`)
                             .setTimestamp();
                         message.reply({ embeds: [successEmbed] });
                     } else {
@@ -304,13 +351,125 @@ module.exports = {
                     }
                     break;
                 }
+case 'blacklist': {
+                    const blacklistType = args[1]?.toLowerCase();
+                    const blacklistAction = args[2]?.toLowerCase();
+                    const target = args.slice(3).join(' ');
+
+                    if (!blacklistType || !['word', 'user', 'channel'].includes(blacklistType)) {
+                        return message.reply({ 
+                            embeds: [createErrorEmbed('Please specify what to blacklist (word/user/channel)!')] 
+                        });
+                    }
+
+                    if (!blacklistAction || !['add', 'remove'].includes(blacklistAction)) {
+                        return message.reply({ 
+                            embeds: [createErrorEmbed('Please specify the action (add/remove)!')] 
+                        });
+                    }
+
+                    if (!target) {
+                        return message.reply({ 
+                            embeds: [createErrorEmbed(`Please specify the ${blacklistType} to ${blacklistAction}!`)] 
+                        });
+                    }
+
+                    const blacklistKey = `${blacklistType}s`;
+                    let targetValue = target;
+
+                    // Handle mentions for users and channels
+                    if (blacklistType === 'user') {
+                        const userId = target.replace(/[<@!>]/g, '');
+                        try {
+                            await message.guild.members.fetch(userId);
+                            targetValue = userId;
+                        } catch {
+                            return message.reply({ 
+                                embeds: [createErrorEmbed('Invalid user! Please mention a valid user or provide their ID.')] 
+                            });
+                        }
+                    } else if (blacklistType === 'channel') {
+                        const channelId = target.replace(/[<#>]/g, '');
+                        const channel = message.guild.channels.cache.get(channelId);
+                        if (!channel) {
+                            return message.reply({ 
+                                embeds: [createErrorEmbed('Invalid channel! Please mention a valid channel or provide its ID.')] 
+                            });
+                        }
+                        targetValue = channelId;
+                    }
+
+                    if (blacklistAction === 'add') {
+                        if (userData.blacklist[blacklistKey].length >= MAX_BLACKLIST) {
+                            return message.reply({ 
+                                embeds: [createErrorEmbed(`You can only blacklist up to ${MAX_BLACKLIST} ${blacklistType}s!`)] 
+                            });
+                        }
+
+                        if (!userData.blacklist[blacklistKey].includes(targetValue)) {
+                            userData.blacklist[blacklistKey].push(targetValue);
+                            saveHighlights(highlights);
+                            
+                            const successEmbed = new EmbedBuilder()
+                                .setColor(0x00FF00)
+                                .setDescription(`✅ Added ${blacklistType} "${target}" to your blacklist`)
+                                .setTimestamp();
+                            message.reply({ embeds: [successEmbed] });
+                        } else {
+                            message.reply({ 
+                                embeds: [createErrorEmbed(`That ${blacklistType} is already in your blacklist!`)] 
+                            });
+                        }
+                    } else {
+                        const index = userData.blacklist[blacklistKey].indexOf(targetValue);
+                        if (index > -1) {
+                            userData.blacklist[blacklistKey].splice(index, 1);
+                            saveHighlights(highlights);
+                            
+                            const successEmbed = new EmbedBuilder()
+                                .setColor(0x00FF00)
+                                .setDescription(`✅ Removed ${blacklistType} "${target}" from your blacklist`)
+                                .setTimestamp();
+                            message.reply({ embeds: [successEmbed] });
+                        } else {
+                            message.reply({ 
+                                embeds: [createErrorEmbed(`That ${blacklistType} is not in your blacklist!`)] 
+                            });
+                        }
+                    }
+                    break;
+                }
 
                 case 'list': {
-                    const userHighlights = highlights[message.author.id];
                     const listEmbed = new EmbedBuilder()
                         .setColor(0x0099FF)
-                        .setTitle(` Highlights (${userHighlights.length}/${MAX_HIGHLIGHTS})`)
-                        .setDescription(userHighlights.length > 0 ? userHighlights.join('\n') : 'No highlights set')
+                        .setTitle(`Highlight Settings for ${message.author.tag}`)
+                        .addFields(
+                            {
+                                name: `📝  Highlight Words (${userData.words.length}/${MAX_HIGHLIGHTS})`,
+                                value: userData.words.length > 0 ? userData.words.join('\n') : 'No highlights set',
+                                inline: false
+                            },
+                            {
+                                name: ` Blacklisted Words (${userData.blacklist.words.length}/${MAX_BLACKLIST})`,
+                                value: userData.blacklist.words.length > 0 ? userData.blacklist.words.join('\n') : 'No blacklisted words',
+                                inline: false
+                            },
+                            {
+                                name: `👤 Blacklisted Users (${userData.blacklist.users.length}/${MAX_BLACKLIST})`,
+                                value: userData.blacklist.users.length > 0 
+                                    ? userData.blacklist.users.map(id => `<@${id}>`).join('\n') 
+                                    : 'No blacklisted users',
+                                inline: false
+                            },
+                            {
+                                name: ` Blacklisted Channels (${userData.blacklist.channels.length}/${MAX_BLACKLIST})`,
+                                value: userData.blacklist.channels.length > 0 
+                                    ? userData.blacklist.channels.map(id => `<#${id}>`).join('\n') 
+                                    : 'No blacklisted channels',
+                                inline: false
+                            }
+                        )
                         .setTimestamp();
                     
                     message.reply({ embeds: [listEmbed] });
@@ -320,14 +479,20 @@ module.exports = {
                 default: {
                     const helpEmbed = new EmbedBuilder()
                         .setColor(0x0099FF)
-                        .setTitle('❓ Highlight Command Help')
+                        .setTitle(' Highlight Command Help')
                         .setDescription('Available Commands:')
                         .addFields(
                             { name: '`,hl add <word>`', value: 'Add a highlight word' },
                             { name: '`,hl remove <word>`', value: 'Remove a highlight word' },
-                            { name: '`,hl list`', value: 'List your highlight words' }
+                            { name: '`,hl blacklist word add <word>`', value: 'Add a word to your blacklist' },
+                            { name: '`,hl blacklist word remove <word>`', value: 'Remove a word from your blacklist' },
+                            { name: '`,hl blacklist user add <@user>`', value: 'Add a user to your blacklist' },
+                            { name: '`,hl blacklist user remove <@user>`', value: 'Remove a user from your blacklist' },
+                            { name: '`,hl blacklist channel add <#channel>`', value: 'Add a channel to your blacklist' },
+                            { name: '`,hl blacklist channel remove <#channel>`', value: 'Remove a channel from your blacklist' },
+                            { name: '`,hl list`', value: 'List your highlights and blacklist settings' }
                         )
-                        .setFooter({ text: `Maximum ${MAX_HIGHLIGHTS} highlights per user` });
+                        .setFooter({ text: `Maximum ${MAX_HIGHLIGHTS} highlights and ${MAX_BLACKLIST} entries per blacklist type` });
                     
                     message.reply({ embeds: [helpEmbed] });
                 }
@@ -345,3 +510,4 @@ module.exports = {
         }
     },
 };
+
