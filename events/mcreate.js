@@ -9,7 +9,7 @@ const REQUIRED_ROLES = [
     '765988972596822036'
 ];
 
-const MAX_HIGHLIGHTS = 5;
+const MAX_HIGHLIGHTS = 10;
 const MAX_BLACKLIST = 10;
 
 function loadHighlights() {
@@ -130,7 +130,13 @@ if (message.content.startsWith('!muterole update')) {
             const THRESHOLD_TIME = 60 * 1000;
             const currentTime = Date.now();
 
-            const recentMessages = await message.channel.messages.fetch({ limit: 50 });
+            let recentMessages;
+try {
+    recentMessages = await message.channel.messages.fetch({ limit: 50 });
+} catch (error) {
+    console.error('Error fetching recent messages:', error);
+    recentMessages = new Map(); // Provide an empty Map to prevent further errors
+}
 
             for (const [userId, userData] of Object.entries(highlights)) {
                 if (userId === message.author.id) continue;
