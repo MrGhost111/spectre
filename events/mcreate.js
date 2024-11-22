@@ -130,12 +130,28 @@ if (message.content.startsWith('!muterole update')) {
             const THRESHOLD_TIME = 60 * 1000;
             const currentTime = Date.now();
 
-            let recentMessages;
+           let recentMessages = [];
 try {
-    recentMessages = await message.channel.messages.fetch({ limit: 50 });
+    // Check if channel exists and bot has permissions
+    if (!message.channel) {
+        console.error('Channel is null or undefined');
+        return; // Exit the function early
+    }
+
+    const fetchedMessages = await message.channel.messages.fetch({ limit: 20 }).catch(err => {
+        console.error('Error fetching messages:', err);
+        return null; // Return null if fetch fails
+    });
+
+    // Only proceed if messages were successfully fetched
+    if (fetchedMessages) {
+        recentMessages = Array.from(fetchedMessages.values());
+    } else {
+        recentMessages = []; // Ensure recentMessages is an empty array if fetch fails
+    }
 } catch (error) {
-    console.error('Error fetching recent messages:', error);
-    recentMessages = new Map(); // Provide an empty Map to prevent further errors
+    console.error('Unexpected error:', error);
+    recentMessages = []; // Fallback to empty array
 }
 
             for (const [userId, userData] of Object.entries(highlights)) {
