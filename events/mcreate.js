@@ -130,30 +130,24 @@ if (message.content.startsWith('!muterole update')) {
             const THRESHOLD_TIME = 60 * 1000;
             const currentTime = Date.now();
 
-           let recentMessages = [];
+           // Replace just this section in your existing code
+let recentMessages = [];
 try {
-    // Check if channel exists and bot has permissions
-    if (!message.channel) {
-        console.error('Channel is null or undefined');
-        return; // Exit the function early
+    // Skip if channel isn't accessible
+    if (!message.channel?.messages?.fetch) {
+        return;
     }
 
-    const fetchedMessages = await message.channel.messages.fetch({ limit: 20 }).catch(err => {
-        console.error('Error fetching messages:', err);
-        return null; // Return null if fetch fails
-    });
-
-    // Only proceed if messages were successfully fetched
-    if (fetchedMessages) {
-        recentMessages = Array.from(fetchedMessages.values());
-    } else {
-        recentMessages = []; // Ensure recentMessages is an empty array if fetch fails
-    }
-} catch (error) {
-    console.error('Unexpected error:', error);
-    recentMessages = []; // Fallback to empty array
+    const fetchedMessages = await message.channel.messages.fetch({ limit: 20 })
+        .catch(() => null);
+    
+    // If we couldn't fetch messages, just continue with empty array
+    recentMessages = fetchedMessages ? Array.from(fetchedMessages.values()) : [];
+    
+} catch {
+    // If anything fails, just continue with empty array
+    recentMessages = [];
 }
-
             for (const [userId, userData] of Object.entries(highlights)) {
                 if (userId === message.author.id) continue;
 
