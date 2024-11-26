@@ -449,30 +449,66 @@ async function handleModalSubmit(interaction) {
             });
         }
 
- else if (interaction.customId === 'rename_channel_modal') {
-                const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
-                
-                if (!newChannelName || newChannelName.length < 1) {
-                    return await interaction.reply({ content: 'Please provide a valid channel name.', ephemeral: true });
-                }
 
-                const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-                if (!userChannel) {
-                    return await interaction.reply({ content: 'You do not own a channel.', ephemeral: true });
-                }
 
-                const channel = interaction.guild.channels.cache.get(userChannel.channelId);
-                if (!channel) {
-                    return await interaction.reply({ content: 'Channel not found.', ephemeral: true });
-                }
 
-                await channel.setName(newChannelName);
-                await interaction.reply({
-                    content: `Channel has been renamed to ${channel}!`,
-                    ephemeral: true
-                });
-            }
+
+
+
+
+
+
+
+
+
+
+
+else if (interaction.customId === 'rename_channel_modal') {
+    try {
+        const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
+        
+        if (!newChannelName || newChannelName.length < 1) {
+            return await interaction.followUp({ content: 'Please provide a valid channel name.', ephemeral: true });
         }
+
+        const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+        if (!userChannel) {
+            return await interaction.followUp({ content: 'You do not own a channel.', ephemeral: true });
+        }
+
+        const channel = interaction.guild.channels.cache.get(userChannel.channelId);
+        if (!channel) {
+            return await interaction.followUp({ content: 'Channel not found.', ephemeral: true });
+        }
+
+        await channel.setName(newChannelName);
+        await interaction.followUp({
+            content: `Channel has been renamed to ${channel}!`,
+            ephemeral: true
+        });
+    } catch (error) {
+        console.error('Error in rename_channel_modal:', error);
+        await interaction.followUp({
+            content: 'There was an error while renaming the channel.',
+            ephemeral: true
+        });
+    }
+}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
         const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
         const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
