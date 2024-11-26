@@ -41,15 +41,13 @@ module.exports = {
 
             const statusEmbed = new EmbedBuilder()
                 .setTitle('<:YJ_streak:1259258046924853421> Last to Leave Event - Waiting to Start')
-                .setDescription('
-                     'Event Setup Complete!'+
-                    'The voice channel is now unlocked and ready for participants.'+
-                    'The event will begin when the host uses ,start')
+                .setDescription(`Event Setup Complete!\nThe voice channel is now unlocked and ready for participants.\nThe event will begin when the host uses ,start`)
                 .setColor('#6666ff')
                 .setTimestamp()
 
             const statusMessage = await message.channel.send({ embeds: [statusEmbed] });
             eventData.statusMessageId = statusMessage.id;
+            
             eventsData[voiceChannel.id] = eventData;
             fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
 

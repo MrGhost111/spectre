@@ -34,13 +34,13 @@ async function updateStatusEmbed(client, eventData) {
             .setColor('#FF0000')
             .setTimestamp()
             .addFields(
-                { name'<:time:1000024854478721125>  Event Duration', value: duration, inline: true },
-                { name'<:user:1273754877646082048>  Participants Remaining', value: `${activeParticipants.length}/${totalParticipants}`, inline: true }
+                { name:'<:time:1000024854478721125>  Event Duration', value: duration, inline: true },
+                { name:'<:user:1273754877646082048>  Participants Remaining', value: `${activeParticipants.length}/${totalParticipants}`, inline: true }
             );
 
         let participantsList = '';
         Object.values(eventData.participants).forEach(participant => {
-            const status = participant.status === 'active's === 'active' ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>' ;
+            const status = participant.status === 'active' === 'active' ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>' ;
             const timeSpent = participant.leaveTime ? 
                 `(${formatDuration(participant.leaveTime - participant.joinTime)})` : 
                 '(Still Active)';
