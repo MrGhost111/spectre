@@ -34,16 +34,16 @@ async function updateStatusEmbed(client, eventData) {
             .setColor('#FF0000')
             .setTimestamp()
             .addFields(
-                { name:'<:time:1000024854478721125>  Event Duration', value: duration, inline: true },
-                { name:'<:user:1273754877646082048>  Participants Remaining', value: `${activeParticipants.length}/${totalParticipants}`, inline: true }
+                { name:'<:time:1000024854478721125>  Event Duration', value: duration, inline: false },
+                { name:'<:user:1273754877646082048>  Participants Remaining', value: `${activeParticipants.length}/${totalParticipants}`, inline: false }
             );
 
         let participantsList = '';
         Object.values(eventData.participants).forEach(participant => {
-            const status = participant.status === 'active' === 'active' ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>' ;
+            const status = participant.status === 'active' ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
             const timeSpent = participant.leaveTime ? 
                 `(${formatDuration(participant.leaveTime - participant.joinTime)})` : 
-                '(Still Active)';
+                '(Active)';
             participantsList += `${status} ${participant.username} ${timeSpent}\n`;
         });
 
@@ -73,8 +73,8 @@ async function endEvent(client, eventData, voiceChannelId) {
         const totalDuration = formatDuration(Date.now() - eventData.startTime);
 
         const winnerEmbed = new EmbedBuilder()
-            .setTitle('<a:dommunism:827196255288950847> Last to Leave Event - Winner Announced🎉')
-            .setDescription(`Event Duration: ${totalDuration}\nEvent Ended: <t:${Math.floor(Date.now() / 1000)}:F>`)
+            .setTitle('<a:dommunism:827196255288950847> Last to Leave Event - Winner Announced')
+            .setDescription(`Event Duration: **${totalDuration}**\nEvent Ended: <t:${Math.floor(Date.now() / 1000)}:F>`)
             .setColor('#FFD700')
             .setTimestamp();
 
@@ -84,8 +84,8 @@ async function endEvent(client, eventData, voiceChannelId) {
             (winner.leaveTime || Date.now()) - winner.joinTime
         );
         winnerEmbed.addFields({
-            name: '<:One:1043063155653357568>',
-            value: `${winner.username}\nTime: ${winnerDuration}`,
+            name: '<a:one_:1311073131905024040>   [First Place](https://discord.gg/dankest)',
+            value: `**${winner.username}**\nTime: **${winnerDuration}**`,
             inline: false
         });
 
@@ -93,8 +93,8 @@ async function endEvent(client, eventData, voiceChannelId) {
             const second = sortedParticipants[1];
             const secondDuration = formatDuration(second.leaveTime - second.joinTime);
             winnerEmbed.addFields({
-                name: '<:Two:1043063239493300294>e',
-                value: `${second.username}\nTime: ${secondDuration}`,
+                name: '<a:two_:1311075222312718346>   [Second Place](https://discord.gg/dankest)',
+                value: `**${second.username}**\nTime: **${secondDuration}**`,
                 inline: false
             });
         }
@@ -103,8 +103,8 @@ async function endEvent(client, eventData, voiceChannelId) {
             const third = sortedParticipants[2];
             const thirdDuration = formatDuration(third.leaveTime - third.joinTime);
             winnerEmbed.addFields({
-                name: '<:Three:1043063324423757885>e',
-                value: `${third.username}\nTime: ${thirdDuration}`,
+                name: '<a:three_:1311075241283424380>   [Third Place](https://discord.gg/dankest)',
+                value: `**${third.username}**\nTime: **${thirdDuration}**`,
                 inline: false
             });
         }
