@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
 const HOST_ROLE_ID = '712970141834674207';
+const VOICE_CHANNEL_ID = '944924720158085190';
 
 module.exports = {
     name: 'start',
@@ -12,9 +12,9 @@ module.exports = {
             return message.reply('You do not have permission to manage Last to Leave events.');
         }
 
-        const voiceChannel = message.member.voice.channel;
+        const voiceChannel = message.guild.channels.cache.get(VOICE_CHANNEL_ID);
         if (!voiceChannel) {
-            return message.reply('Please join a voice channel first!');
+            return message.reply('The configured voice channel could not be found.');
         }
 
         try {
@@ -52,7 +52,7 @@ module.exports = {
             });
 
             const statusEmbed = new EmbedBuilder()
-                .setTitle('🎮 Last to Leave Event - Active')
+                .setTitle('<:power:1064835342160625784>  Last to Leave Event - Active')
                 .setDescription(`Event Started: <t:${Math.floor(eventData.startTime / 1000)}:F>`)
                 .setColor('#FF0000')
                 .setTimestamp()
@@ -63,11 +63,11 @@ module.exports = {
 
             const statusMessage = await message.channel.send({ embeds: [statusEmbed] });
             eventData.statusMessageId = statusMessage.id;
-
+            
             eventsData[voiceChannel.id] = eventData;
             fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
 
-            return message.reply('🎉 Event started! The voice channel has been locked. Good luck to all participants!');
+            return message.reply('<:power:1064835342160625784>  Event started! The voice channel has been locked. Good luck to all participants!');
         } catch (error) {
             console.error(error);
             return message.reply('An error occurred while starting the event.');
