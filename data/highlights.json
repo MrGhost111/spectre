@@ -58,7 +58,9 @@
       "words": [
         "hardmute"
       ],
-      "users": [],
+      "users": [
+        "826115461623054336"
+      ],
       "channels": []
     }
   },
@@ -183,6 +185,21 @@
   },
   "825607869012901888": {
     "words": [],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "743429269207646299": {
+    "words": [
+      "<@743429269207646299>",
+      "cake",
+      ";;dehoist",
+      ";;decancer",
+      ";decancer",
+      ";dehoist"
+    ],
     "blacklist": {
       "words": [],
       "users": [],
