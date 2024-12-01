@@ -1,1 +1,25 @@
-{}
+{
+  "944924720158085190": {
+    "status": "active",
+    "logChannelId": "673970120057683974",
+    "statusMessageId": "1311783162686214155",
+    "startTime": 1732824275732,
+    "participants": {
+      "753491023208120321": {
+        "username": "ghost.2628",
+        "joinTime": 1732824275732,
+        "leaveTime": 1732824326816,
+        "status": "left",
+        "rank": null
+      },
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1732824275732,
+        "leaveTime": 1732824331404,
+        "status": "left",
+        "rank": null
+      }
+    },
+    "winnerMessageId": "1311785047438655520"
+  }
+}

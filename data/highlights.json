@@ -1,8 +1,8 @@
 {
   "753491023208120321": {
     "words": [
-      "ghost",
-      "753491023208120321"
+      "753491023208120321",
+      "ghost"
     ],
     "blacklist": {
       "words": [],
@@ -91,7 +91,9 @@
     "blacklist": {
       "words": [
         "crown",
-        "crowns"
+        "crowns",
+        "microwave",
+        "microwaving"
       ],
       "users": [],
       "channels": [
