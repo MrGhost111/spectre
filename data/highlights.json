@@ -67,11 +67,18 @@
   "659361315957243904": [
     "knax"
   ],
-  "560093267497189396": [
-    "ashwin",
-    "fortnite",
-    "valorant"
-  ],
+  "560093267497189396": {
+    "words": [
+      "ashwin",
+      "fortnite",
+      "valorant"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
   "827983414308241448": {
     "words": [
       "astrid",
@@ -201,6 +208,22 @@
       ";;decancer",
       ";decancer",
       ";dehoist"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "705687251950239774": {
+    "words": [
+      "furi",
+      "furious",
+      "705687251950239774",
+      "mc server",
+      "java",
+      "bedrock",
+      "minecraft"
     ],
     "blacklist": {
       "words": [],
