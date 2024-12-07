@@ -12,6 +12,7 @@ const REQUIRED_ROLES = [
 const MAX_HIGHLIGHTS = 10;
 const MAX_BLACKLIST = 10;
 
+// Existing helper functions (loadHighlights, saveHighlights, hasRequiredRole, createErrorEmbed)
 function loadHighlights() {
     const highlightsPath = path.join(__dirname, '../data/highlights.json');
     if (!fs.existsSync(highlightsPath)) {
@@ -35,6 +36,16 @@ function createErrorEmbed(message) {
         .setColor(0xFF0000)
         .setDescription(`❌ ${message}`)
         .setTimestamp();
+}
+
+// Utility function to format timestamp
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: false 
+    });
 }
 
 function checkHighlightMatch(messageWord, highlightWord, blacklistedWords) {
@@ -102,32 +113,41 @@ async function checkMessageForHighlights(client, message) {
                 notifiedUsers.add(userId);
                 try {
                     const user = await client.users.fetch(userId);
-                    const notificationEmbed = new EmbedBuilder()
-                        .setColor(0x0099ff)
-                        .setTitle('You were highlighted')
-                        .addFields(
-                            {
-                                name: 'Word',
-                                value: word
-                            },
-                            {
-                                name: 'Message',
-                                value: message.content.length > 1024 ? 
-                                    message.content.substring(0, 1021) + '...' : 
-                                    message.content
-                            },
-                            {
-                                name: 'Author',
-                                value: message.author.tag
-                            },
-                            {
-                                name: 'Link',
-                                value: message.url
-                            }
-                        )
-                        .setTimestamp();
 
-                    await user.send({ embeds: [notificationEmbed] });
+                    // Fetch context messages
+                    const contextMessages = await message.channel.messages.fetch({ 
+                        limit: 3, 
+                        before: message.id 
+                    });
+
+                    // Format context messages
+                    const formattedContextMessages = contextMessages
+                        .map(m => `**[${formatTimestamp(m.createdTimestamp)}] ${m.author.username}#${m.author.discriminator}:** ${m.content}`)
+                        .reverse(); // Reverse to maintain original order
+
+                    // Prepare the custom embed
+                   const highlightEmbed = new EmbedBuilder()
+    .setColor(0x0099ff)
+    .setTitle(`Triggered word: ${word}`)
+    .setDescription([
+        ...formattedContextMessages.map(m => `<t:${Math.floor(m.createdTimestamp/1000)}:T> ${m.content}`),
+        `<t:${Math.floor(message.createdTimestamp/1000)}:T> ${message.content}`
+    ].join('\n'))
+                        .setFooter({ 
+                            text: `${message.createdAt.toLocaleDateString('en-US', {
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit'
+                            })} ${formatTimestamp(message.createdTimestamp)}`
+                        });
+
+                    // Add message link
+                    highlightEmbed.addFields({
+                        name: 'Message link', 
+                        value: `[Click here](${message.url})`
+                    });
+
+                    await user.send({ embeds: [highlightEmbed] });
                 } catch (error) {
                     console.error(`Failed to send highlight notification to user ${userId}:`, error);
                 }
