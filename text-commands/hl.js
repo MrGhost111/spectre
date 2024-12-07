@@ -12,7 +12,6 @@ const REQUIRED_ROLES = [
 const MAX_HIGHLIGHTS = 10;
 const MAX_BLACKLIST = 10;
 
-// Existing helper functions (loadHighlights, saveHighlights, hasRequiredRole, createErrorEmbed)
 function loadHighlights() {
     const highlightsPath = path.join(__dirname, '../data/highlights.json');
     if (!fs.existsSync(highlightsPath)) {
@@ -38,14 +37,9 @@ function createErrorEmbed(message) {
         .setTimestamp();
 }
 
-// Utility function to format timestamp
 function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false 
-    });
+    return Math.floor(date.getTime() / 1000);
 }
 
 function checkHighlightMatch(messageWord, highlightWord, blacklistedWords) {
@@ -114,40 +108,40 @@ async function checkMessageForHighlights(client, message) {
                 try {
                     const user = await client.users.fetch(userId);
 
-                    // Fetch context messages
                     const contextMessages = await message.channel.messages.fetch({ 
                         limit: 3, 
                         before: message.id 
                     });
 
-                    // Format context messages
-                    const formattedContextMessages = contextMessages
-                        .map(m => `**[${formatTimestamp(m.createdTimestamp)}] ${m.author.username}#${m.author.discriminator}:** ${m.content}`)
-                        .reverse(); // Reverse to maintain original order
+                    const formattedContextMessages = Array.from(contextMessages.values())
+                        .reverse()
+                        .map(m => `<t:${formatTimestamp(m.createdTimestamp)}:T> ${m.content}`);
 
-                    // Prepare the custom embed
-                   const highlightEmbed = new EmbedBuilder()
-    .setColor(0x0099ff)
-    .setTitle(`Triggered word: ${word}`)
-    .setDescription([
-        ...formattedContextMessages.map(m => `<t:${Math.floor(m.createdTimestamp/1000)}:T> ${m.content}`),
-        `<t:${Math.floor(message.createdTimestamp/1000)}:T> ${message.content}`
-    ].join('\n'))
+                    const highlightEmbed = new EmbedBuilder()
+                        .setColor(0x0099ff)
+                        .setTitle(`Triggered word: ${word}`)
+                        .setDescription([
+                            ...formattedContextMessages,
+                            `<t:${formatTimestamp(message.createdTimestamp)}:T> ${message.content}`
+                        ].join('\n'))
                         .setFooter({ 
-                            text: `${message.createdAt.toLocaleDateString('en-US', {
+                            text: message.createdAt.toLocaleDateString('en-US', {
                                 year: 'numeric', 
                                 month: '2-digit', 
                                 day: '2-digit'
-                            })} ${formatTimestamp(message.createdTimestamp)}`
+                            })
+                        })
+                        .addFields({
+                            name: 'Message link', 
+                            value: `[Click here](${message.url})`
                         });
 
-                    // Add message link
-                    highlightEmbed.addFields({
-                        name: 'Message link', 
-                        value: `[Click here](${message.url})`
+                    const notificationMessage = `You were mentioned with the word \`${word}\` in **${message.channel.name}**.`;
+                    
+                    await user.send({ 
+                        content: notificationMessage,
+                        embeds: [highlightEmbed] 
                     });
-
-                    await user.send({ embeds: [highlightEmbed] });
                 } catch (error) {
                     console.error(`Failed to send highlight notification to user ${userId}:`, error);
                 }
