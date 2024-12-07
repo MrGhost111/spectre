@@ -7,12 +7,20 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
+        // Add debug logging
+        console.log('Message received:', {
+            content: message.content,
+            author: message.author.tag,
+            channel: message.channel.name,
+            guild: message.guild?.name
+        });
+
         if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
                 await message.react('<:downvote:1303963004915679232>');
             } catch (error) {
-                return;
+                console.error('Error adding reactions:', error);
             }
         }
 
@@ -77,18 +85,40 @@ module.exports = {
 
         const prefix = ',';
 
+        // Non-command messages
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
-            await checkMessageForHighlights(client, message);
+            try {
+                await checkMessageForHighlights(client, message);
+            } catch (error) {
+                console.error('Error checking highlights:', error);
+            }
             return;
         }
 
+        // Command handling
         const args = message.content.slice(prefix.length).trim().split(/ +/);
-        const fullCommand = args.shift().toLowerCase();
-        const textCommand = client.textCommands.find(cmd => fullCommand.startsWith(cmd.name));
+        const commandName = args.shift().toLowerCase();
 
-        if (fullCommand === 'resetsns') {
-            if (!message.member.permissions.has('ADMINISTRATOR')) {
+        // Debug log
+        console.log('Command received:', {
+            commandName,
+            args,
+            availableCommands: [...client.textCommands.keys()]
+        });
+
+        // Check for command
+        const command = client.textCommands.get(commandName) || 
+                       client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+        if (!command) {
+            console.log(`Command not found: ${commandName}`);
+            return;
+        }
+
+        // Special command handling
+        if (commandName === 'resetsns') {
+            if (!message.member.permissions.has('Administrator')) {
                 return message.reply('You do not have permission to use this command.');
             }
 
@@ -97,7 +127,7 @@ module.exports = {
             return message.reply('Successfully reset the donation note tracking system!');
         }
 
-        if (fullCommand === 'lb') {
+        if (commandName === 'lb') {
             const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
             const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
 
@@ -118,13 +148,12 @@ module.exports = {
             return message.reply(lbMessage);
         }
 
-        if (textCommand) {
-            try {
-                await textCommand.execute(message, args);
-            } catch (error) {
-                console.error(`Error executing text command: ${error}`);
-                await message.reply('There was an error trying to execute that command!');
-            }
+        // Execute the command
+        try {
+            await command.execute(message, args);
+        } catch (error) {
+            console.error(`Error executing command ${commandName}:`, error);
+            await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
     },
 };

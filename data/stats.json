@@ -2,32 +2,32 @@
     "users": [
         {
             "userId": "753491023208120321",
-            "totalUses": 5,
-            "successes": 5,
-            "fails": 0
+            "totalUses": 8,
+            "successes": 7,
+            "fails": 1
         },
         {
             "userId": "560093267497189396",
-            "totalUses": 5,
-            "successes": 3,
+            "totalUses": 7,
+            "successes": 5,
             "fails": 2
         },
         {
             "userId": "839330683335737374",
-            "totalUses": 10,
-            "successes": 7,
+            "totalUses": 12,
+            "successes": 9,
             "fails": 3
         },
         {
             "userId": "827983414308241448",
-            "totalUses": 4,
-            "successes": 3,
+            "totalUses": 6,
+            "successes": 5,
             "fails": 1
         },
         {
             "userId": "705687251950239774",
-            "totalUses": 8,
-            "successes": 4,
+            "totalUses": 10,
+            "successes": 6,
             "fails": 4
         },
         {
@@ -74,15 +74,15 @@
         },
         {
             "userId": "786612324588060713",
-            "totalUses": 1,
-            "successes": 1,
+            "totalUses": 3,
+            "successes": 3,
             "fails": 0
         },
         {
             "userId": "706310256954966086",
-            "totalUses": 2,
-            "successes": 2,
-            "fails": 0
+            "totalUses": 4,
+            "successes": 3,
+            "fails": 1
         },
         {
             "userId": "823904633944539196",
@@ -95,6 +95,24 @@
             "totalUses": 1,
             "successes": 1,
             "fails": 0
+        },
+        {
+            "userId": "693463277442826240",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
+        },
+        {
+            "userId": "932458730304442399",
+            "totalUses": 2,
+            "successes": 2,
+            "fails": 0
+        },
+        {
+            "userId": "733798791601455154",
+            "totalUses": 1,
+            "successes": 0,
+            "fails": 1
         }
     ]
 }

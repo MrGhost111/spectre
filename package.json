@@ -19,6 +19,7 @@
   "homepage": "https://github.com/MrGhost111/spectre#readme",
   "dependencies": {
     "@discordjs/voice": "^0.17.0",
+    "@google-cloud/language": "^6.5.0",
     "axios": "^1.7.9",
     "cls": "^0.1.5",
     "csv-parser": "^3.0.0",
@@ -30,6 +31,7 @@
     "fuzzysearch": "^1.0.3",
     "libsodium-wrappers": "^0.7.15",
     "node.js": "^0.0.1-security",
+    "openai": "^4.76.0",
     "opusscript": "^0.0.8"
   }
 }
