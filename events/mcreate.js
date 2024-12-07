@@ -1,4 +1,3 @@
-// messageCreate.js
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
@@ -7,14 +6,7 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Add debug logging
-        console.log('Message received:', {
-            content: message.content,
-            author: message.author.tag,
-            channel: message.channel.name,
-            guild: message.guild?.name
-        });
-
+        // Remove the debug logging for every message
         if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
@@ -100,19 +92,14 @@ module.exports = {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        // Debug log
-        console.log('Command received:', {
-            commandName,
-            args,
-            availableCommands: [...client.textCommands.keys()]
-        });
+        // Removed debug log for every message
 
         // Check for command
         const command = client.textCommands.get(commandName) || 
                        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
         if (!command) {
-            console.log(`Command not found: ${commandName}`);
+            // Removed logging for commands not found
             return;
         }
 

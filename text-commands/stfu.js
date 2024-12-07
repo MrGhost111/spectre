@@ -264,7 +264,7 @@ module.exports = {
         const powerBar = getBar(powerRoll, barsData.bars, 'power');
         const accuracyBar = getBar(accuracyRoll, barsData.bars, 'accuracy');
 
-        // Create embed and send response
+        // Create action row
         const actionRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -281,6 +281,12 @@ module.exports = {
                     .setEmoji('<:creepypp:1060554596310843553>')
             );
 
+        // Modify streak display for failed attempts
+        const streakDisplay = success 
+            ? `**${currentStreak}**` 
+            : `**${previousStreak} → 0**`;
+
+        // Create embed
         const embed = new EmbedBuilder()
             .setColor('#FFA500')
             .setDescription(
@@ -288,7 +294,7 @@ module.exports = {
                 `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
                 `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
                 resultMessage + '\n\n' +
-                `<:YJ_streak:1259258046924853421> Streak: **${currentStreak}**\n` +
+                `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                 `<:idk:1064831073881694278> Luck: **${totalLuck}**`
             )
             .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
