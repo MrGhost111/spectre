@@ -1,3 +1,5 @@
+
+
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
@@ -33,6 +35,7 @@ function hasRequiredRole(member) {
 function createErrorEmbed(message) {
     return new EmbedBuilder()
         .setColor(0xFF0000)
+        .setTitle('Highlight')
         .setDescription(`❌ ${message}`)
         .setTimestamp();
 }
@@ -115,14 +118,13 @@ async function checkMessageForHighlights(client, message) {
 
                     const formattedContextMessages = Array.from(contextMessages.values())
                         .reverse()
-                        .map(m => `<t:${formatTimestamp(m.createdTimestamp)}:T> ${m.content}`);
+                        .map(m => `**[<t:${formatTimestamp(m.createdTimestamp)}:t>]** **${m.author.tag}**: ${m.content}`);
 
                     const highlightEmbed = new EmbedBuilder()
                         .setColor(0x0099ff)
-                        .setTitle(`Triggered word: ${word}`)
                         .setDescription([
                             ...formattedContextMessages,
-                            `<t:${formatTimestamp(message.createdTimestamp)}:T> ${message.content}`
+                            `**[<t:${formatTimestamp(message.createdTimestamp)}:t>]** **${message.author.tag}**: ${message.content}`
                         ].join('\n'))
                         .setFooter({ 
                             text: message.createdAt.toLocaleDateString('en-US', {
@@ -133,11 +135,9 @@ async function checkMessageForHighlights(client, message) {
                         })
                         .addFields({
                             name: 'Message link', 
-                            value: `[Click here](${message.url})`
+                            value: `${message.url}`
                         });
-
-                    const notificationMessage = `You were mentioned with the word \`${word}\` in **${message.channel.name}**.`;
-                    
+                    const notificationMessage = `You were mentioned with the word \`${word}\` in <#${message.channel.id}>.`;
                     await user.send({ 
                         content: notificationMessage,
                         embeds: [highlightEmbed] 

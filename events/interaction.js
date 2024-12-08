@@ -242,7 +242,7 @@ async function handleActivityButtons(interaction) {
             await interaction.reply({ embeds: [overallEmbed], ephemeral: true });
             break;
 
-        case 'reset_weekly':
+case 'reset_weekly':
     if (!interaction.member.permissions.has('ADMINISTRATOR')) {
         return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
     }
@@ -265,11 +265,19 @@ async function handleActivityButtons(interaction) {
 
     const confirmRow = new ActionRowBuilder().addComponents(yesButton, noButton);
 
-    await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow], ephemeral: true });
+    const confirmMessage = await interaction.reply({ 
+        embeds: [confirmEmbed], 
+        components: [confirmRow], 
+        ephemeral: true,
+        fetchReply: true  // This ensures we get the message object back
+    });
 
-    // Define a collector to handle the confirmation response
-    const filter = i => ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) && i.user.id === interaction.user.id;
-    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
+    // Define a collector for the confirmation message specifically
+    const filter = i => 
+        ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) && 
+        i.user.id === interaction.user.id;
+
+    const collector = confirmMessage.createMessageComponentCollector({ filter, time: 15000 });
 
     collector.on('collect', async i => {
         if (i.customId === 'confirm_reset_yes') {
@@ -301,9 +309,18 @@ async function handleActivityButtons(interaction) {
 
             const assignRoleRow = new ActionRowBuilder().addComponents(assignYesButton, assignNoButton);
 
-            await i.update({ embeds: [assignRoleEmbed], components: [assignRoleRow], ephemeral: true });
+            await i.update({ 
+                embeds: [assignRoleEmbed], 
+                components: [assignRoleRow]
+            });
+
         } else if (i.customId === 'confirm_reset_no') {
-            await i.update({ content: 'Reset action has been canceled.', components: [], ephemeral: true });
+            await i.update({ 
+                content: 'Reset action has been canceled.', 
+                embeds: [], 
+                components: [] 
+            });
+
         } else if (i.customId === 'assign_role_yes') {
             const weeklyPath = './data/weekly.json';
             const savedWeeklyData = JSON.parse(fs.readFileSync(weeklyPath, 'utf8'));
@@ -315,19 +332,50 @@ async function handleActivityButtons(interaction) {
                 const topMember = await interaction.guild.members.fetch(topUserId);
                 if (topMember) {
                     await topMember.roles.add('713452411720827013');
-                    await i.update({ content: 'Ultimate Staff Host role has been assigned to the top user!', components: [], ephemeral: true });
+                    await i.update({ 
+                        content: 'Ultimate Staff Host role has been assigned to the top user!', 
+                        embeds: [], 
+                        components: [] 
+                    });
                 } else {
-                    await i.update({ content: 'Top user not found in the guild!', components: [], ephemeral: true });
+                    await i.update({ 
+                        content: 'Top user not found in the guild!', 
+                        embeds: [], 
+                        components: [] 
+                    });
                 }
             } else {
-                await i.update({ content: 'No top user found to assign the role to.', components: [], ephemeral: true });
+                await i.update({ 
+                    content: 'No top user found to assign the role to.', 
+                    embeds: [], 
+                    components: [] 
+                });
             }
+
         } else if (i.customId === 'assign_role_no') {
-            await i.update({ content: 'Ultimate Staff Host role assignment has been skipped.', components: [], ephemeral: true });
+            await i.update({ 
+                content: 'Ultimate Staff Host role assignment has been skipped.', 
+                embeds: [], 
+                components: [] 
+            });
+        }
+    });
+
+    collector.on('end', async (collected, reason) => {
+        if (reason === 'time') {
+            // Only try to edit if the message hasn't been modified
+            try {
+                await confirmMessage.edit({
+                    content: 'Confirmation timed out.',
+                    components: [],
+                    embeds: []
+                });
+            } catch (error) {
+                console.error('Error updating timed out message:', error);
+            }
         }
     });
     break;
-
     }
 
     fs.writeFileSync(donoLogsPath, JSON.stringify(donoLogs, null, 2));

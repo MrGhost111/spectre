@@ -3179,14 +3179,111 @@
       "action": "add",
       "amount": 4,
       "timestamp": 1733540877831
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 5,
+      "timestamp": 1733582119546
+    },
+    {
+      "userId": "560093267497189396",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733587853003
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 3,
+      "timestamp": 1733591379742
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 49,
+      "timestamp": 1733599944819
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 5,
+      "timestamp": 1733600022115
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 2,
+      "timestamp": 1733600416923
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733650347027
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733650593768
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733651590527
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733663626351
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733664021855
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733664623365
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733665885215
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733666284038
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 3,
+      "timestamp": 1733670265302
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733671175149
+    },
+    {
+      "userId": "560093267497189396",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1733685672439
     }
   ],
   "weekly": {
-    "667269787818131456": 17,
-    "826115461623054336": 57,
-    "560093267497189396": 47,
-    "864016262643449856": 1,
-    "950713854613155890": 1,
-    "740108592283385868": 1
+    "560093267497189396": 1
   }
 }
