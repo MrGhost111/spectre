@@ -1,5 +1,3 @@
-
-
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
@@ -122,26 +120,24 @@ async function checkMessageForHighlights(client, message) {
 
                     const highlightEmbed = new EmbedBuilder()
                         .setColor(0x0099ff)
-                        .setDescription([
-                            ...formattedContextMessages,
-                            `**[<t:${formatTimestamp(message.createdTimestamp)}:t>]** **${message.author.tag}**: ${message.content}`
-                        ].join('\n'))
+                        .setTitle(`Triggered word: ${word}`)
+                        .setDescription(
+                            `**Channel:** <#${message.channel.id}>\n` +
+                            `**Context:**\n` +
+                            `${formattedContextMessages.join('\n')}\n` +
+                            `**[<t:${formatTimestamp(message.createdTimestamp)}:t>]** **${message.author.tag}**: ${message.content}\n\n` +
+                            `**Jump to Message:**\n` +
+                            `[Click here](${message.url})`
+                        )
                         .setFooter({ 
                             text: message.createdAt.toLocaleDateString('en-US', {
                                 year: 'numeric', 
                                 month: '2-digit', 
                                 day: '2-digit'
                             })
-                        })
-                        .addFields({
-                            name: 'Message link', 
-                            value: `${message.url}`
                         });
-                    const notificationMessage = `You were mentioned with the word \`${word}\` in <#${message.channel.id}>.`;
-                    await user.send({ 
-                        content: notificationMessage,
-                        embeds: [highlightEmbed] 
-                    });
+
+                    await user.send({ embeds: [highlightEmbed] });
                 } catch (error) {
                     console.error(`Failed to send highlight notification to user ${userId}:`, error);
                 }
@@ -150,6 +146,16 @@ async function checkMessageForHighlights(client, message) {
         }
     }
 }
+
+module.exports = {
+    loadHighlights,
+    saveHighlights,
+    hasRequiredRole,
+    createErrorEmbed,
+    checkMessageForHighlights,
+    MAX_HIGHLIGHTS,
+    MAX_BLACKLIST
+};
 
 module.exports = {
     name: 'highlight',

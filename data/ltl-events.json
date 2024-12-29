@@ -1,25 +1,136 @@
 {
   "944924720158085190": {
     "status": "active",
-    "logChannelId": "673970120057683974",
-    "statusMessageId": "1311783162686214155",
-    "startTime": 1732824275732,
+    "startTime": 1735491416214,
+    "logChannelId": "944924520647643156",
     "participants": {
-      "753491023208120321": {
-        "username": "ghost.2628",
-        "joinTime": 1732824275732,
-        "leaveTime": 1733599502003,
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1223622854537646172": {
+        "username": "zeraxy11",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "950713854613155890": {
+        "username": "idkkk_rain",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "777037380367417344": {
+        "username": "wtfrosh",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "730401940311244880": {
+        "username": "faiz2501",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "560093267497189396": {
+        "username": "ashwin_d9",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "823904633944539196": {
+        "username": "divyansh.",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "918097380291772416": {
+        "username": "isaiahah",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "826115461623054336": {
+        "username": "lootchest",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "515646431059640330": {
+        "username": "tenderpops",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "641393276670181415": {
+        "username": "sticksofcinnamon",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "625438792102445066": {
+        "username": "thatoneguyinahat",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "829267404890439740": {
+        "username": "_jillianne",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "827983414308241448": {
+        "username": "astrid.1817",
+        "joinTime": 1735491416214,
+        "leaveTime": 1735491802683,
         "status": "left",
         "rank": null
       },
-      "621379895104372757": {
-        "username": "m4ck3r3l",
-        "joinTime": 1732824275732,
-        "leaveTime": 1732824331404,
-        "status": "left",
+      "563623938580676609": {
+        "username": "ljkai",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "772371637755707394": {
+        "username": "gd_zyxo",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "753091612300542014": {
+        "username": "satan9003",
+        "joinTime": 1735491416214,
+        "leaveTime": null,
+        "status": "active",
         "rank": null
       }
     },
-    "winnerMessageId": "1311785047438655520"
+    "statusMessageId": "1322971631475495085"
   }
 }
