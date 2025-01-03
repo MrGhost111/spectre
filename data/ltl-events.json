@@ -3,23 +3,78 @@
     "status": "active",
     "logChannelId": "944924520647643156",
     "participants": {
-      "829267404890439740": {
-        "username": "_jillianne",
-        "joinTime": 1735592913105,
-        "leaveTime": 1735625588930,
+      "950713854613155890": {
+        "username": "idkkk_rain",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "821593667839459429": {
+        "username": "kanaluba",
+        "joinTime": 1735880418628,
+        "leaveTime": 1735886332119,
         "status": "left",
         "rank": null
       },
-      "1223622854537646172": {
-        "username": "zeraxy11",
-        "joinTime": 1735592913105,
-        "leaveTime": 1735634612209,
+      "733727599582248970": {
+        "username": "elitepojoopla",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "772371637755707394": {
+        "username": "gd_zyxo",
+        "joinTime": 1735880418628,
+        "leaveTime": 1735890366900,
         "status": "left",
+        "rank": null
+      },
+      "440270582672654356": {
+        "username": "nightmare1221",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "743213432169562114": {
+        "username": "naomi.69.",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "736084314172817538": {
+        "username": "philipganteng3",
+        "joinTime": 1735880418628,
+        "leaveTime": 1735886786330,
+        "status": "left",
+        "rank": null
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "667269787818131456": {
+        "username": "philipnotphillip",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "823904633944539196": {
+        "username": "divyansh.",
+        "joinTime": 1735880418628,
+        "leaveTime": null,
+        "status": "active",
         "rank": null
       }
     },
-    "statusMessageId": "1323397340572160101",
-    "startTime": 1735592913105,
-    "winnerMessageId": "1323534393289216054"
+    "statusMessageId": "1324603227320094774",
+    "startTime": 1735880418628
   }
 }
