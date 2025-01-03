@@ -160,7 +160,7 @@ function startStatusUpdates(client, channelId, eventData) {
     
     const interval = setInterval(async () => {
         await updateStatusMessage(client, eventData);
-    }, 5 * 60 * 1000); // Update every 5 minutes
+    }, 1 * 60 * 1000); // Update every 5 minutes
     
     updateIntervals.set(channelId, interval);
 }
@@ -181,4 +181,3 @@ module.exports = {
     startStatusUpdates,
     stopStatusUpdates
 };
-

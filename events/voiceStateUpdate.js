@@ -12,59 +12,47 @@ module.exports = {
             const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             const relevantChannelId = oldState.channelId || newState.channelId;
             
-            if (!relevantChannelId || !eventsData[relevantChannelId]) return;
-            
-            const eventData = eventsData[relevantChannelId];
-            if (eventData.status !== 'active') return;
-
-            const userId = oldState.member.id;
-            const participant = eventData.participants[userId];
-            
-            // If this user isn't a participant, ignore the event
-            if (!participant) return;
-
-            // Handle disconnection
-            if (oldState.channelId && !newState.channelId) {
-                // User left the channel
-                participant.status = 'left';
-                participant.leaveTime = Date.now();
+            if (relevantChannelId && eventsData[relevantChannelId]) {
+                const eventData = eventsData[relevantChannelId];
                 
-                const activeParticipants = Object.values(eventData.participants)
-                    .filter(p => p.status === 'active');
-                
-                // Handle place announcements based on remaining participants
-                if (activeParticipants.length === 2) {
-                    // When 3rd place leaves
-                    await announcePlace(client, eventData, participant, 3);
-                } else if (activeParticipants.length === 1) {
-                    // When 2nd place leaves
-                    await announcePlace(client, eventData, participant, 2);
-                    // Announce final results immediately after 2nd place
-                    await announceWinner(client, eventData);
-                } else if (activeParticipants.length === 0) {
-                    // Winner left - just update status, no announcement
-                    participant.status = 'left';
-                    participant.leaveTime = Date.now();
+                if (eventData.status === 'active') {
+                    const userId = oldState.member.id;
+
+                    // Handle leaving the channel
+                    if (oldState.channelId && !newState.channelId && eventData.participants[userId]) {
+                        eventData.participants[userId].status = 'left';
+                        eventData.participants[userId].leaveTime = Date.now();
+                        
+                        const activeParticipants = Object.values(eventData.participants)
+                            .filter(p => p.status === 'active');
+                        
+                        // Announce places for top 3
+                        if (activeParticipants.length <= 2) {
+                            const place = activeParticipants.length + 1;
+                            if (place <= 3) {
+                                await announcePlace(client, eventData, eventData.participants[userId], place);
+                            }
+                        }
+                        
+                        await updateStatusMessage(client, eventData);
+                        
+                        if (activeParticipants.length === 1 && !eventData.winnerMessageId) {
+                            await announceWinner(client, eventData);
+                        }
+                    } 
+                    // Handle voice state changes (mute/unmute/deafen)
+                    else if (eventData.participants[userId] && 
+                        (oldState.mute !== newState.mute ||
+                         oldState.deaf !== newState.deaf ||
+                         oldState.selfMute !== newState.selfMute ||
+                         oldState.selfDeaf !== newState.selfDeaf)) {
+                        await updateStatusMessage(client, eventData);
+                    }
+                    
+                    eventsData[relevantChannelId] = eventData;
+                    fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
                 }
-            } else if (
-                oldState.channelId === newState.channelId && (
-                    oldState.mute !== newState.mute ||
-                    oldState.deaf !== newState.deaf ||
-                    oldState.selfMute !== newState.selfMute ||
-                    oldState.selfDeaf !== newState.selfDeaf
-                )
-            ) {
-                // Voice state changed (mute/unmute/deafen) but still in channel
-                participant.status = 'active';
             }
-
-            // Always update status message after any change
-            await updateStatusMessage(client, eventData);
-            
-            // Save updated event data
-            eventsData[relevantChannelId] = eventData;
-            fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
-            
         } catch (error) {
             console.error('Error in voiceStateUpdate:', error);
         }
