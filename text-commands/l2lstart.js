@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { PermissionFlagsBits } = require('discord.js');
-const { createStatusEmbed } = require('../utils/helpers');
+const { createStatusEmbed, startStatusUpdates } = require('../utils/helpers');
 
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
 const VOICE_CHANNEL_ID = '944924720158085190';
@@ -22,15 +22,16 @@ module.exports = {
         try {
             const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             
-            const eventData = {
-                status: 'active',
-                startTime: Date.now(),
-                logChannelId: message.channel.id,
-                participants: {}
-            };
+            // Check if there's a waiting event
+            if (!eventsData[voiceChannel.id] || eventsData[voiceChannel.id].status !== 'waiting') {
+                return message.reply('Please set up the event first using the `,l2l` command.');
+            }
+
+            const eventData = eventsData[voiceChannel.id];
+            eventData.status = 'active';
+            eventData.startTime = Date.now();
 
             const currentParticipants = voiceChannel.members;
-
             // Register all current participants
             currentParticipants.forEach(member => {
                 eventData.participants[member.id] = {
@@ -64,6 +65,9 @@ module.exports = {
             const statusMessage = await message.channel.send({ embeds: [embed] });
             eventData.statusMessageId = statusMessage.id;
 
+            // Start automatic status updates
+            startStatusUpdates(message.client, voiceChannel.id, eventData);
+
             // Save event data
             eventsData[voiceChannel.id] = eventData;
             fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
@@ -75,3 +79,4 @@ module.exports = {
         }
     }
 };
+

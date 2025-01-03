@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { updateStatusMessage, announceWinner } = require('../utils/helpers');
+const { updateStatusMessage, announcePlace, announceWinner, startStatusUpdates } = require('../utils/helpers');
 
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
 
@@ -9,10 +9,10 @@ module.exports = {
     async execute(client, oldState, newState) {
         try {
             if (!fs.existsSync(dataPath)) return;
-            
+
             const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             const relevantChannelId = oldState.channelId || newState.channelId;
-            
+
             if (relevantChannelId && eventsData[relevantChannelId]) {
                 const eventData = eventsData[relevantChannelId];
                 
@@ -22,9 +22,17 @@ module.exports = {
                     if (oldState.channelId && !newState.channelId && eventData.participants[userId]) {
                         eventData.participants[userId].status = 'left';
                         eventData.participants[userId].leaveTime = Date.now();
-                        
+
                         const activeParticipants = Object.values(eventData.participants)
                             .filter(p => p.status === 'active');
+
+                        // Announce places for top 3
+                        if (activeParticipants.length <= 2) {
+                            const place = activeParticipants.length + 1;
+                            if (place <= 3) {
+                                await announcePlace(client, eventData, eventData.participants[userId], place);
+                            }
+                        }
 
                         await updateStatusMessage(client, eventData);
 
@@ -34,7 +42,7 @@ module.exports = {
                     } else if (eventData.participants[userId] && eventData.participants[userId].status === 'active') {
                         await updateStatusMessage(client, eventData);
                     }
-                    
+
                     eventsData[relevantChannelId] = eventData;
                     fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
                 }

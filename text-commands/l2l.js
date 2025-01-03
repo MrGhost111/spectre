@@ -24,10 +24,8 @@ module.exports = {
         }
 
         try {
-            const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-            if (eventsData[voiceChannel.id] && eventsData[voiceChannel.id].status === 'active') {
-                return message.reply('There is already an active Last to Leave event in this channel.');
-            }
+            // Clear existing event data
+            fs.writeFileSync(dataPath, JSON.stringify({}, null, 2));
 
             const eventData = {
                 status: 'waiting',
@@ -35,6 +33,7 @@ module.exports = {
                 participants: {}
             };
 
+            // Unlock the voice channel
             await voiceChannel.permissionOverwrites.edit(message.guild.roles.everyone.id, {
                 [PermissionFlagsBits.Connect]: true,
                 [PermissionFlagsBits.Speak]: true,
@@ -45,6 +44,7 @@ module.exports = {
             const statusMessage = await message.channel.send({ embeds: [embed] });
             eventData.statusMessageId = statusMessage.id;
 
+            const eventsData = {};
             eventsData[voiceChannel.id] = eventData;
             fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
 
