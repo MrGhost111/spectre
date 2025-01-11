@@ -5,9 +5,13 @@
       "ghost"
     ],
     "blacklist": {
-      "words": [],
+      "words": [
+        "GhostSip"
+      ],
       "users": [],
-      "channels": []
+      "channels": [
+        "835096510957879336"
+      ]
     }
   },
   "345597856041926666": [
@@ -80,7 +84,8 @@
   "827983414308241448": {
     "words": [
       "astrid",
-      "asterism"
+      "asterism",
+      "827983414308241448"
     ],
     "blacklist": {
       "words": [],
@@ -253,6 +258,59 @@
   },
   "918097380291772416": {
     "words": [],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "924300535828447272": {
+    "words": [
+      "demonic"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "777037380367417344": {
+    "words": [
+      "knight"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "515646431059640330": {
+    "words": [
+      "nugget",
+      "515646431059640330"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "822087145568075846": {
+    "words": [
+      "822087145568075846"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "631092568246976513": {
+    "words": [
+      "raze",
+      "<@631092568246976513>",
+      "631092568246976513"
+    ],
     "blacklist": {
       "words": [],
       "users": [],

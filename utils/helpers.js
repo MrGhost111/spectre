@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
+const dataPath = path.join(__dirname, '../data/ltl-events.json');
 
 // Calculate max participants that can fit in embed (considering 2000 char limit)
 // Average participant line: "✅ Username (1h 30m+) - Last updated 2 hours ago\n" ≈ 50 chars
@@ -80,6 +81,7 @@ async function updateStatusMessage(client, eventData) {
         const statusMessage = await channel.messages.fetch(eventData.statusMessageId);
         const { embed } = await createStatusEmbed(eventData);
         await statusMessage.edit({ embeds: [embed] });
+        console.log(`[${new Date().toISOString()}] Status message updated successfully`);
     } catch (error) {
         console.error('Error updating status message:', error);
     }
@@ -144,6 +146,12 @@ async function announceWinner(client, eventData) {
 
         const winnerMessage = await channel.send({ embeds: [winnerEmbed] });
         eventData.winnerMessageId = winnerMessage.id;
+        
+        // Save the updated event data with winner message ID
+        const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        eventsData[Object.keys(eventsData)[0]] = eventData;
+        fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
+        
         return winnerMessage.id;
     } catch (error) {
         console.error('Error announcing winner:', error);
@@ -158,9 +166,27 @@ function startStatusUpdates(client, channelId, eventData) {
         clearInterval(updateIntervals.get(channelId));
     }
     
+    // Perform initial update
+    updateStatusMessage(client, eventData).catch(console.error);
+    console.log(`[${new Date().toISOString()}] Starting status updates for channel ${channelId}`);
+    
     const interval = setInterval(async () => {
-        await updateStatusMessage(client, eventData);
-    }, 1 * 60 * 1000); // Update every 5 minutes
+        try {
+            // Read fresh data each time
+            const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            const currentEventData = eventsData[channelId];
+            
+            if (currentEventData && currentEventData.status === 'active') {
+                await updateStatusMessage(client, currentEventData);
+                console.log(`[${new Date().toISOString()}] Status update performed for channel ${channelId}`);
+            } else {
+                console.log(`[${new Date().toISOString()}] Stopping updates for channel ${channelId} - event not active`);
+                stopStatusUpdates(channelId);
+            }
+        } catch (error) {
+            console.error('Error in status update interval:', error);
+        }
+    }, 60000); // Every minute
     
     updateIntervals.set(channelId, interval);
 }
@@ -169,6 +195,7 @@ function stopStatusUpdates(channelId) {
     if (updateIntervals.has(channelId)) {
         clearInterval(updateIntervals.get(channelId));
         updateIntervals.delete(channelId);
+        console.log(`[${new Date().toISOString()}] Stopped status updates for channel ${channelId}`);
     }
 }
 
