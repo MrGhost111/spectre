@@ -22,6 +22,12 @@ client.editedMessages = new Collection();
 client.itemPrices = new Map();
 client.donations = new Map();
 
+// Ensure data directory exists
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir);
+}
+
 // Load existing items from items.json
 const loadItems = () => {
     const filePath = path.join(__dirname, 'data', 'items.json');
@@ -39,6 +45,27 @@ const saveItems = () => {
     const filePath = path.join(__dirname, 'data', 'items.json');
     const items = Object.fromEntries(client.itemPrices);
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf8');
+};
+
+// Initialize donation tracking files
+const initializeDonationFiles = () => {
+    const usersFilePath = path.join(__dirname, 'data', 'users.json');
+    const weeklyFilePath = path.join(__dirname, 'data', 'weekly_donations.json');
+
+    if (!fs.existsSync(usersFilePath)) {
+        fs.writeFileSync(usersFilePath, JSON.stringify({}, null, 2), 'utf8');
+    }
+
+    if (!fs.existsSync(weeklyFilePath)) {
+        const initialWeeklyData = {
+            currentWeek: new Date().toISOString().slice(0, 4) + '-W' + 
+                        String(Math.ceil((new Date().getDate() + 
+                        new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()) / 7)).padStart(2, '0'),
+            statusMessageId: "1327928823064563806",
+            donations: {}
+        };
+        fs.writeFileSync(weeklyFilePath, JSON.stringify(initialWeeklyData, null, 2), 'utf8');
+    }
 };
 
 // Load text commands
@@ -59,11 +86,6 @@ for (const file of commandFiles) {
     }
 }
 
-client.once('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
-    loadItems();
-});
-
 // Register event handlers dynamically
 const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
 for (const file of eventFiles) {
@@ -74,5 +96,34 @@ for (const file of eventFiles) {
         client.on(event.name, (...args) => event.execute(client, ...args));
     }
 }
+
+client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+    loadItems();
+    initializeDonationFiles();
+    
+    // Initialize the weekly reset from mupdate.js
+    try {
+        const mupdateEvent = require('./events/mupdate.js');
+        if (typeof mupdateEvent.execute === 'function') {
+            const guild = client.guilds.cache.first();
+            if (guild) {
+                await mupdateEvent.execute(client, null, null);
+                console.log('Weekly donation tracking initialized successfully');
+            }
+        }
+    } catch (error) {
+        console.error('Error initializing donation tracking:', error);
+    }
+});
+
+// Error handling
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
+
+process.on('unhandledRejection', error => {
+    console.error('Unhandled promise rejection:', error);
+});
 
 client.login(process.env.DISCORD_TOKEN);

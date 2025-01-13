@@ -1,1 +1,10 @@
-{}
+{
+  "753491023208120321": {
+    "totalDonated": 2,
+    "weeklyDonated": 1,
+    "currentTier": 0,
+    "lastReset": "2025-01-12T09:00:44.687Z",
+    "missedAmount": null,
+    "warned": true
+  }
+}

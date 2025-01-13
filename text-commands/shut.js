@@ -339,7 +339,8 @@ module.exports = {
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
-          // Update cooldown
+            // Update cooldown
+            // Update cooldown
             const cooldownEnd = currentTime + 60 * 60;
             const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
             if (cooldownIndex !== -1) {
