@@ -84,8 +84,7 @@
   "827983414308241448": {
     "words": [
       "astrid",
-      "asterism",
-      "827983414308241448"
+      "asterism"
     ],
     "blacklist": {
       "words": [],
@@ -205,7 +204,9 @@
     }
   },
   "825607869012901888": {
-    "words": [],
+    "words": [
+      "dark"
+    ],
     "blacklist": {
       "words": [],
       "users": [],

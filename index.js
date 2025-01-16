@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const schedule = require('node-schedule');
 require('dotenv').config();
 
 const client = new Client({
@@ -15,18 +16,13 @@ const client = new Client({
     ],
 });
 
+// Collections and Maps
 client.commands = new Collection();
 client.textCommands = new Collection();
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 client.itemPrices = new Map();
 client.donations = new Map();
-
-// Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir);
-}
 
 // Load existing items from items.json
 const loadItems = () => {
@@ -47,83 +43,67 @@ const saveItems = () => {
     fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf8');
 };
 
-// Initialize donation tracking files
-const initializeDonationFiles = () => {
-    const usersFilePath = path.join(__dirname, 'data', 'users.json');
-    const weeklyFilePath = path.join(__dirname, 'data', 'weekly_donations.json');
-
-    if (!fs.existsSync(usersFilePath)) {
-        fs.writeFileSync(usersFilePath, JSON.stringify({}, null, 2), 'utf8');
+// Load commands
+const loadCommands = () => {
+    // Load text commands
+    const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
+    for (const file of textCommandFiles) {
+        const command = require(`./text-commands/${file}`);
+        if (command.name) {
+            client.textCommands.set(command.name, command);
+        }
     }
 
-    if (!fs.existsSync(weeklyFilePath)) {
-        const initialWeeklyData = {
-            currentWeek: new Date().toISOString().slice(0, 4) + '-W' + 
-                        String(Math.ceil((new Date().getDate() + 
-                        new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()) / 7)).padStart(2, '0'),
-            statusMessageId: "1327928823064563806",
-            donations: {}
-        };
-        fs.writeFileSync(weeklyFilePath, JSON.stringify(initialWeeklyData, null, 2), 'utf8');
+    // Load slash commands
+    const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+    for (const file of commandFiles) {
+        const command = require(`./commands/${file}`);
+        if (command.data && command.data.name) {
+            client.commands.set(command.data.name, command);
+        }
     }
 };
 
-// Load text commands
-const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
-for (const file of textCommandFiles) {
-    const command = require(`./text-commands/${file}`);
-    if (command.name) {
-        client.textCommands.set(command.name, command);
-    }
-}
-
-// Load slash commands
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-for (const file of commandFiles) {
-    const command = require(`./commands/${file}`);
-    if (command.data && command.data.name) {
-        client.commands.set(command.data.name, command);
-    }
-}
-
-// Register event handlers dynamically
-const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
-for (const file of eventFiles) {
-    const event = require(`./events/${file}`);
-    if (event.once) {
-        client.once(event.name, (...args) => event.execute(client, ...args));
-    } else {
-        client.on(event.name, (...args) => event.execute(client, ...args));
-    }
-}
-
-client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}!`);
-    loadItems();
-    initializeDonationFiles();
-    
-    // Initialize the weekly reset from mupdate.js
-    try {
-        const mupdateEvent = require('./events/mupdate.js');
-        if (typeof mupdateEvent.execute === 'function') {
-            const guild = client.guilds.cache.first();
-            if (guild) {
-                await mupdateEvent.execute(client, null, null);
-                console.log('Weekly donation tracking initialized successfully');
-            }
+// Load events
+const loadEvents = () => {
+    const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
+    for (const file of eventFiles) {
+        const event = require(`./events/${file}`);
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(client, ...args));
+        } else {
+            client.on(event.name, (...args) => event.execute(client, ...args));
         }
-    } catch (error) {
-        console.error('Error initializing donation tracking:', error);
     }
-});
+};
 
-// Error handling
-client.on('error', error => {
-    console.error('Discord client error:', error);
-});
+// Initialize
+const initialize = async () => {
+    try {
+        // Load all components
+        loadItems();
+        loadCommands();
+        loadEvents();
 
-process.on('unhandledRejection', error => {
-    console.error('Unhandled promise rejection:', error);
-});
+        // Schedule weekly reset (Sunday at 12 AM EST)
+        schedule.scheduleJob('0 0 * * 0', async () => {
+            const moneyMakerEvent = require('./events/mupdate.js');
+            if (moneyMakerEvent.processWeeklyReset) {
+                await moneyMakerEvent.processWeeklyReset(client);
+            }
+        });
 
+        // Log successful initialization
+        console.log(`Logged in as ${client.user.tag}!`);
+    } catch (error) {
+        console.error('Error during initialization:', error);
+    }
+};
+
+client.once('ready', initialize);
+
+// Start the bot
 client.login(process.env.DISCORD_TOKEN);
+
+// Export client for other modules
+module.exports = { client };
