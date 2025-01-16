@@ -20,15 +20,21 @@ const TIER_2_REQUIREMENT = 70000000;
 // File paths
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const itemsFilePath = path.join(__dirname, '../data/items.json');
+const statsFilePath = path.join(__dirname, '../data/stats.json');
 
 // Load data
 let usersData = require(usersFilePath);
 const itemsData = require(itemsFilePath);
+let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 0 };
 let lastMessageId = null;
 
 // Utility functions
 const saveUsersData = () => {
     fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+};
+
+const saveStatsData = () => {
+    fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
 };
 
 const formatNumber = (num) => {
@@ -39,13 +45,11 @@ async function findCommandUser(message) {
     try {
         console.log('Attempting to find command user for message:', message.id);
         
-        // Method 1: Check message interaction
         if (message.interaction?.user) {
             console.log('Found user through interaction:', message.interaction.user.id);
             return message.interaction.user.id;
         }
 
-        // Method 2: Check message reference
         if (message.reference) {
             const referencedMessage = await message.fetchReference().catch(() => null);
             if (referencedMessage?.interaction?.user) {
@@ -54,7 +58,6 @@ async function findCommandUser(message) {
             }
         }
 
-        // Method 3: Check embed footer
         const embed = message.embeds[0];
         if (embed?.footer?.text) {
             const userMatch = embed.footer.text.match(/<@!?(\d+)>/);
@@ -72,14 +75,12 @@ async function findCommandUser(message) {
     }
 }
 
-// Add this function in your mupdate.js file, before the module.exports
 async function updateStatusBoard(client) {
     try {
         console.log('Starting status board update...');
         const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const guild = activityChannel.guild;
 
-        // Get all members with either Tier 1 or Tier 2 roles
         const members = await guild.members.fetch();
         console.log('Fetched guild members');
 
@@ -87,9 +88,8 @@ async function updateStatusBoard(client) {
         const tier2Users = [];
 
         for (const [memberId, member] of members) {
-            // Check if member has roles
-            const hasTier1 = member.roles.cache.has('783032959350734868');
-            const hasTier2 = member.roles.cache.has('1038888209440067604');
+            const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+            const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
             
             const userData = usersData[memberId] || {
                 weeklyDonated: 0,
@@ -116,36 +116,29 @@ async function updateStatusBoard(client) {
             }
         }
 
-        console.log(`Found ${tier1Users.length} Tier 1 users and ${tier2Users.length} Tier 2 users`);
-
-        // Create embed
         const embed = new EmbedBuilder()
             .setTitle('Money Makers Status Board')
             .setColor('#00FF00')
             .setTimestamp();
 
-        // Add Tier 2 users to embed
         if (tier2Users.length > 0) {
             embed.addFields({
                 name: 'Tier 2 Members',
                 value: tier2Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} (${user.status})`
+                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
-        // Add Tier 1 users to embed
         if (tier1Users.length > 0) {
             embed.addFields({
                 name: 'Tier 1 Members',
                 value: tier1Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} (${user.status})`
+                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
-        // Find and update existing status message, or send new one
-        console.log('Searching for existing status message...');
         const messages = await activityChannel.messages.fetch({ limit: 10 });
         const statusMessage = messages.find(m => 
             m.author.id === client.user.id && 
@@ -153,25 +146,137 @@ async function updateStatusBoard(client) {
         );
 
         if (statusMessage) {
-            console.log('Updating existing status message');
             await statusMessage.edit({ embeds: [embed] });
         } else {
-            console.log('Creating new status message');
             await activityChannel.send({ embeds: [embed] });
         }
-
-        console.log('Status board update complete');
     } catch (error) {
         console.error('Error updating status board:', error);
         console.error(error.stack);
     }
 }
 
+// Weekly reset function
+async function weeklyReset(client) {
+    try {
+        console.log('Starting weekly reset...');
+        const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+        const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
+
+        // Find top donor
+        let topDonor = null;
+        let topDonation = 0;
+
+        for (const [userId, userData] of Object.entries(usersData)) {
+            if (userData.weeklyDonated > topDonation) {
+                topDonor = userId;
+                topDonation = userData.weeklyDonated;
+            }
+        }
+
+        // Remove PRO_MAKER_ROLE from all users and give it to top donor
+        const members = await guild.members.fetch();
+        for (const [memberId, member] of members) {
+            if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
+                await member.roles.remove(PRO_MAKER_ROLE_ID);
+            }
+        }
+
+        if (topDonor) {
+            const topDonorMember = await guild.members.fetch(topDonor);
+            await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
+
+            const topDonorEmbed = new EmbedBuilder()
+                .setTitle('🏆 Top Donor of the Week')
+                .setColor('#FFD700')
+                .setDescription(`Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}!\nThey will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
+                .setTimestamp();
+
+            await announcementChannel.send({ embeds: [topDonorEmbed] });
+        }
+
+        // Process each user
+        for (const [userId, userData] of Object.entries(usersData)) {
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (!member) continue;
+
+            const isTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+            const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+            const requirement = isTier2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+
+            // Check for promotions (Tier 1 -> Tier 2)
+            if (isTier1 && !isTier2 && userData.weeklyDonated >= (TIER_2_REQUIREMENT + (userData.missedAmount || 0))) {
+                await member.roles.add(TIER_2_ROLE_ID);
+                const promotionEmbed = new EmbedBuilder()
+                    .setTitle('🎉 Member Promotion')
+                    .setColor('#00FF00')
+                    .setDescription(`Congratulations to <@${userId}> for being promoted to Tier 2!\nWeekly donation: ⏣ ${formatNumber(userData.weeklyDonated)}`)
+                    .setTimestamp();
+
+                await announcementChannel.send({ embeds: [promotionEmbed] });
+            }
+
+            // Check for requirement fulfillment or missed requirements
+            if (userData.weeklyDonated >= (requirement + (userData.missedAmount || 0))) {
+                // Requirement met
+                userData.status = 'good';
+                userData.missedAmount = 0;
+            } else {
+                const missedBy = requirement + (userData.missedAmount || 0) - userData.weeklyDonated;
+                
+                if (userData.status === 'good') {
+                    // First miss
+                    userData.status = 'warned';
+                    userData.missedAmount = missedBy;
+                    
+                    try {
+                        const warningEmbed = new EmbedBuilder()
+                            .setTitle('⚠️ Weekly Requirement Warning')
+                            .setColor('#FFD700')
+                            .setDescription(`You missed this week's requirement by ⏣ ${formatNumber(missedBy)}.\nYour new requirement for next week will be ⏣ ${formatNumber(requirement + missedBy)}.\nMissing the requirement again will result in demotion.`)
+                            .setTimestamp();
+
+                        await member.send({ embeds: [warningEmbed] });
+                    } catch (error) {
+                        console.error(`Failed to send warning DM to ${userId}:`, error);
+                    }
+                } else if (userData.status === 'warned') {
+                    // Second miss - handle demotion
+                    if (isTier2) {
+                        // Demote from Tier 2 to Tier 1
+                        await member.roles.remove(TIER_2_ROLE_ID);
+                        userData.status = 'good';
+                        userData.missedAmount = 0;
+                    } else if (isTier1) {
+                        // Remove from MM completely
+                        await member.roles.remove(TIER_1_ROLE_ID);
+                        delete usersData[userId];
+                    }
+                }
+            }
+
+            // Reset weekly donations
+            userData.weeklyDonated = 0;
+        }
+
+        saveUsersData();
+        await updateStatusBoard(client);
+        console.log('Weekly reset completed');
+    } catch (error) {
+        console.error('Error in weekly reset:', error);
+    }
+}
+
+// Schedule weekly reset (Sunday at midnight)
+schedule.scheduleJob('0 0 * * 0', () => {
+    const client = require('../index.js');
+    weeklyReset(client);
+});
+
 module.exports = {
     name: Events.MessageUpdate,
     async execute(client, oldMessage, newMessage) {
         try {
-            // Original code for tracking edited messages
             if (!newMessage.author?.bot) {
                 const editedSnipes = client.editedMessages.get(newMessage.channel.id) || [];
                 editedSnipes.push({
@@ -183,32 +288,22 @@ module.exports = {
                 client.editedMessages.set(newMessage.channel.id, editedSnipes.slice(-5));
             }
 
-            // Enhanced donation tracking
             if (newMessage.channel?.id === TRANSACTION_CHANNEL_ID && 
                 newMessage.author?.id === DANK_MEMER_BOT_ID) {
                 
                 console.log('\n=== Checking message for donation ===');
-                console.log('Message ID:', newMessage.id);
                 
-                // Check for embeds
                 if (!newMessage.embeds?.length) {
                     console.log('No embeds found in message');
                     return;
                 }
 
                 const embed = newMessage.embeds[0];
-                console.log('Embed found, checking description');
-                console.log('Embed description:', embed.description);
-
-                // Check if it's a donation message
                 if (!embed.description?.includes('Successfully donated')) {
                     console.log('Not a donation message');
                     return;
                 }
 
-                console.log('Donation message detected!');
-
-                // Extract donation amount
                 const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
                 if (!donationMatch) {
                     console.log('Could not extract donation amount');
@@ -216,20 +311,17 @@ module.exports = {
                 }
 
                 const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
-                console.log('Donation amount:', formatNumber(donationAmount));
-
-                // Find donor
                 const donorId = await findCommandUser(newMessage);
                 if (!donorId) {
                     console.log('Could not identify donor');
                     return;
                 }
 
-                console.log('Donor ID:', donorId);
+                // Update total server donations
+                statsData.totalDonations = (statsData.totalDonations || 0) + donationAmount;
+                saveStatsData();
                 
-                // Initialize or update user data
                 if (!usersData[donorId]) {
-                    console.log('New donor detected, initializing data');
                     usersData[donorId] = {
                         totalDonated: donationAmount,
                         weeklyDonated: donationAmount,
@@ -239,30 +331,15 @@ module.exports = {
                         lastDonation: new Date().toISOString()
                     };
                 } else {
-                    console.log('Updating existing donor data');
-                    console.log('Previous total:', formatNumber(usersData[donorId].totalDonated));
-                    console.log('Previous weekly:', formatNumber(usersData[donorId].weeklyDonated));
-                    
                     usersData[donorId].totalDonated += donationAmount;
                     usersData[donorId].weeklyDonated += donationAmount;
                     usersData[donorId].lastDonation = new Date().toISOString();
-
-                    console.log('New total:', formatNumber(usersData[donorId].totalDonated));
-                    console.log('New weekly:', formatNumber(usersData[donorId].weeklyDonated));
                 }
 
-                console.log('Saving user data...');
                 saveUsersData();
-                console.log('User data saved successfully');
-
-                // Update status board
-                console.log('Updating status board...');
                 await updateStatusBoard(client);
-                console.log('Status board updated');
 
-                // Send donation announcement yes its supposed to go to the transaction channel
                 try {
-                    console.log('Sending donation announcement...');
                     const announcementChannel = await client.channels.fetch(TRANSACTION_CHANNEL_ID);
                     const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
                     
@@ -278,15 +355,12 @@ module.exports = {
                         .setTimestamp();
 
                     await announcementChannel.send({ embeds: [donationEmbed] });
-                    console.log('Donation announcement sent');
                 } catch (error) {
                     console.error('Error sending donation announcement:', error);
                 }
-
-                console.log('=== Donation processing complete ===\n');
             }
 
-            // Original code for tracking specific message
+            // Message tracking for specific message ID
             if (newMessage.id === '1315178334325571635') {
                 const embed = newMessage.embeds[0];
                 if (!embed) return;
