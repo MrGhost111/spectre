@@ -98,7 +98,6 @@ async function updateStatusBoard(client) {
             };
 
             if (hasTier2) {
-                console.log(`Found Tier 2 user: ${memberId}`);
                 tier2Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
@@ -106,7 +105,6 @@ async function updateStatusBoard(client) {
                     status: userData.status || 'good'
                 });
             } else if (hasTier1) {
-                console.log(`Found Tier 1 user: ${memberId}`);
                 tier1Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
@@ -125,7 +123,7 @@ async function updateStatusBoard(client) {
             embed.addFields({
                 name: 'Tier 2 Members',
                 value: tier2Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} ${user.status === 'warned' ? '⚠️' : ''}`
                 ).join('\n') || 'None'
             });
         }
@@ -134,10 +132,17 @@ async function updateStatusBoard(client) {
             embed.addFields({
                 name: 'Tier 1 Members',
                 value: tier1Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} ${user.status === 'warned' ? '⚠️' : ''}`
                 ).join('\n') || 'None'
             });
         }
+
+        // Add total donations field
+        embed.addFields({
+            name: 'Total Server Donations',
+            value: `⏣ ${formatNumber(statsData.totalDonations || 0)}`,
+            inline: false
+        });
 
         const messages = await activityChannel.messages.fetch({ limit: 10 });
         const statusMessage = messages.find(m => 
@@ -156,12 +161,19 @@ async function updateStatusBoard(client) {
     }
 }
 
-// Weekly reset function
 async function weeklyReset(client) {
     try {
         console.log('Starting weekly reset...');
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
+        const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
+
+        // Track weekly summary
+        const summary = {
+            warnings: [],
+            demotions: [],
+            promotions: []
+        };
 
         // Find top donor
         let topDonor = null;
@@ -204,9 +216,15 @@ async function weeklyReset(client) {
             const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const requirement = isTier2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
 
-            // Check for promotions (Tier 1 -> Tier 2)
+            // Check for promotions
             if (isTier1 && !isTier2 && userData.weeklyDonated >= (TIER_2_REQUIREMENT + (userData.missedAmount || 0))) {
                 await member.roles.add(TIER_2_ROLE_ID);
+                summary.promotions.push({
+                    userId,
+                    donated: userData.weeklyDonated,
+                    newTier: 2
+                });
+
                 const promotionEmbed = new EmbedBuilder()
                     .setTitle('🎉 Member Promotion')
                     .setColor('#00FF00')
@@ -218,7 +236,6 @@ async function weeklyReset(client) {
 
             // Check for requirement fulfillment or missed requirements
             if (userData.weeklyDonated >= (requirement + (userData.missedAmount || 0))) {
-                // Requirement met
                 userData.status = 'good';
                 userData.missedAmount = 0;
             } else {
@@ -229,6 +246,13 @@ async function weeklyReset(client) {
                     userData.status = 'warned';
                     userData.missedAmount = missedBy;
                     
+                    summary.warnings.push({
+                        userId,
+                        missedBy,
+                        tier: isTier2 ? 2 : 1,
+                        newRequirement: requirement + missedBy
+                    });
+
                     try {
                         const warningEmbed = new EmbedBuilder()
                             .setTitle('⚠️ Weekly Requirement Warning')
@@ -243,13 +267,24 @@ async function weeklyReset(client) {
                 } else if (userData.status === 'warned') {
                     // Second miss - handle demotion
                     if (isTier2) {
-                        // Demote from Tier 2 to Tier 1
                         await member.roles.remove(TIER_2_ROLE_ID);
                         userData.status = 'good';
                         userData.missedAmount = 0;
+                        
+                        summary.demotions.push({
+                            userId,
+                            fromTier: 2,
+                            toTier: 1,
+                            missedBy
+                        });
                     } else if (isTier1) {
-                        // Remove from MM completely
                         await member.roles.remove(TIER_1_ROLE_ID);
+                        summary.demotions.push({
+                            userId,
+                            fromTier: 1,
+                            toTier: 0,
+                            missedBy
+                        });
                         delete usersData[userId];
                     }
                 }
@@ -259,6 +294,41 @@ async function weeklyReset(client) {
             userData.weeklyDonated = 0;
         }
 
+        // Send weekly summary to admin channel
+        const summaryEmbed = new EmbedBuilder()
+            .setTitle('Weekly Reset Summary')
+            .setColor('#0099ff')
+            .setTimestamp();
+
+        if (summary.warnings.length > 0) {
+            summaryEmbed.addFields({
+                name: '⚠️ Warnings',
+                value: summary.warnings.map(w => 
+                    `<@${w.userId}> (Tier ${w.tier}) - Missed by ⏣ ${formatNumber(w.missedBy)}\nNew requirement: ⏣ ${formatNumber(w.newRequirement)}`
+                ).join('\n\n')
+            });
+        }
+
+        if (summary.demotions.length > 0) {
+            summaryEmbed.addFields({
+                name: '⬇️ Demotions',
+                value: summary.demotions.map(d => 
+                    `<@${d.userId}> (Tier ${d.fromTier} → ${d.toTier}) - Missed by ⏣ ${formatNumber(d.missedBy)}`
+                ).join('\n')
+            });
+        }
+
+        if (summary.promotions.length > 0) {
+            summaryEmbed.addFields({
+                name: '⬆️ Promotions',
+                value: summary.promotions.map(p => 
+                    `<@${p.userId}> → Tier ${p.newTier} (Donated: ⏣ ${formatNumber(p.donated)})`
+                ).join('\n')
+            });
+        }
+
+        await adminChannel.send({ embeds: [summaryEmbed] });
+        
         saveUsersData();
         await updateStatusBoard(client);
         console.log('Weekly reset completed');
@@ -294,7 +364,7 @@ module.exports = {
                 console.log('\n=== Checking message for donation ===');
                 
                 if (!newMessage.embeds?.length) {
-                    console.log('No embeds found in message');
+                console.log('No embeds found in message');
                     return;
                 }
 
