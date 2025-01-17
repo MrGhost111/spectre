@@ -5,7 +5,7 @@ const schedule = require('node-schedule');
 require('dotenv').config();
 
 const client = new Client({
-    intents: [ 
+    intents: [
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
         GatewayIntentBits.Guilds,
@@ -84,16 +84,19 @@ const initialize = async () => {
         loadItems();
         loadCommands();
         loadEvents();
+console.log('Setting up weekly reset schedule...');
+const { weeklyReset } = require('./events/mupdate.js');
+schedule.scheduleJob('30 21 * * 4', async () => {
+    console.log('Weekly reset triggered by scheduler at:', new Date().toLocaleString());
+    try {
+        await weeklyReset(client);
+        console.log('Weekly reset completed successfully');
+    } catch (error) {
+        console.error('Error during scheduled weekly reset:', error);
+    }
+});
+console.log('Weekly reset scheduled for Thursday 21:20');
 
-        // Schedule weekly reset (Sunday at 12 AM EST)
-        schedule.scheduleJob('0 0 * * 0', async () => {
-            const moneyMakerEvent = require('./events/mupdate.js');
-            if (moneyMakerEvent.processWeeklyReset) {
-                await moneyMakerEvent.processWeeklyReset(client);
-            }
-        });
-
-        // Log successful initialization
         console.log(`Logged in as ${client.user.tag}!`);
     } catch (error) {
         console.error('Error during initialization:', error);
@@ -101,9 +104,6 @@ const initialize = async () => {
 };
 
 client.once('ready', initialize);
-
-// Start the bot
 client.login(process.env.DISCORD_TOKEN);
 
-// Export client for other modules
-module.exports = { client };
+module.exports = client;

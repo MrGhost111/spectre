@@ -1,7 +1,6 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const schedule = require('node-schedule');
 
 // Constants
 const ANNOUNCEMENT_CHANNEL_ID = '833241820959473724';
@@ -137,7 +136,6 @@ async function updateStatusBoard(client) {
             });
         }
 
-        // Add total donations field
         embed.addFields({
             name: 'Total Server Donations',
             value: `⏣ ${formatNumber(statsData.totalDonations || 0)}`,
@@ -337,14 +335,9 @@ async function weeklyReset(client) {
     }
 }
 
-// Schedule weekly reset (Sunday at midnight)
-schedule.scheduleJob('0 0 * * 0', () => {
-    const client = require('../index.js');
-    weeklyReset(client);
-});
-
 module.exports = {
     name: Events.MessageUpdate,
+    weeklyReset,  // Exporting for use in index.js
     async execute(client, oldMessage, newMessage) {
         try {
             if (!newMessage.author?.bot) {
@@ -364,7 +357,7 @@ module.exports = {
                 console.log('\n=== Checking message for donation ===');
                 
                 if (!newMessage.embeds?.length) {
-                console.log('No embeds found in message');
+                    console.log('No embeds found in message');
                     return;
                 }
 
