@@ -42,17 +42,13 @@ const formatNumber = (num) => {
 
 async function findCommandUser(message) {
     try {
-        console.log('Attempting to find command user for message:', message.id);
-        
         if (message.interaction?.user) {
-            console.log('Found user through interaction:', message.interaction.user.id);
             return message.interaction.user.id;
         }
 
         if (message.reference) {
             const referencedMessage = await message.fetchReference().catch(() => null);
             if (referencedMessage?.interaction?.user) {
-                console.log('Found user through reference:', referencedMessage.interaction.user.id);
                 return referencedMessage.interaction.user.id;
             }
         }
@@ -61,12 +57,10 @@ async function findCommandUser(message) {
         if (embed?.footer?.text) {
             const userMatch = embed.footer.text.match(/<@!?(\d+)>/);
             if (userMatch) {
-                console.log('Found user through embed footer:', userMatch[1]);
                 return userMatch[1];
             }
         }
 
-        console.log('Could not find command user through any method');
         return null;
     } catch (error) {
         console.error('Error in findCommandUser:', error);
@@ -76,16 +70,14 @@ async function findCommandUser(message) {
 
 async function updateStatusBoard(client) {
     try {
-        console.log('Starting status board update...');
         const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const guild = activityChannel.guild;
-
         const members = await guild.members.fetch();
-        console.log('Fetched guild members');
 
         const tier1Users = [];
         const tier2Users = [];
 
+        // Collect and sort users based on their donations
         for (const [memberId, member] of members) {
             const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
@@ -100,44 +92,46 @@ async function updateStatusBoard(client) {
                 tier2Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: userData.missedAmount ? TIER_2_REQUIREMENT + userData.missedAmount : TIER_2_REQUIREMENT,
-                    status: userData.status || 'good'
+                    requirement: userData.missedAmount ? TIER_2_REQUIREMENT + userData.missedAmount : TIER_2_REQUIREMENT
                 });
             } else if (hasTier1) {
                 tier1Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: userData.missedAmount ? TIER_1_REQUIREMENT + userData.missedAmount : TIER_1_REQUIREMENT,
-                    status: userData.status || 'good'
+                    requirement: userData.missedAmount ? TIER_1_REQUIREMENT + userData.missedAmount : TIER_1_REQUIREMENT
                 });
             }
         }
 
+        // Sort users by weekly donations (highest to lowest)
+        tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+        tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+
         const embed = new EmbedBuilder()
-            .setTitle('Money Makers Status Board')
-            .setColor('#00FF00')
+            .setTitle('<:lbtest:1064919048242090054>  Money Makers Status Board')
+            .setColor('#4c00b0')
             .setTimestamp();
 
         if (tier2Users.length > 0) {
             embed.addFields({
-                name: 'Tier 2 Members',
-                value: tier2Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} ${user.status === 'warned' ? '⚠️' : ''}`
+                name: '<:streak:1064909945373458522>  Tier 2 Members',
+                value: tier2Users.map((user, index) => 
+                    `\`${index + 1}.\` <:purpledot:860074414853586984> <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
         if (tier1Users.length > 0) {
             embed.addFields({
-                name: 'Tier 1 Members',
-                value: tier1Users.map(user => 
-                    `<@${user.id}> - ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)} ${user.status === 'warned' ? '⚠️' : ''}`
+                name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
+                value: tier1Users.map((user, index) => 
+                    `\`${index + 1}.\` <:aquadot:860074237954883585> <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
         embed.addFields({
-            name: 'Total Server Donations',
+            name: '<:orangedot:860074358092726312> Total Server Donations',
             value: `⏣ ${formatNumber(statsData.totalDonations || 0)}`,
             inline: false
         });
@@ -145,7 +139,7 @@ async function updateStatusBoard(client) {
         const messages = await activityChannel.messages.fetch({ limit: 10 });
         const statusMessage = messages.find(m => 
             m.author.id === client.user.id && 
-            m.embeds[0]?.title === 'Money Makers Status Board'
+            m.embeds[0]?.title?.includes('Money Makers Status Board')
         );
 
         if (statusMessage) {
@@ -155,13 +149,11 @@ async function updateStatusBoard(client) {
         }
     } catch (error) {
         console.error('Error updating status board:', error);
-        console.error(error.stack);
     }
 }
 
 async function weeklyReset(client) {
     try {
-        console.log('Starting weekly reset...');
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
@@ -184,7 +176,7 @@ async function weeklyReset(client) {
             }
         }
 
-        // Remove PRO_MAKER_ROLE from all users and give it to top donor
+        // Handle PRO_MAKER_ROLE rotation
         const members = await guild.members.fetch();
         for (const [memberId, member] of members) {
             if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
@@ -197,9 +189,9 @@ async function weeklyReset(client) {
             await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
 
             const topDonorEmbed = new EmbedBuilder()
-                .setTitle('🏆 Top Donor of the Week')
-                .setColor('#FFD700')
-                .setDescription(`Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}!\nThey will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
+                .setTitle('<:winners:1000018706874781806>  Top Donor of the Week')
+                .setColor('#4c00b0')
+                .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
                 .setTimestamp();
 
             await announcementChannel.send({ embeds: [topDonorEmbed] });
@@ -224,15 +216,15 @@ async function weeklyReset(client) {
                 });
 
                 const promotionEmbed = new EmbedBuilder()
-                    .setTitle('🎉 Member Promotion')
-                    .setColor('#00FF00')
-                    .setDescription(`Congratulations to <@${userId}> for being promoted to Tier 2!\nWeekly donation: ⏣ ${formatNumber(userData.weeklyDonated)}`)
+                    .setTitle('<:power:1064835342160625784>  Member Promotion')
+                    .setColor('#4c00b0')
+                    .setDescription(` Congratulations to <@${userId}> for being promoted to Tier 2!\n Weekly donation: ⏣ ${formatNumber(userData.weeklyDonated)}`)
                     .setTimestamp();
 
                 await announcementChannel.send({ embeds: [promotionEmbed] });
             }
 
-            // Check for requirement fulfillment or missed requirements
+            // Check requirements
             if (userData.weeklyDonated >= (requirement + (userData.missedAmount || 0))) {
                 userData.status = 'good';
                 userData.missedAmount = 0;
@@ -253,14 +245,14 @@ async function weeklyReset(client) {
 
                     try {
                         const warningEmbed = new EmbedBuilder()
-                            .setTitle('⚠️ Weekly Requirement Warning')
-                            .setColor('#FFD700')
-                            .setDescription(`You missed this week's requirement by ⏣ ${formatNumber(missedBy)}.\nYour new requirement for next week will be ⏣ ${formatNumber(requirement + missedBy)}.\nMissing the requirement again will result in demotion.`)
+                            .setTitle('<:xmark:934659388386451516> Weekly Requirement Warning')
+                            .setColor('#ff0000')
+                            .setDescription(`You missed this week's requirement by ⏣ ${formatNumber(missedBy)}.\nYour new requirement for next week will be ⏣ ${formatNumber(requirement + missedBy)}.\n\n<:infom:1064823078162538497> Missing the requirement again will result in demotion.`)
                             .setTimestamp();
 
                         await member.send({ embeds: [warningEmbed] });
                     } catch (error) {
-                        console.error(`Failed to send warning DM to ${userId}:`, error);
+                        console.error(`Failed to send warning DM to ${userId}`);
                     }
                 } else if (userData.status === 'warned') {
                     // Second miss - handle demotion
@@ -294,34 +286,34 @@ async function weeklyReset(client) {
 
         // Send weekly summary to admin channel
         const summaryEmbed = new EmbedBuilder()
-            .setTitle('Weekly Reset Summary')
-            .setColor('#0099ff')
+            .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
+            .setColor('#4c00b0')
             .setTimestamp();
 
         if (summary.warnings.length > 0) {
             summaryEmbed.addFields({
-                name: '⚠️ Warnings',
+                name: '<:xmark:934659388386451516> Warnings',
                 value: summary.warnings.map(w => 
-                    `<@${w.userId}> (Tier ${w.tier}) - Missed by ⏣ ${formatNumber(w.missedBy)}\nNew requirement: ⏣ ${formatNumber(w.newRequirement)}`
+                    `> <@${w.userId}> (Tier ${w.tier})\n>  Missed by ⏣ ${formatNumber(w.missedBy)}\n> New requirement: ⏣ ${formatNumber(w.newRequirement)}`
                 ).join('\n\n')
             });
         }
 
         if (summary.demotions.length > 0) {
             summaryEmbed.addFields({
-                name: '⬇️ Demotions',
+                name: '<:xmark:934659388386451516> Demotions',
                 value: summary.demotions.map(d => 
-                    `<@${d.userId}> (Tier ${d.fromTier} → ${d.toTier}) - Missed by ⏣ ${formatNumber(d.missedBy)}`
-                ).join('\n')
+                    `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
+                ).join('\n\n')
             });
         }
 
         if (summary.promotions.length > 0) {
             summaryEmbed.addFields({
-                name: '⬆️ Promotions',
+                name: '<:purpledot:860074414853586984>  Promotions',
                 value: summary.promotions.map(p => 
-                    `<@${p.userId}> → Tier ${p.newTier} (Donated: ⏣ ${formatNumber(p.donated)})`
-                ).join('\n')
+                    `> <@${p.userId}> → Tier ${p.newTier}\n> Donated: ⏣ ${formatNumber(p.donated)}`
+                ).join('\n\n')
             });
         }
 
@@ -329,7 +321,6 @@ async function weeklyReset(client) {
         
         saveUsersData();
         await updateStatusBoard(client);
-        console.log('Weekly reset completed');
     } catch (error) {
         console.error('Error in weekly reset:', error);
     }
@@ -337,48 +328,23 @@ async function weeklyReset(client) {
 
 module.exports = {
     name: Events.MessageUpdate,
-    weeklyReset,  // Exporting for use in index.js
+    weeklyReset,
     async execute(client, oldMessage, newMessage) {
         try {
-            if (!newMessage.author?.bot) {
-                const editedSnipes = client.editedMessages.get(newMessage.channel.id) || [];
-                editedSnipes.push({
-                    oldContent: oldMessage.content,
-                    newContent: newMessage.content,
-                    author: newMessage.author.tag,
-                    timestamp: Math.floor(Date.now() / 1000)
-                });
-                client.editedMessages.set(newMessage.channel.id, editedSnipes.slice(-5));
-            }
-
             if (newMessage.channel?.id === TRANSACTION_CHANNEL_ID && 
                 newMessage.author?.id === DANK_MEMER_BOT_ID) {
                 
-                console.log('\n=== Checking message for donation ===');
-                
-                if (!newMessage.embeds?.length) {
-                    console.log('No embeds found in message');
-                    return;
-                }
+                if (!newMessage.embeds?.length) return;
 
                 const embed = newMessage.embeds[0];
-                if (!embed.description?.includes('Successfully donated')) {
-                    console.log('Not a donation message');
-                    return;
-                }
+                if (!embed.description?.includes('Successfully donated')) return;
 
                 const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
-                if (!donationMatch) {
-                    console.log('Could not extract donation amount');
-                    return;
-                }
+                if (!donationMatch) return;
 
                 const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
                 const donorId = await findCommandUser(newMessage);
-                if (!donorId) {
-                    console.log('Could not identify donor');
-                    return;
-                }
+                if (!donorId) return;
 
                 // Update total server donations
                 statsData.totalDonations = (statsData.totalDonations || 0) + donationAmount;
@@ -407,14 +373,9 @@ module.exports = {
                     const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
                     
                     const donationEmbed = new EmbedBuilder()
-                        .setTitle('New Donation')
-                        .setColor('#00FF00')
-                        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}`)
-                        .addFields({
-                            name: 'Weekly Progress',
-                            value: `⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`,
-                            inline: true
-                        })
+                        .setTitle('<:prize:1000016483369369650>  New Donation')
+                        .setColor('#4c00b0')
+                        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`)
                         .setTimestamp();
 
                     await announcementChannel.send({ embeds: [donationEmbed] });

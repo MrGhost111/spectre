@@ -24,25 +24,6 @@ client.editedMessages = new Collection();
 client.itemPrices = new Map();
 client.donations = new Map();
 
-// Load existing items from items.json
-const loadItems = () => {
-    const filePath = path.join(__dirname, 'data', 'items.json');
-    if (fs.existsSync(filePath)) {
-        const rawData = fs.readFileSync(filePath, 'utf8');
-        const items = JSON.parse(rawData);
-        for (const [itemName, itemPrice] of Object.entries(items)) {
-            client.itemPrices.set(itemName, itemPrice);
-        }
-    }
-};
-
-// Function to save items to items.json
-const saveItems = () => {
-    const filePath = path.join(__dirname, 'data', 'items.json');
-    const items = Object.fromEntries(client.itemPrices);
-    fs.writeFileSync(filePath, JSON.stringify(items, null, 2), 'utf8');
-};
-
 // Load commands
 const loadCommands = () => {
     // Load text commands
@@ -81,12 +62,11 @@ const loadEvents = () => {
 const initialize = async () => {
     try {
         // Load all components
-        loadItems();
         loadCommands();
         loadEvents();
 console.log('Setting up weekly reset schedule...');
 const { weeklyReset } = require('./events/mupdate.js');
-schedule.scheduleJob('30 21 * * 4', async () => {
+schedule.scheduleJob('0 0 * * 0', async () => {
     console.log('Weekly reset triggered by scheduler at:', new Date().toLocaleString());
     try {
         await weeklyReset(client);
@@ -95,8 +75,6 @@ schedule.scheduleJob('30 21 * * 4', async () => {
         console.error('Error during scheduled weekly reset:', error);
     }
 });
-console.log('Weekly reset scheduled for Thursday 21:20');
-
         console.log(`Logged in as ${client.user.tag}!`);
     } catch (error) {
         console.error('Error during initialization:', error);
