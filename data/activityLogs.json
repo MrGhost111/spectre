@@ -5399,11 +5399,93 @@
       "action": "add",
       "amount": 2,
       "timestamp": 1737295773488
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737300403114
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737300405516
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737300407319
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737301650120
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737304152616
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737305512587
+    },
+    {
+      "userId": "730401940311244880",
+      "action": "add",
+      "amount": 6,
+      "timestamp": 1737305595093
+    },
+    {
+      "userId": "864016262643449856",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737306119852
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737307679890
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737309380312
+    },
+    {
+      "userId": "950713854613155890",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737310738498
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737386649018
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737388233437
+    },
+    {
+      "userId": "826115461623054336",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1737397734317
     }
   ],
   "weekly": {
-    "826115461623054336": 11,
-    "667269787818131456": 1,
-    "864016262643449856": 11
+    "826115461623054336": 3
   }
 }

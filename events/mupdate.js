@@ -116,7 +116,7 @@ async function updateStatusBoard(client) {
             embed.addFields({
                 name: '<:streak:1064909945373458522>  Tier 2 Members',
                 value: tier2Users.map((user, index) => 
-                    `\`${index + 1}.\` <:purpledot:860074414853586984> <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
@@ -331,6 +331,33 @@ module.exports = {
     weeklyReset,
     async execute(client, oldMessage, newMessage) {
         try {
+            // Store edited message data
+            if (oldMessage.content && newMessage.content && oldMessage.content !== newMessage.content) {
+                const channelId = newMessage.channel.id;
+                const messageData = {
+                    author: newMessage.author.tag,
+                    oldContent: oldMessage.content,
+                    newContent: newMessage.content,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    messageId: newMessage.id
+                };
+
+                if (!client.editedMessages) {
+                    client.editedMessages = new Map();
+                }
+
+                if (!client.editedMessages.has(channelId)) {
+                    client.editedMessages.set(channelId, []);
+                }
+
+                const channelMessages = client.editedMessages.get(channelId);
+                // Keep only the last 50 edited messages per channel
+                if (channelMessages.length >= 50) {
+                    channelMessages.shift();
+                }
+                channelMessages.push(messageData);
+            }
+
             if (newMessage.channel?.id === TRANSACTION_CHANNEL_ID && 
                 newMessage.author?.id === DANK_MEMER_BOT_ID) {
                 

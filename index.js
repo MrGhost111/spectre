@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const schedule = require('node-schedule');
+const cron = require('node-cron');
 require('dotenv').config();
 
 const client = new Client({
@@ -58,30 +58,35 @@ const loadEvents = () => {
     }
 };
 
-// Initialize
-const initialize = async () => {
-    try {
-        // Load all components
-        loadCommands();
-        loadEvents();
-console.log('Setting up weekly reset schedule...');
-const { weeklyReset } = require('./events/mupdate.js');
-schedule.scheduleJob('0 0 * * 0', async () => {
-    console.log('Weekly reset triggered by scheduler at:', new Date().toLocaleString());
-    try {
-        await weeklyReset(client);
-        console.log('Weekly reset completed successfully');
-    } catch (error) {
-        console.error('Error during scheduled weekly reset:', error);
-    }
-});
-        console.log(`Logged in as ${client.user.tag}!`);
-    } catch (error) {
-        console.error('Error during initialization:', error);
-    }
-};
+// Load commands and events before client is ready
+loadCommands();
+loadEvents();
 
-client.once('ready', initialize);
+// Set up client ready handler
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+    
+    const { weeklyReset } = require('./events/mupdate.js');
+    
+    // Schedule weekly reset for Sunday at 00:00 UTC
+    cron.schedule('0 0 * * 0', async () => {
+        console.log('Weekly reset triggered at:', new Date().toISOString());
+        try {
+            await weeklyReset(client);
+            console.log('Weekly reset completed successfully');
+        } catch (error) {
+            console.error('Error during weekly reset:', error);
+        }
+    }, {
+        timezone: "UTC",
+        scheduled: true,
+        runOnInit: false
+    });
+    
+    console.log('Weekly reset schedule set up successfully');
+});
+
+// Login the client
 client.login(process.env.DISCORD_TOKEN);
 
 module.exports = client;
