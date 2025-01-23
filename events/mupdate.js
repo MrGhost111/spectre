@@ -77,7 +77,6 @@ async function updateStatusBoard(client) {
         const tier1Users = [];
         const tier2Users = [];
 
-        // Collect and sort users based on their donations
         for (const [memberId, member] of members) {
             const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
@@ -103,7 +102,6 @@ async function updateStatusBoard(client) {
             }
         }
 
-        // Sort users by weekly donations (highest to lowest)
         tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
         tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
 
@@ -155,14 +153,12 @@ async function weeklyReset(client) {
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
 
-        // Track weekly summary
         const summary = {
             warnings: [],
             demotions: [],
             promotions: []
         };
 
-        // Find top donor
         let topDonor = null;
         let topDonation = 0;
         let weeklyDonations = 0;
@@ -175,16 +171,21 @@ async function weeklyReset(client) {
             }
         }
 
-        // Send initial reset announcement with role ping
-        await announcementChannel.send(`<@&${TIER_1_ROLE_ID}> 
-The scoreboard has now been reset! Thank you for all of your donations. We have collected ⏣ ${formatNumber(weeklyDonations)} coins this week making the total ⏣ ${formatNumber(statsData.totalDonations || 0)}. Keep up the great work. 
+        let pingMessage = `<@&${TIER_1_ROLE_ID}> 
+The scoreboard has now been reset! Thank you for all of your donations. We have collected ⏣ ${formatNumber(weeklyDonations)} coins this week`;
+        
+        if (statsData.totalDonations && statsData.totalDonations !== weeklyDonations) {
+            pingMessage += ` making the total ⏣ ${formatNumber(statsData.totalDonations)}`;
+        }
+        
+        pingMessage += `. Keep up the great work. 
 Congratulations to any promoted members and good luck for the next week. 
-You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according to your level!!`);
+You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according to your level!!`;
 
-        // Display weekly status board in announcement channel
+        await announcementChannel.send(pingMessage);
+
         const { tier1Users, tier2Users } = await updateStatusBoard(client);
         
-        // Prepare and send status board separately in announcement channel
         const statusEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054>  Weekly stats')
             .setColor('#4c00b0')
@@ -210,7 +211,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
 
         await announcementChannel.send({ embeds: [statusEmbed] });
 
-        // Handle PRO_MAKER_ROLE rotation
+        const promotionUserIds = [];
+
         const members = await guild.members.fetch();
         for (const [memberId, member] of members) {
             if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
@@ -231,7 +233,6 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             await announcementChannel.send({ embeds: [topDonorEmbed] });
         }
 
-        // Existing reset logic for each user
         for (const [userId, userData] of Object.entries(usersData)) {
             const member = await guild.members.fetch(userId).catch(() => null);
             if (!member) continue;
@@ -240,25 +241,16 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const requirement = isTier2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
 
-            // Check for promotions
             if (isTier1 && !isTier2 && userData.weeklyDonated >= (TIER_2_REQUIREMENT + (userData.missedAmount || 0))) {
                 await member.roles.add(TIER_2_ROLE_ID);
+                promotionUserIds.push(userId);
                 summary.promotions.push({
                     userId,
                     donated: userData.weeklyDonated,
                     newTier: 2
                 });
-
-                const promotionEmbed = new EmbedBuilder()
-                    .setTitle('<:power:1064835342160625784>  Promotions')
-                    .setColor('#4c00b0')
-                    .setDescription(` Congratulations to <@${userId}> for being promoted to Tier 2!\n Weekly donation: ⏣ ${formatNumber(userData.weeklyDonated)}`)
-                    .setTimestamp();
-
-                await announcementChannel.send({ embeds: [promotionEmbed] });
             }
 
-            // Check requirements
             if (userData.weeklyDonated >= (requirement + (userData.missedAmount || 0))) {
                 userData.status = 'good';
                 userData.missedAmount = 0;
@@ -266,7 +258,6 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 const missedBy = requirement + (userData.missedAmount || 0) - userData.weeklyDonated;
                 
                 if (userData.status === 'good') {
-                    // First miss
                     userData.status = 'warned';
                     userData.missedAmount = missedBy;
                     
@@ -289,7 +280,6 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                         console.error(`Failed to send warning DM to ${userId}`);
                     }
                 } else if (userData.status === 'warned') {
-                    // Second miss - handle demotion
                     if (isTier2) {
                         await member.roles.remove(TIER_2_ROLE_ID);
                         userData.status = 'good';
@@ -314,11 +304,22 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 }
             }
 
-            // Reset weekly donations
             userData.weeklyDonated = 0;
         }
 
-        // Send weekly summary to admin channel
+        if (promotionUserIds.length > 0) {
+            const promotionEmbed = new EmbedBuilder()
+                .setTitle('<:power:1064835342160625784>  Promotions')
+                .setColor('#4c00b0')
+                .setDescription(promotionUserIds.length === 1 
+                    ? `Congratulations to <@${promotionUserIds[0]}> for being promoted to Tier 2!\n Weekly donation: ⏣ ${formatNumber(usersData[promotionUserIds[0]].weeklyDonated)}`
+                    : `These money makers fulfilled the tier 2 requirement and are promoted to tier 2. Congratulations!\n\n${promotionUserIds.map(id => `<@${id}>`).join('\n')}`
+                )
+                .setTimestamp();
+
+            await announcementChannel.send({ embeds: [promotionEmbed] });
+        }
+
         const summaryEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
             .setColor('#4c00b0')
@@ -334,9 +335,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         }
 
         if (summary.demotions.length > 0) {
-            summaryEmbed.addFields({
-                name: '<:xmark:934659388386451516> Demotions',
-                value: summary.demotions.map(d => 
+                            value: summary.demotions.map(d => 
                     `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
                 ).join('\n\n')
             });
@@ -353,6 +352,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
 
         await adminChannel.send({ embeds: [summaryEmbed] });
         
+        statsData.totalDonations += weeklyDonations;
+        saveStatsData();
         saveUsersData();
         await updateStatusBoard(client);
     } catch (error) {
