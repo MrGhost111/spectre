@@ -328,5 +328,17 @@
       "users": [],
       "channels": []
     }
+  },
+  "864016262643449856": {
+    "words": [
+      "panda",
+      "weeb",
+      "weeeb"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
   }
 }
