@@ -2,8 +2,8 @@
     "users": [
         {
             "userId": "753491023208120321",
-            "totalUses": 137,
-            "successes": 115,
+            "totalUses": 141,
+            "successes": 119,
             "fails": 22
         },
         {
@@ -299,7 +299,13 @@
             "totalUses": 1,
             "successes": 1,
             "fails": 0
+        },
+        {
+            "userId": "770593236129284126",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
         }
     ],
-    "totalDonations": 455000170
+    "totalDonations": 1110000342
 }

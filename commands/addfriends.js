@@ -137,7 +137,10 @@ function calculateMaxFriends(member) {
         '1028256286560763984': 5,
         '1028256279124250624': 5,
         '1038106794200932512': 5,
+        '1038888209440067604': 5,
+        '783032959350734868' : 10,
     };
+
     let totalLimit = 0;
     for (const roleId in roleLimits) {
         if (member.roles.cache.has(roleId)) {

@@ -11,7 +11,9 @@ module.exports = {
             '946729964328337408',
             '1028256286560763984',
             '1028256279124250624',
-            '1038106794200932512'
+            '1038106794200932512',
+            '1038888209440067604',
+            '783032959350734868' 
         ];
 
         if (!message.member.roles.cache.some(role => requiredRoles.includes(role.id))) {
@@ -51,7 +53,9 @@ module.exports = {
                 { id: '1028256286560763984', limit: 5 },
                 { id: '1028256279124250624', limit: 5 },
                 { id: '1038106794200932512', limit: 5 },
-            ];
+                { id: '1038888209440067604', limit: 5 },
+                { id: '783032959350734868', limit: 10 }
+           ];
 
             const roleThresholds = roles.map(role => {
                 const hasRole = message.member.roles.cache.has(role.id);
@@ -114,6 +118,8 @@ function calculateMaxFriends(member) {
         '1028256286560763984': 5,
         '1028256279124250624': 5,
         '1038106794200932512': 5,
+        '1038888209440067604': 5,
+        '783032959350734868' : 10,
     };
 
     let maxFriends = 0;

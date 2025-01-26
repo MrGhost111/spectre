@@ -307,18 +307,17 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             userData.weeklyDonated = 0;
         }
 
-        if (promotionUserIds.length > 0) {
-            const promotionEmbed = new EmbedBuilder()
-                .setTitle('<:power:1064835342160625784>  Promotions')
-                .setColor('#4c00b0')
-                .setDescription(promotionUserIds.length === 1 
-                    ? `Congratulations to <@${promotionUserIds[0]}> for being promoted to Tier 2!\n Weekly donation: ⏣ ${formatNumber(usersData[promotionUserIds[0]].weeklyDonated)}`
-                    : `These money makers fulfilled the tier 2 requirement and are promoted to tier 2. Congratulations!\n\n${promotionUserIds.map(id => `<@${id}>`).join('\n')}`
-                )
-                .setTimestamp();
-
-            await announcementChannel.send({ embeds: [promotionEmbed] });
-        }
+if (promotionUserIds.length > 0) {
+    const promotionEmbed = new EmbedBuilder()
+        .setTitle('<:power:1064835342160625784>  Promotions')
+        .setColor('#4c00b0')
+        .setDescription(
+            "These users have fulfilled the requirement to move up a level. They are promoted to tier 2\n\n" +
+            promotionUserIds.map(id => `<:aquadot:860074237954883585> <@${id}>`).join('\n')
+        )
+        .setTimestamp();
+    await announcementChannel.send({ embeds: [promotionEmbed] });
+}
 
         const summaryEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
@@ -334,12 +333,14 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             });
         }
 
-        if (summary.demotions.length > 0) {
-                            value: summary.demotions.map(d => 
-                    `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
-                ).join('\n\n')
-            });
-        }
+            if (summary.demotions.length > 0) {
+        summaryEmbed.addFields({
+            name: '<:xmark:934659388386451516> Demotions',
+            value: summary.demotions.map(d => 
+                `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
+            ).join('\n\n')
+        });
+    }
 
         if (summary.promotions.length > 0) {
             summaryEmbed.addFields({
