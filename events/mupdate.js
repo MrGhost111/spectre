@@ -24,7 +24,7 @@ const statsFilePath = path.join(__dirname, '../data/stats.json');
 // Load data
 let usersData = require(usersFilePath);
 const itemsData = require(itemsFilePath);
-let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 0 };
+let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 }; // Updated total donations
 let lastMessageId = null;
 
 // Utility functions
@@ -108,7 +108,8 @@ async function updateStatusBoard(client) {
         const embed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
             .setColor('#4c00b0')
-            .setTimestamp();
+            .setTimestamp()
+            .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` }); // Added total donations to footer
 
         if (tier2Users.length > 0) {
             embed.addFields({
@@ -307,19 +308,18 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             userData.weeklyDonated = 0;
         }
 
-if (promotionUserIds.length > 0) {
-    const promotionEmbed = new EmbedBuilder()
-        .setTitle('<:power:1064835342160625784>  Promotions')
-        .setColor('#4c00b0')
-        .setDescription(
-            "These users have fulfilled the requirement to move up a level. They are promoted to tier 2\n\n" +
-            promotionUserIds.map(id => `<:aquadot:860074237954883585> <@${id}>`).join('\n')
-        )
-        .setTimestamp();
-    await announcementChannel.send({ embeds: [promotionEmbed] });
-}
-
-        const summaryEmbed = new EmbedBuilder()
+        if (promotionUserIds.length > 0) {
+            const promotionEmbed = new EmbedBuilder()
+                .setTitle('<:power:1064835342160625784>  Promotions')
+                .setColor('#4c00b0')
+                .setDescription(
+                    "These users have fulfilled the requirement to move up a level. They are promoted to tier 2\n\n" +
+                    promotionUserIds.map(id => `<:aquadot:860074237954883585> <@${id}>`).join('\n')
+                )
+                .setTimestamp();
+            await announcementChannel.send({ embeds: [promotionEmbed] });
+        }
+const summaryEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
             .setColor('#4c00b0')
             .setTimestamp();
@@ -333,14 +333,14 @@ if (promotionUserIds.length > 0) {
             });
         }
 
-            if (summary.demotions.length > 0) {
-        summaryEmbed.addFields({
-            name: '<:xmark:934659388386451516> Demotions',
-            value: summary.demotions.map(d => 
-                `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
-            ).join('\n\n')
-        });
-    }
+        if (summary.demotions.length > 0) {
+            summaryEmbed.addFields({
+                name: '<:xmark:934659388386451516> Demotions',
+                value: summary.demotions.map(d => 
+                    `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
+                ).join('\n\n')
+            });
+        }
 
         if (summary.promotions.length > 0) {
             summaryEmbed.addFields({
@@ -351,7 +351,10 @@ if (promotionUserIds.length > 0) {
             });
         }
 
-        await adminChannel.send({ embeds: [summaryEmbed] });
+        // Send summary to admin channel only if there are warnings, demotions, or promotions
+        if (summary.warnings.length > 0 || summary.demotions.length > 0 || summary.promotions.length > 0) {
+            await adminChannel.send({ embeds: [summaryEmbed] });
+        }
         
         statsData.totalDonations += weeklyDonations;
         saveStatsData();
