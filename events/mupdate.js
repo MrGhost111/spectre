@@ -77,27 +77,44 @@ async function updateStatusBoard(client) {
         const tier1Users = [];
         const tier2Users = [];
 
+        // Ensure all Tier 1 and Tier 2 role holders are in users.json
         for (const [memberId, member] of members) {
             const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
             
+            if (hasTier1 || hasTier2) {
+                if (!usersData[memberId]) {
+                    usersData[memberId] = {
+                        weeklyDonated: 0,
+                        missedAmount: 0,
+                        status: 'good',
+                        totalDonated: 0,
+                        currentTier: hasTier2 ? 2 : 1
+                    };
+                }
+            }
+
             const userData = usersData[memberId] || {
                 weeklyDonated: 0,
                 missedAmount: 0,
                 status: 'good'
             };
 
+            const requirement = hasTier2 ? 
+                TIER_2_REQUIREMENT + (userData.missedAmount || 0) : 
+                TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+
             if (hasTier2) {
                 tier2Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: userData.missedAmount ? TIER_2_REQUIREMENT + userData.missedAmount : TIER_2_REQUIREMENT
+                    requirement: requirement
                 });
             } else if (hasTier1) {
                 tier1Users.push({
                     id: memberId,
                     weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: userData.missedAmount ? TIER_1_REQUIREMENT + userData.missedAmount : TIER_1_REQUIREMENT
+                    requirement: requirement
                 });
             }
         }
@@ -109,7 +126,7 @@ async function updateStatusBoard(client) {
             .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
             .setColor('#4c00b0')
             .setTimestamp()
-            .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` }); // Added total donations to footer
+            .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
 
         if (tier2Users.length > 0) {
             embed.addFields({
@@ -141,6 +158,9 @@ async function updateStatusBoard(client) {
             await activityChannel.send({ embeds: [embed] });
         }
 
+        // Save updated users data to ensure new entries are persisted
+        saveUsersData();
+
         return { tier1Users, tier2Users };
     } catch (error) {
         console.error('Error updating status board:', error);
@@ -164,6 +184,26 @@ async function weeklyReset(client) {
         let topDonation = 0;
         let weeklyDonations = 0;
 
+        // Ensure all Tier 1 and Tier 2 role holders are in users.json
+        const members = await guild.members.fetch();
+        for (const [memberId, member] of members) {
+            const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+            const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+            
+            if (hasTier1 || hasTier2) {
+                if (!usersData[memberId]) {
+                    usersData[memberId] = {
+                        weeklyDonated: 0,
+                        missedAmount: 0,
+                        status: 'good',
+                        totalDonated: 0,
+                        currentTier: hasTier2 ? 2 : 1
+                    };
+                }
+            }
+        }
+
+        // Process existing users
         for (const [userId, userData] of Object.entries(usersData)) {
             weeklyDonations += userData.weeklyDonated || 0;
             if (userData.weeklyDonated > topDonation) {
@@ -214,8 +254,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
 
         const promotionUserIds = [];
 
-        const members = await guild.members.fetch();
-        for (const [memberId, member] of members) {
+        const currentProMakerMembers = await guild.members.fetch();
+for (const [memberId, member] of currentProMakerMembers) {
             if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
                 await member.roles.remove(PRO_MAKER_ROLE_ID);
             }
@@ -319,7 +359,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 .setTimestamp();
             await announcementChannel.send({ embeds: [promotionEmbed] });
         }
-const summaryEmbed = new EmbedBuilder()
+
+        const summaryEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
             .setColor('#4c00b0')
             .setTimestamp();
@@ -412,36 +453,42 @@ module.exports = {
                 const donorId = await findCommandUser(newMessage);
                 if (!donorId) return;
 
-                // Update total server donations
-                statsData.totalDonations = (statsData.totalDonations || 0) + donationAmount;
-                saveStatsData();
-                
+                // Ensure user exists in usersData
                 if (!usersData[donorId]) {
                     usersData[donorId] = {
                         totalDonated: donationAmount,
                         weeklyDonated: donationAmount,
-                        currentTier: 1,
+                        currentTier: 0,
                         status: 'good',
                         missedAmount: 0,
                         lastDonation: new Date().toISOString()
                     };
                 } else {
-                    usersData[donorId].totalDonated += donationAmount;
-                    usersData[donorId].weeklyDonated += donationAmount;
+                    usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
+                    usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
                     usersData[donorId].lastDonation = new Date().toISOString();
                 }
+
+                // Determine current tier based on roles
+                const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+                const member = await guild.members.fetch(donorId);
+                usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 : 
+                    (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
+
+                // Calculate requirement based on current tier
+                const requirement = usersData[donorId].currentTier === 2 ? 
+                    TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
 
                 saveUsersData();
                 await updateStatusBoard(client);
 
                 try {
                     const announcementChannel = await client.channels.fetch(TRANSACTION_CHANNEL_ID);
-                    const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
                     
                     const donationEmbed = new EmbedBuilder()
                         .setTitle('<:prize:1000016483369369650>  New Donation')
                         .setColor('#4c00b0')
-                        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`)
+                        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
                         .setTimestamp();
 
                     await announcementChannel.send({ embeds: [donationEmbed] });
