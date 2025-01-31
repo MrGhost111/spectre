@@ -1,6 +1,11 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
+const NodeCache = require('node-cache');
+
+// Initialize caches
+const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
+const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 
 // Define paths
 const DATA_PATHS = {
@@ -69,6 +74,13 @@ function getBar(value, bars, barType) {
 }
 
 function calculateLuck(member) {
+    const cacheKey = `luck_${member.id}`;
+    const cachedLuck = roleCache.get(cacheKey);
+    
+    if (cachedLuck !== undefined) {
+        return cachedLuck;
+    }
+
     let luck = 0;
     
     // Check tier roles
@@ -83,7 +95,10 @@ function calculateLuck(member) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) => 
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
     
-    return Math.min(luck + boosterLuck, 100);
+    const totalLuck = Math.min(luck + boosterLuck, 100);
+    roleCache.set(cacheKey, totalLuck);
+    
+    return totalLuck;
 }
 
 async function updateUserStats(userId, success) {
@@ -123,13 +138,46 @@ async function handleMute(member, duration, muteRole, mutes) {
         const muteStartTime = Math.floor(Date.now() / 1000);
         const muteEndTime = muteStartTime + duration;
 
-        await member.roles.add(muteRole);
+        // Add redundant unmute jobs at different intervals
+        const scheduleUnmute = async () => {
+            try {
+                const updatedMember = await member.guild.members.fetch(member.id);
+                if (updatedMember.roles.cache.has(muteRole.id)) {
+                    await updatedMember.roles.remove(muteRole);
+                    console.log(`Successfully unmuted ${member.user.tag}`);
+                }
+            } catch (error) {
+                console.error(`Failed to unmute ${member.user.tag}:`, error);
+                // Retry after 5 seconds if failed
+                setTimeout(scheduleUnmute, 5000);
+            }
+        };
+
+        // Add mute role with retry mechanism
+        let muteAttempts = 0;
+        const maxAttempts = 3;
+        
+        while (muteAttempts < maxAttempts) {
+            try {
+                await member.roles.add(muteRole);
+                break;
+            } catch (error) {
+                muteAttempts++;
+                if (muteAttempts === maxAttempts) {
+                    console.error(`Failed to mute ${member.user.tag} after ${maxAttempts} attempts:`, error);
+                    return false;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            }
+        }
 
         const muteData = {
             userId: member.id,
-            muteStartTime: muteStartTime,
-            muteEndTime: muteEndTime,
-            button_clicked: false
+            muteStartTime,
+            muteEndTime,
+            button_clicked: false,
+            guildId: member.guild.id,
+            roleId: muteRole.id
         };
 
         const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
@@ -141,41 +189,52 @@ async function handleMute(member, duration, muteRole, mutes) {
 
         await writeJsonFile(DATA_PATHS.mutes, mutes);
 
-        // Set up unmute timeout
-        setTimeout(async () => {
-            try {
-                const latestMutes = await readJsonFile(DATA_PATHS.mutes);
-                const userMute = latestMutes.users.find(mute => 
-                    mute.userId === member.id && mute.muteEndTime === muteEndTime
-                );
+        // Schedule multiple unmute attempts
+        const unmuteTimes = [
+            duration * 1000, // Original duration
+            (duration * 1000) + 5000, // 5 seconds after
+            (duration * 1000) + 15000 // 15 seconds after
+        ];
 
-                if (userMute && !userMute.button_clicked) {
-                    try {
-                        const updatedMember = await member.guild.members.fetch(member.id);
-                        await updatedMember.roles.remove(muteRole);
-                        latestMutes.users = latestMutes.users.filter(mute => 
-                            !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
-                        );
-                        await writeJsonFile(DATA_PATHS.mutes, latestMutes);
-                    } catch (error) {
-                        console.error('Error during unmute:', error);
-                        // Remove the mute entry even if we couldn't remove the role
+        unmuteTimes.forEach(time => {
+            setTimeout(async () => {
+                try {
+                    const latestMutes = await readJsonFile(DATA_PATHS.mutes);
+                    const userMute = latestMutes.users.find(mute => 
+                        mute.userId === member.id && mute.muteEndTime === muteEndTime
+                    );
+
+                    if (userMute && !userMute.button_clicked) {
+                        await scheduleUnmute();
+                        // Clean up mute data after successful unmute
                         latestMutes.users = latestMutes.users.filter(mute => 
                             !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
                         );
                         await writeJsonFile(DATA_PATHS.mutes, latestMutes);
                     }
+                } catch (error) {
+                    console.error('Error in unmute timeout:', error);
                 }
-            } catch (error) {
-                console.error('Error in unmute timeout:', error);
-            }
-        }, duration * 1000);
+            }, time);
+        });
 
         return true;
     } catch (error) {
         console.error('Error in handleMute:', error);
         return false;
     }
+}
+
+async function getMemberFromUser(guild, userId) {
+    const cacheKey = `member_${guild.id}_${userId}`;
+    let member = memberCache.get(cacheKey);
+    
+    if (!member) {
+        member = await guild.members.fetch(userId);
+        memberCache.set(cacheKey, member);
+    }
+    
+    return member;
 }
 
 module.exports = {
@@ -208,10 +267,7 @@ module.exports = {
                 
                 const userArg = message.content.split(' ')[1];
                 if (userArg) {
-                    const member = message.guild.members.cache.find(member => 
-                        member.user.username.toLowerCase() === userArg.toLowerCase() || 
-                        member.id === userArg
-                    );
+                    const member = await getMemberFromUser(message.guild, userArg);
                     if (member) return member.user;
                 }
                 return null;
@@ -273,7 +329,7 @@ module.exports = {
             const mutedRole = message.guild.roles.cache.get('673978861335085107');
             if (mutedRole) {
                 try {
-                    const targetMember = await message.guild.members.fetch(muteUser);
+                    const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
                         const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
                         if (!muteSuccess) {
@@ -340,8 +396,7 @@ module.exports = {
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
             // Update cooldown
-            // Update cooldown
-            const cooldownEnd = currentTime + 60 * 60;
+            const cooldownEnd = currentTime + 1800; // 30 minutes
             const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
             if (cooldownIndex !== -1) {
                 cooldowns.users[cooldownIndex].endTime = cooldownEnd;
@@ -353,7 +408,7 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.cooldowns, cooldowns);
         } catch (error) {
-            console.error('Error in stfu command:', error);
+            console.error('Error in shut command:', error);
             message.channel.send('An error occurred while executing the command. Please try again later.');
         }
     },

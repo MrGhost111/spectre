@@ -3,10 +3,38 @@ const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 
+// Store the ID of the last sticky message
+let lastStickyMessageId = null;
+
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Remove the debug logging for every message
+        // Sticky message handling for specific channel
+        if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
+            try {
+                // Delete the previous sticky message if it exists
+                if (lastStickyMessageId) {
+                    try {
+                        const oldMessage = await message.channel.messages.fetch(lastStickyMessageId);
+                        if (oldMessage) {
+                            await oldMessage.delete();
+                        }
+                    } catch (error) {
+                        console.error('Error deleting old sticky message:', error);
+                    }
+                }
+
+                // Send new sticky message
+                const stickyMessage = await message.channel.send(
+                    "Annoyed by these pings? get no partnership ping from https://discord.com/channels/673970118744735764/1317992115917295647/1321411901330165770"
+                );
+                lastStickyMessageId = stickyMessage.id;
+            } catch (error) {
+                console.error('Error handling sticky message:', error);
+            }
+        }
+
+        // Rest of your code remains exactly the same...
         if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
@@ -16,6 +44,68 @@ module.exports = {
             }
         }
 
+        // Image logging functionality
+        const logChannelId = '762404827698954260';
+        const faceRevealChannelId = '721347947463180319'; // Face reveal channel ID
+        const blacklistedCategories = [
+            '799997847931977749',
+            '833240903611056198',
+            '721337782546726932',
+            '842471433238347786',
+            '1064095644811284490',
+            '720398363186692216'
+        ];
+
+        // Check for images only if it's not a bot message, not in face reveal channel, and not in blacklisted categories
+        if (!message.author.bot && 
+            message.channelId !== faceRevealChannelId && 
+            message.channel.parentId && 
+            !blacklistedCategories.includes(message.channel.parentId)) {
+            
+            const hasImage = message.attachments.some(attachment => 
+                attachment.contentType?.startsWith('image/')) || 
+                /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(message.content);
+
+            if (hasImage) {
+                try {
+                    const logChannel = await client.channels.fetch(logChannelId);
+                    if (logChannel) {
+                        const embed = new EmbedBuilder()
+                            .setColor('#00ff00')
+                            .setAuthor({
+                                name: message.author.tag,
+                                iconURL: message.author.displayAvatarURL({ dynamic: true })
+                            })
+                            .setTimestamp()
+                            .addFields(
+                                { name: 'Author ID', value: message.author.id },
+                                { name: 'Message Link', value: `[Jump to Message](${message.url})` }
+                            );
+
+                        // Handle attachments
+                        message.attachments.forEach(attachment => {
+                            if (attachment.contentType?.startsWith('image/')) {
+                                embed.setImage(attachment.url);
+                            }
+                        });
+
+                        // Handle image links in content
+                        if (!embed.data.image) {
+                            const imageMatch = message.content.match(/(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i);
+                            if (imageMatch) {
+                                embed.setImage(imageMatch[0]);
+                            }
+                        }
+
+                        await logChannel.send({ embeds: [embed] });
+                    }
+                } catch (error) {
+                    console.error('Error logging image:', error);
+                }
+            }
+        }
+
+        // Special handling for specific bot messages (before returning for other bot messages)
         if (message.author.bot) {
             if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
                 const embed = message.embeds[0];
@@ -92,14 +182,11 @@ module.exports = {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        // Removed debug log for every message
-
         // Check for command
         const command = client.textCommands.get(commandName) || 
                        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
         if (!command) {
-            // Removed logging for commands not found
             return;
         }
 

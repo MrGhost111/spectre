@@ -140,7 +140,8 @@
   "826115461623054336": {
     "words": [
       "loot",
-      "<@826115461623054336>"
+      "<@826115461623054336>",
+      "826115461623054336"
     ],
     "blacklist": {
       "words": [],
@@ -176,7 +177,10 @@
   },
   "950713854613155890": {
     "words": [
-      "muichi"
+      "muichi",
+      "callan",
+      "femboy",
+      "twink"
     ],
     "blacklist": {
       "words": [],
@@ -357,6 +361,17 @@
     "words": [
       "callan",
       "muichi"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "829267404890439740": {
+    "words": [
+      "lesbians",
+      "gay"
     ],
     "blacklist": {
       "words": [],
