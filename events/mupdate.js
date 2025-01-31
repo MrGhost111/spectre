@@ -468,6 +468,11 @@ module.exports = {
                     usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
                     usersData[donorId].lastDonation = new Date().toISOString();
                 }
+statsData.totalDonations += donationAmount;
+saveStatsData();
+
+saveUsersData();
+await updateStatusBoard(client);
 
                 // Determine current tier based on roles
                 const guild = await client.guilds.fetch(client.guilds.cache.first().id);
