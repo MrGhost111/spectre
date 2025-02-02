@@ -1,123 +1,68 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
-const { MessageActionRow, MessageButton, MessageEmbed } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
+const audioFolderPath = path.join(__dirname, '../../audio'); // Path to your audio folder
+
 module.exports = {
-    name: 'testv',
-    async execute(message, args) {
-        // Check if the user is in a voice channel
-        const { channel } = message.member.voice;
+    name: 'guess',
+    async execute(message) {
+        const voiceChannel = message.member.voice.channel;
 
-        if (!channel) {
-            return message.reply('You need to join a voice channel first!');
+        // Debugging: Log the voiceChannel object
+        console.log('Voice Channel:', voiceChannel);
+
+        if (!voiceChannel) {
+            return message.reply('You need to be in a voice channel to use this command!');
         }
 
-        // Join the voice channel
-        const connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: message.guild.id,
-            adapterCreator: message.guild.voiceAdapterCreator,
-        });
+        // Check if the voice channel is in the same guild (server)
+        if (voiceChannel.guild.id !== message.guild.id) {
+            return message.reply('You must be in a voice channel in this server!');
+        }
 
-        connection.on(VoiceConnectionStatus.Ready, () => {
-            console.log('Connected to the voice channel!');
-            sendInitialEmbed(message);
-        });
+        try {
+            // Join the voice channel
+            const connection = await voiceChannel.join();
 
-        connection.on(VoiceConnectionStatus.Disconnected, () => {
-            connection.destroy();
-        });
-    },
+            // Create the embed with buttons
+            const embed = new EmbedBuilder()
+                .setTitle('Guess the Sound')
+                .setDescription('Press "Play New" to start!');
+
+            const buttons = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('play_new')
+                        .setLabel('Play New')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId('replay')
+                        .setLabel('Replay')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true),
+                    new ButtonBuilder()
+                        .setCustomId('answer')
+                        .setLabel('Answer')
+                        .setStyle(ButtonStyle.Success)
+                        .setDisabled(true)
+                );
+
+            const playerMessage = await message.channel.send({ embeds: [embed], components: [buttons] });
+
+            // Store the player message ID and connection in a global object
+            global.playerStates = global.playerStates || {};
+            global.playerStates[playerMessage.id] = {
+                connection,
+                currentClip: null,
+                isPlaying: false,
+                buttons,
+                embed,
+                playerMessage
+            };
+        } catch (error) {
+            console.error('Error executing command guess:', error);
+            message.reply('An error occurred while trying to join the voice channel.');
+        }
+    }
 };
-
-async function sendInitialEmbed(message) {
-    const embed = new MessageEmbed()
-        .setTitle('Voice Channel Actions')
-        .setDescription('Choose an action to perform in the voice channel:')
-        .setColor(0x0099ff);
-
-    const playNewButton = new MessageButton()
-        .setCustomId('play_new')
-        .setLabel('Play New')
-        .setStyle('PRIMARY');
-
-    const replayButton = new MessageButton()
-        .setCustomId('replay')
-        .setLabel('Replay')
-        .setStyle('SECONDARY');
-
-    const row = new MessageActionRow().addComponents(playNewButton, replayButton);
-
-    const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
-
-    const filter = i => ['play_new', 'replay'].includes(i.customId) && i.user.id === message.author.id;
-    const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
-
-    let lastPlayedFile = '';
-
-    collector.on('collect', async i => {
-        if (i.customId === 'play_new') {
-            lastPlayedFile = await playRandomAudio(message);
-        } else if (i.customId === 'replay') {
-            await replayAudio(message, lastPlayedFile);
-        }
-        await i.deferUpdate();
-    });
-
-    collector.on('end', collected => {
-        sentMessage.edit({ components: [] });
-    });
-}
-
-async function playRandomAudio(message) {
-    const { channel } = message.member.voice;
-    const audioFiles = fs.readdirSync(path.join(__dirname, '../audio')).filter(file => file.endsWith('.mp3'));
-    const randomFile = audioFiles[Math.floor(Math.random() * audioFiles.length)];
-    const resource = createAudioResource(path.join(__dirname, '../audio', randomFile));
-    const player = createAudioPlayer();
-
-    const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
-    });
-
-    connection.subscribe(player);
-    player.play(resource);
-
-    player.on(AudioPlayerStatus.Playing, () => {
-        console.log(`Playing: ${randomFile}`);
-        message.channel.send(`Now playing: ${randomFile}`);
-    });
-
-    player.on(AudioPlayerStatus.Idle, () => {
-        player.stop();
-    });
-
-    return randomFile;
-}
-
-async function replayAudio(message, file) {
-    const { channel } = message.member.voice;
-    const resource = createAudioResource(path.join(__dirname, '../audio', file));
-    const player = createAudioPlayer();
-
-    const connection = joinVoiceChannel({
-        channelId: channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
-    });
-
-    connection.subscribe(player);
-    player.play(resource);
-
-    player.on(AudioPlayerStatus.Playing, () => {
-        console.log(`Replaying: ${file}`);
-        message.channel.send(`Replaying: ${file}`);
-    });
-
-    player.on(AudioPlayerStatus.Idle, () => {
-        player.stop();
-    });
-}

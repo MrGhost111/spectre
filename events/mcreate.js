@@ -3,16 +3,13 @@ const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 
-// Store the ID of the last sticky message
 let lastStickyMessageId = null;
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Sticky message handling for specific channel
         if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
             try {
-                // Delete the previous sticky message if it exists
                 if (lastStickyMessageId) {
                     try {
                         const oldMessage = await message.channel.messages.fetch(lastStickyMessageId);
@@ -24,7 +21,6 @@ module.exports = {
                     }
                 }
 
-                // Send new sticky message
                 const stickyMessage = await message.channel.send(
                     "Annoyed by these pings? get no partnership ping from https://discord.com/channels/673970118744735764/1317992115917295647/1321411901330165770"
                 );
@@ -34,7 +30,6 @@ module.exports = {
             }
         }
 
-        // Rest of your code remains exactly the same...
         if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
@@ -44,9 +39,8 @@ module.exports = {
             }
         }
 
-        // Image logging functionality
         const logChannelId = '762404827698954260';
-        const faceRevealChannelId = '721347947463180319'; // Face reveal channel ID
+        const faceRevealChannelId = '721347947463180319';
         const blacklistedCategories = [
             '799997847931977749',
             '833240903611056198',
@@ -56,7 +50,6 @@ module.exports = {
             '720398363186692216'
         ];
 
-        // Check for images only if it's not a bot message, not in face reveal channel, and not in blacklisted categories
         if (!message.author.bot && 
             message.channelId !== faceRevealChannelId && 
             message.channel.parentId && 
@@ -79,25 +72,36 @@ module.exports = {
                             .setTimestamp()
                             .addFields(
                                 { name: 'Author ID', value: message.author.id },
+                                { name: 'Channel', value: `<#${message.channel.id}>` },
                                 { name: 'Message Link', value: `[Jump to Message](${message.url})` }
                             );
 
-                        // Handle attachments
+                        const imageUrls = [];
                         message.attachments.forEach(attachment => {
                             if (attachment.contentType?.startsWith('image/')) {
-                                embed.setImage(attachment.url);
+                                imageUrls.push(attachment.url);
                             }
                         });
 
-                        // Handle image links in content
-                        if (!embed.data.image) {
-                            const imageMatch = message.content.match(/(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i);
-                            if (imageMatch) {
-                                embed.setImage(imageMatch[0]);
+                        const imageMatches = [...message.content.matchAll(/(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/gi)];
+                        imageMatches.forEach(match => imageUrls.push(match[0]));
+
+                        if (imageUrls.length > 0) {
+                            embed.setImage(imageUrls[0]);
+                            await logChannel.send({ embeds: [embed] });
+
+                            for (let i = 1; i < imageUrls.length; i++) {
+                                const additionalEmbed = new EmbedBuilder()
+                                    .setColor('#00ff00')
+                                    .setAuthor({
+                                        name: message.author.tag,
+                                        iconURL: message.author.displayAvatarURL({ dynamic: true })
+                                    })
+                                    .setTimestamp()
+                                    .setImage(imageUrls[i]);
+                                await logChannel.send({ embeds: [additionalEmbed] });
                             }
                         }
-
-                        await logChannel.send({ embeds: [embed] });
                     }
                 } catch (error) {
                     console.error('Error logging image:', error);
@@ -105,7 +109,6 @@ module.exports = {
             }
         }
 
-        // Special handling for specific bot messages (before returning for other bot messages)
         if (message.author.bot) {
             if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
                 const embed = message.embeds[0];
@@ -167,7 +170,6 @@ module.exports = {
 
         const prefix = ',';
 
-        // Non-command messages
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
             try {
@@ -178,11 +180,9 @@ module.exports = {
             return;
         }
 
-        // Command handling
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        // Check for command
         const command = client.textCommands.get(commandName) || 
                        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
@@ -190,7 +190,6 @@ module.exports = {
             return;
         }
 
-        // Special command handling
         if (commandName === 'resetsns') {
             if (!message.member.permissions.has('Administrator')) {
                 return message.reply('You do not have permission to use this command.');
@@ -222,7 +221,6 @@ module.exports = {
             return message.reply(lbMessage);
         }
 
-        // Execute the command
         try {
             await command.execute(message, args);
         } catch (error) {

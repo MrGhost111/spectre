@@ -263,7 +263,10 @@
     }
   },
   "918097380291772416": {
-    "words": [],
+    "words": [
+      "isa",
+      "isaiah"
+    ],
     "blacklist": {
       "words": [],
       "users": [],
