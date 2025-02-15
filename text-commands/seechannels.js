@@ -12,11 +12,22 @@ module.exports = {
         const userChannels = [];
         const addedChannels = [];
 
-        // Loop through all channels in channels.json
+        // Check if user owns any channels
+        const ownedChannel = Object.values(channelsData).find(
+            channelInfo => channelInfo.userId === userId
+        );
+        
+        if (ownedChannel) {
+            userChannels.push(ownedChannel.channelId);
+        }
+
+        // Loop through all channels to find where user is listed as friend
         for (const [_, channelInfo] of Object.entries(channelsData)) {
-            // Ensure channelInfo and channelInfo.friends are defined
             if (channelInfo && channelInfo.friends && channelInfo.friends.includes(userId)) {
-                userChannels.push(channelInfo.channelId);
+                // Avoid duplicates if user is both owner and friend
+                if (!userChannels.includes(channelInfo.channelId)) {
+                    userChannels.push(channelInfo.channelId);
+                }
             }
         }
 
@@ -29,7 +40,6 @@ module.exports = {
             const channel = message.guild.channels.cache.get(channelId);
             if (channel && !channel.members.has(userId)) {
                 try {
-                    // Use PermissionsBitField to set the VIEW_CHANNEL permission
                     await channel.permissionOverwrites.edit(userId, { 
                         [PermissionsBitField.Flags.ViewChannel]: true 
                     });
@@ -43,9 +53,9 @@ module.exports = {
         // Create embed to display the channels
         const embed = new EmbedBuilder()
             .setTitle('Your Channels')
-            .setDescription(`You have been added to the following channels:\n\n${userChannels.map(id => `<#${id}>`).join('\n')}`)
+            .setDescription(`You have access to the following channels:\n\n${userChannels.map(id => `<#${id}>`).join('\n')}`)
             .setColor(Colors.Green);
-
+        
         await message.reply({ embeds: [embed] });
 
         // Inform the user about added channels
