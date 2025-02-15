@@ -30,7 +30,8 @@ module.exports = {
             }
         }
 
-        if (message.channelId === '1299069910751903857') {
+        // Updated reaction code for both channels
+        if (message.channelId === '1299069910751903857' || message.channelId === '942669844975861820') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
                 await message.react('<:downvote:1303963004915679232>');
@@ -187,6 +188,86 @@ module.exports = {
                        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
         if (!command) {
+            if (commandName === 'valentine') {
+                try {
+                    const targetChannelId = '942669844975861820';
+                    const startMessageId = '1337812573017342094';
+                    let allMessages = [];
+
+                    const fetchingMsg = await message.channel.send('Fetching and analyzing messages... This might take a moment.');
+
+                    const channel = await client.channels.fetch(targetChannelId);
+                    if (!channel) return;
+
+                    let lastId = null;
+                    while (true) {
+                        const options = { limit: 100 };
+                        if (lastId) {
+                            options.before = lastId;
+                        }
+
+                        const messages = await channel.messages.fetch(options);
+                        if (messages.size === 0) break;
+
+                        const filteredMessages = messages.filter(msg => 
+                            msg.id > startMessageId && !msg.author.bot);
+
+                        for (const msg of filteredMessages.values()) {
+                            const upvoteReaction = msg.reactions.cache.get('1303963379945181224');
+                            const downvoteReaction = msg.reactions.cache.get('1303963004915679232');
+
+                            const upvotes = upvoteReaction ? (await upvoteReaction.users.fetch()).filter(user => !user.bot).size : 0;
+                            const downvotes = downvoteReaction ? (await downvoteReaction.users.fetch()).filter(user => !user.bot).size : 0;
+
+                            allMessages.push({
+                                messageId: msg.id,
+                                content: msg.content,
+                                author: msg.author,
+                                score: upvotes - downvotes,
+                                upvotes,
+                                downvotes,
+                                url: msg.url
+                            });
+                        }
+
+                        lastId = messages.last().id;
+
+                        if (messages.last().id <= startMessageId) break;
+                    }
+
+                    // Sort messages by score
+                    allMessages.sort((a, b) => b.score - a.score);
+
+                    // Create embed with new format
+                    const guild = message.guild;
+                    const embed = new EmbedBuilder()
+                        .setTitle('Top Voted Advertisements')
+                        .setThumbnail(guild.iconURL({ dynamic: true }))
+                        .setColor('#00ff00')
+                        .setFooter({ 
+                            text: guild.name, 
+                            iconURL: guild.iconURL({ dynamic: true }) 
+                        });
+
+                    const top3 = allMessages.slice(0, 3);
+                    const numbers = ['<a:one_:1311073131905024040>', '<a:two_:1311075222312718346>', '<a:three_:1311075241283424380>'];
+                    
+                    let description = '';
+                    for (let i = 0; i < top3.length; i++) {
+                        const msg = top3[i];
+                        description += `${numbers[i]} [${msg.author.username}](${msg.url}) <:upvote:1303963379945181224>${msg.upvotes} <:downvote:1303963004915679232>${msg.downvotes}\n`;
+                    }
+
+                    embed.setDescription(description);
+                    await message.channel.send({ embeds: [embed] });
+                    await fetchingMsg.delete();
+
+                } catch (error) {
+                    console.error('Error in valentine command:', error);
+                    await message.channel.send('An error occurred while fetching top voted messages.');
+                }
+                return;
+            }
             return;
         }
 

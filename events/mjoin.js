@@ -37,7 +37,11 @@ module.exports = {
             
             // Prepare base embed structure
             const embed = new EmbedBuilder()
-                .setFooter({ text: member.user.id })
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                .setFooter({ 
+                    text: member.user.id,
+                    iconURL: member.guild.iconURL({ dynamic: true })
+                })
                 .addFields(
                     { name: 'Username', value: member.user.tag },
                     { name: 'Creation Time', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>` },
@@ -45,7 +49,6 @@ module.exports = {
                 );
 
             let dmSuccess = false;
-            const allowCommandInfo = { name: 'Note for Mods', value: `To allow this user to join despite account age, use \`,allow ${member.user.id}\`` };
             
             // Handle different age cases
             if (accountDays < 2 && !isAllowed) {
@@ -67,8 +70,7 @@ module.exports = {
                     .setTitle('User Banned')
                     .addFields(
                         { name: 'Reason', value: 'Account age less than 2 days' },
-                        { name: 'DM Status', value: dmSuccess ? `Sent ${EMOJIS.SUCCESS}` : `Failed ${EMOJIS.FAILED}` },
-                        allowCommandInfo
+                        { name: 'DM Status', value: dmSuccess ? `Sent ${EMOJIS.SUCCESS}` : `Failed ${EMOJIS.FAILED}` }
                     );
                 
             } else if (accountDays < 20 && !isAllowed) {
@@ -90,24 +92,26 @@ module.exports = {
                     .setTitle('User Kicked')
                     .addFields(
                         { name: 'Reason', value: 'Account age less than 20 days' },
-                        { name: 'DM Status', value: dmSuccess ? `Sent ${EMOJIS.SUCCESS}` : `Failed ${EMOJIS.FAILED}` },
-                        allowCommandInfo
+                        { name: 'DM Status', value: dmSuccess ? `Sent ${EMOJIS.SUCCESS}` : `Failed ${EMOJIS.FAILED}` }
                     );
                 
             } else {
                 // Log successful join for older accounts or allowed users
                 embed.setColor(0x00FF00)
                     .setTitle('User Joined')
-                    .addFields(
-                        {
-                            name: 'Status',
-                            value: isAllowed ? 
-                                'Allowed user (bypass age restriction)' : 
-                                'Account age sufficient (20+ days)'
-                        },
-                        allowCommandInfo
-                    );
+                    .addFields({
+                        name: 'Status',
+                        value: isAllowed ? 
+                            'Allowed user (bypass age restriction)' : 
+                            'Account age sufficient (20+ days)'
+                    });
             }
+
+            // Add the allow command in a new field at the end
+            embed.addFields({
+                name: 'Note for Mods',
+                value: `,allow ${member.user.id}`
+            });
 
             // Send the log embed
             await logChannel.send({ embeds: [embed] });
