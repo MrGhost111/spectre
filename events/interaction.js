@@ -491,7 +491,7 @@ async function handleModalSubmit(interaction) {
             // Save updated data to file
             fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
 
-            await interaction.followUp({
+            await interaction.folowUp({
                 content: `Channel ${channel} has been created successfully!`,
                 ephemeral: true
             });

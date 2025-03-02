@@ -31,7 +31,8 @@
       "f@iz",
       "f@lz",
       "faez",
-      "fa iz"
+      "fa iz",
+      "a card from your wishlist is dropping"
     ],
     "blacklist": {
       "words": [],
@@ -107,9 +108,12 @@
         "microwaving",
         "crowd",
         "scarecrow",
-        "pepecrow"
+        "pepecrow",
+        "crowculator"
       ],
-      "users": [],
+      "users": [
+        "563623938580676609"
+      ],
       "channels": [
         "715524366418444310",
         "722720921055395850",
@@ -374,10 +378,16 @@
   },
   "829267404890439740": {
     "words": [
-      "lesbians",
       "gay",
       "femboy",
-      "jill"
+      "jill",
+      "lesbian",
+      "pls",
+      "mafia",
+      "the",
+      "and",
+      "but",
+      "not"
     ],
     "blacklist": {
       "words": [],
@@ -390,11 +400,13 @@
   "947149661389590578": {
     "words": [
       "fish",
-      "fuwuz"
+      "kei"
     ],
     "blacklist": {
       "words": [],
-      "users": [],
+      "users": [
+        "817678194920390687"
+      ],
       "channels": [
         "710786870778527744",
         "715524366418444310",
@@ -407,6 +419,49 @@
         "747608606815420427",
         "887971526329118750"
       ]
+    }
+  },
+  "767696485188894730": {
+    "words": [
+      "hong",
+      "<@767696485188894730>",
+      "turnip"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "784764536673796126": {
+    "words": [
+      "purple",
+      "7109"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "691693416664531085": {
+    "words": [
+      "aadya"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "860577817510019103": {
+    "words": [
+      "farm"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
     }
   }
 }
