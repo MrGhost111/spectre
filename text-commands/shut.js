@@ -1,5 +1,4 @@
 // test
-// hi this is a test
 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs').promises;
