@@ -1,6 +1,4 @@
-// test 
-//i stg
-
+// if this is in the code then it did work idc how it did
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
