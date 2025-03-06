@@ -775,12 +775,15 @@ async function handleInfoButton(interaction) {
 async function handleRiskButton(interaction) {
     try {
         await interaction.deferUpdate();
-
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
-        if (!interaction.member.roles.cache.has(mutedRole.id)) {
+        
+        // Refresh member data to get the latest roles
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        
+        if (!member.roles.cache.has(mutedRole.id)) {
             return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
-
+        
         let mutesData = { users: [] };
         try {
             const data = fs.readFileSync(mutesPath, 'utf8');
@@ -789,30 +792,47 @@ async function handleRiskButton(interaction) {
             console.error(`Error reading mutes.json: ${error}`);
             return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
-
+        
         const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
         if (!userMute) {
             return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
-
+        
         if (userMute.button_clicked) {
             return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
         }
-
+        
         const currentTime = Math.floor(Date.now() / 1000);
         const remainingTime = userMute.muteEndTime - currentTime;
-
         if (remainingTime <= 0) {
             return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
-
+        
         const success = Math.random() < 0.5;
         let responseMessage;
-
+        
         if (success) {
-            await interaction.member.roles.remove(mutedRole);
-            responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
-            userMute.button_clicked = true;
+            // Try to unmute up to 3 times
+            let unmuted = false;
+            for (let attempt = 0; attempt < 3 && !unmuted; attempt++) {
+                try {
+                    await member.roles.remove(mutedRole);
+                    unmuted = true;
+                } catch (error) {
+                    console.error(`Unmute attempt ${attempt + 1} failed:`, error);
+                    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            
+            if (unmuted) {
+                responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+                
+                // IMPORTANT: Remove the mute entry completely on success
+                mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
+            } else {
+                responseMessage = `${interaction.user} took the risk and technically succeeded, but there was an error removing the mute. Please contact an admin.`;
+                userMute.button_clicked = true;
+            }
         } else {
             const newDuration = remainingTime * 2;
             const newEndTime = currentTime + newDuration;
@@ -821,17 +841,36 @@ async function handleRiskButton(interaction) {
             userMute.muteEndTime = newEndTime;
             userMute.button_clicked = true;
             
-            setTimeout(async () => {
-                try {
-                    await interaction.member.roles.remove(mutedRole);
-                    mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
-                    fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
-                } catch (error) {
-                    console.error('Error in unmute timeout:', error);
-                }
-            }, newDuration * 1000);
+            // Schedule multiple unmute attempts
+            [1000, 5000, 15000].forEach(offset => {
+                setTimeout(async () => {
+                    try {
+                        // Read the latest data to make sure we're using current state
+                        const latestMutes = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
+                        const stillMuted = latestMutes.users.some(mute => 
+                            mute.userId === interaction.user.id && mute.muteEndTime === newEndTime
+                        );
+                        
+                        if (stillMuted) {
+                            const freshMember = await interaction.guild.members.fetch(interaction.user.id);
+                            if (freshMember.roles.cache.has(mutedRole.id)) {
+                                await freshMember.roles.remove(mutedRole);
+                                console.log(`Unmuted ${interaction.user.tag} after doubled duration`);
+                                
+                                // Clean up after successful unmute
+                                latestMutes.users = latestMutes.users.filter(mute => 
+                                    !(mute.userId === interaction.user.id && mute.muteEndTime === newEndTime)
+                                );
+                                fs.writeFileSync(mutesPath, JSON.stringify(latestMutes, null, 2));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error in unmute timeout:', error);
+                    }
+                }, newDuration * 1000 + offset);
+            });
         }
-
+        
         fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
         await interaction.followUp({ content: responseMessage });
     } catch (error) {

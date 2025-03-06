@@ -87,12 +87,6 @@
       "button_clicked": true
     },
     {
-      "userId": "667269787818131456",
-      "muteStartTime": 1737898508,
-      "muteEndTime": 1737898556,
-      "button_clicked": true
-    },
-    {
       "userId": "1263019284255473678",
       "muteStartTime": 1737994601,
       "muteEndTime": 1737994665,
@@ -197,22 +191,6 @@
       "roleId": "673978861335085107"
     },
     {
-      "userId": "947149661389590578",
-      "muteStartTime": 1740407443,
-      "muteEndTime": 1740407511,
-      "button_clicked": true,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
-      "userId": "775572568437555250",
-      "muteStartTime": 1740505085,
-      "muteEndTime": 1740505152,
-      "button_clicked": false,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
       "userId": "515646431059640330",
       "muteStartTime": 1740572011,
       "muteEndTime": 1740572063,
@@ -221,25 +199,9 @@
       "roleId": "673978861335085107"
     },
     {
-      "userId": "826115461623054336",
-      "muteStartTime": 1740820463,
-      "muteEndTime": 1740820516,
-      "button_clicked": true,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
-      "userId": "693463277442826240",
-      "muteStartTime": 1740760977,
-      "muteEndTime": 1740761021,
-      "button_clicked": true,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
       "userId": "817678194920390687",
-      "muteStartTime": 1740836787,
-      "muteEndTime": 1740836850,
+      "muteStartTime": 1741009556,
+      "muteEndTime": 1741009600,
       "button_clicked": true,
       "guildId": "673970118744735764",
       "roleId": "673978861335085107"
@@ -253,26 +215,10 @@
       "roleId": "673978861335085107"
     },
     {
-      "userId": "784764536673796126",
-      "muteStartTime": 1740897686,
-      "muteEndTime": 1740897721,
-      "button_clicked": true,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
       "userId": "749951391249727598",
-      "muteStartTime": 1740836081,
-      "muteEndTime": 1740836134,
-      "button_clicked": true,
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107"
-    },
-    {
-      "userId": "580287786712563723",
-      "muteStartTime": 1740836879,
-      "muteEndTime": 1740836928,
-      "button_clicked": true,
+      "muteStartTime": 1741006958,
+      "muteEndTime": 1741007025,
+      "button_clicked": false,
       "guildId": "673970118744735764",
       "roleId": "673978861335085107"
     },
@@ -285,17 +231,57 @@
       "roleId": "673978861335085107"
     },
     {
-      "userId": "753491023208120321",
-      "muteStartTime": 1740922489,
-      "muteEndTime": 1740922542,
+      "userId": "560093267497189396",
+      "muteStartTime": 1741102113,
+      "muteEndTime": 1741102200,
       "button_clicked": true,
       "guildId": "673970118744735764",
       "roleId": "673978861335085107"
     },
     {
-      "userId": "777037380367417344",
-      "muteStartTime": 1740922787,
-      "muteEndTime": 1740922848,
+      "userId": "932458730304442399",
+      "muteStartTime": 1741002391,
+      "muteEndTime": 1741002448,
+      "button_clicked": false,
+      "guildId": "673970118744735764",
+      "roleId": "673978861335085107"
+    },
+    {
+      "userId": "797066043016347649",
+      "muteStartTime": 1741013131,
+      "muteEndTime": 1741013174,
+      "button_clicked": true,
+      "guildId": "673970118744735764",
+      "roleId": "673978861335085107"
+    },
+    {
+      "userId": "740108592283385868",
+      "muteStartTime": 1741093146,
+      "muteEndTime": 1741093211,
+      "button_clicked": true,
+      "guildId": "673970118744735764",
+      "roleId": "673978861335085107"
+    },
+    {
+      "userId": "707531701638660147",
+      "muteStartTime": 1741105173,
+      "muteEndTime": 1741105213,
+      "button_clicked": true,
+      "guildId": "673970118744735764",
+      "roleId": "673978861335085107"
+    },
+    {
+      "userId": "770593236129284126",
+      "muteStartTime": 1741175435,
+      "muteEndTime": 1741175499,
+      "button_clicked": true,
+      "guildId": "673970118744735764",
+      "roleId": "673978861335085107"
+    },
+    {
+      "userId": "705687251950239774",
+      "muteStartTime": 1741195112,
+      "muteEndTime": 1741195153,
       "button_clicked": true,
       "guildId": "673970118744735764",
       "roleId": "673978861335085107"
