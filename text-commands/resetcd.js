@@ -9,12 +9,14 @@ module.exports = {
     execute(message, args) {
         // The ID of the user who can bypass the cooldown for resetcd command
         const bypassUserId = '753491023208120321';
+        // Role IDs that get reduced 12h cooldown
+        const reducedCooldownRoleIds = ['768449168297033769', '946729964328337408'];
 
         // Check if the user is the one who can bypass the resetcd command cooldown
         if (message.author.id !== bypassUserId) {
             const currentTime = Math.floor(Date.now() / 1000);
             const userCommandCooldown = commandCooldowns.get(message.author.id);
-            
+
             // Check if the user is still on cooldown for resetcd command
             if (userCommandCooldown && userCommandCooldown > currentTime) {
                 return message.channel.send(`You can use it again at <t:${userCommandCooldown}:t> (<t:${userCommandCooldown}:R>).`);
@@ -49,9 +51,22 @@ module.exports = {
                 return message.channel.send('An error occurred while trying to reset the cooldown.');
             }
 
-            // Set a 24-hour cooldown for the command, unless the user bypasses it
+            // Check if user has bypass permission
             if (message.author.id !== bypassUserId) {
-                const cooldownEnd = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours in seconds
+                // Check if user has any of the reduced cooldown roles
+                const hasReducedCooldownRole = message.member.roles.cache.some(role =>
+                    reducedCooldownRoleIds.includes(role.id)
+                );
+
+                // Set cooldown based on role
+                let cooldownDuration;
+                if (hasReducedCooldownRole) {
+                    cooldownDuration = 12 * 60 * 60; // 12 hours in seconds
+                } else {
+                    cooldownDuration = 24 * 60 * 60; // 24 hours in seconds
+                }
+
+                const cooldownEnd = Math.floor(Date.now() / 1000) + cooldownDuration;
                 commandCooldowns.set(message.author.id, cooldownEnd);
             }
 
