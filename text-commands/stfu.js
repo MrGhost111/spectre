@@ -371,12 +371,12 @@ module.exports = {
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
-            const currentStreak = success ? (previousStreak + 1) : 0;
 
             // Calculate luck with streaks and roll results
             const totalLuck = calculateLuck(message.member, previousStreak);
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
+            const currentStreak = success ? (previousStreak + 1) : 0;
 
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
@@ -397,7 +397,8 @@ module.exports = {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
-                        // Pass the muter's ID to track who issued the mute
+                        // Pass the muter's ID to track who issued the mute - this is critical for the risk button
+                        // If successful, the command user is the muter; if not, there's no muter (self-mute)
                         const muterId = success ? message.author.id : null;
                         muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes, muterId);
                         if (!muteSuccess) {

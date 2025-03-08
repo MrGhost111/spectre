@@ -1002,12 +1002,6 @@ async function handleRiskButton(interaction) {
         await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
-
-module.exports = {
-    handleInfoButton,
-    handleRiskButton
-};
-
 function calculateMaxFriends(member) {
     const roleLimits = {
         '768448955804811274': 5,
