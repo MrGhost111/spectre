@@ -779,98 +779,37 @@ async function handleRiskButton(interaction) {
         await interaction.deferUpdate();
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
 
-        // Check if user has muted role
+        // Refresh member data to get the latest roles
         const member = await interaction.guild.members.fetch(interaction.user.id);
+
         if (!member.roles.cache.has(mutedRole.id)) {
-            return await interaction.followUp({
-                content: 'This button is only for muted users.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
 
-        // Get the message from the interaction
-        const message = interaction.message;
-
-        // Extract information from the embed
-        const embed = message.embeds[0];
-        if (!embed || !embed.description) {
-            return await interaction.followUp({
-                content: 'Could not find the necessary information.',
-                ephemeral: true
-            });
+        let mutesData = { users: [] };
+        try {
+            const data = fs.readFileSync(mutesPath, 'utf8');
+            mutesData = JSON.parse(data);
+        } catch (error) {
+            console.error(`Error reading mutes.json: ${error}`);
+            return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
 
-        // Parse the description to get information about who was muted
-        const description = embed.description;
-
-        // Extract muted user and duration from the result message
-        // The format is either:
-        // > You hit **username** right into the face and muted them for **XX seconds**.
-        // > You tried to hit **username** but failed miserably. Enjoy **XX second mute for showing skill issue**.
-        let targetUserId, duration;
-
-        if (description.includes('but failed miserably')) {
-            // It was a fail, so the muted user is the command user
-            const commandUser = message.interaction ? message.interaction.user.id :
-                embed.footer ? embed.footer.text.match(/Command used by: (\d+)/) : null;
-
-            targetUserId = commandUser ? commandUser[1] : null;
-            const durationMatch = description.match(/Enjoy \*\*(\d+) second mute/);
-            duration = durationMatch ? parseInt(durationMatch[1]) : null;
-        } else {
-            // It was a success, so we need to extract the target user mention from the message
-            const mentionMatch = description.match(/hit \*\*([^*]+)\*\* right into the face/);
-            const username = mentionMatch ? mentionMatch[1] : null;
-
-            // Find user with this username in the message mentions
-            const targetUser = Array.from(message.mentions.users.values())
-                .find(user => user.username === username);
-
-            targetUserId = targetUser ? targetUser.id : null;
-            const durationMatch = description.match(/muted them for \*\*(\d+) seconds\*\*/);
-            duration = durationMatch ? parseInt(durationMatch[1]) : null;
+        const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
+        if (!userMute) {
+            return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
 
-        // Verify we have the necessary information and the right user is clicking
-        if (!targetUserId || !duration) {
-            return await interaction.followUp({
-                content: 'Could not determine mute details from the message.',
-                ephemeral: true
-            });
+        if (userMute.button_clicked) {
+            return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
         }
 
-        if (targetUserId !== interaction.user.id) {
-            return await interaction.followUp({
-                content: 'This risk button is not for you. Find the message where you were muted.',
-                ephemeral: true
-            });
-        }
-
-        // Calculate remaining time (assume the message timestamp is when the mute started)
-        const muteStartTime = Math.floor(message.createdTimestamp / 1000);
         const currentTime = Math.floor(Date.now() / 1000);
-        const elapsedTime = currentTime - muteStartTime;
-        const remainingTime = Math.max(0, duration - elapsedTime);
-
+        const remainingTime = userMute.muteEndTime - currentTime;
         if (remainingTime <= 0) {
-            return await interaction.followUp({
-                content: 'Your mute has already expired.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
 
-        // Check if button was already used (add a property to the message)
-        if (message.riskButtonUsed) {
-            return await interaction.followUp({
-                content: 'You have already used the risk button for this mute.',
-                ephemeral: true
-            });
-        }
-
-        // Mark the button as used
-        message.riskButtonUsed = true;
-
-        // 50/50 chance to succeed
         const success = Math.random() < 0.5;
         let responseMessage;
 
@@ -889,22 +828,43 @@ async function handleRiskButton(interaction) {
 
             if (unmuted) {
                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+
+                // IMPORTANT: Remove the mute entry completely on success
+                mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
             } else {
                 responseMessage = `${interaction.user} took the risk and technically succeeded, but there was an error removing the mute. Please contact an admin.`;
+                userMute.button_clicked = true;
             }
         } else {
-            // Double the duration and schedule unmute
             const newDuration = remainingTime * 2;
+            const newEndTime = currentTime + newDuration;
             responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
 
-            // Schedule unmute after the doubled duration
-            [0, 5000, 15000].forEach(offset => {
+            userMute.muteEndTime = newEndTime;
+            userMute.button_clicked = true;
+
+            // Schedule multiple unmute attempts
+            [1000, 5000, 15000].forEach(offset => {
                 setTimeout(async () => {
                     try {
-                        const freshMember = await interaction.guild.members.fetch(interaction.user.id);
-                        if (freshMember.roles.cache.has(mutedRole.id)) {
-                            await freshMember.roles.remove(mutedRole);
-                            console.log(`Unmuted ${interaction.user.tag} after doubled duration`);
+                        // Read the latest data to make sure we're using current state
+                        const latestMutes = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
+                        const stillMuted = latestMutes.users.some(mute =>
+                            mute.userId === interaction.user.id && mute.muteEndTime === newEndTime
+                        );
+
+                        if (stillMuted) {
+                            const freshMember = await interaction.guild.members.fetch(interaction.user.id);
+                            if (freshMember.roles.cache.has(mutedRole.id)) {
+                                await freshMember.roles.remove(mutedRole);
+                                console.log(`Unmuted ${interaction.user.tag} after doubled duration`);
+
+                                // Clean up after successful unmute
+                                latestMutes.users = latestMutes.users.filter(mute =>
+                                    !(mute.userId === interaction.user.id && mute.muteEndTime === newEndTime)
+                                );
+                                fs.writeFileSync(mutesPath, JSON.stringify(latestMutes, null, 2));
+                            }
                         }
                     } catch (error) {
                         console.error('Error in unmute timeout:', error);
@@ -913,14 +873,11 @@ async function handleRiskButton(interaction) {
             });
         }
 
-        // Respond with the result
+        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
         await interaction.followUp({ content: responseMessage });
     } catch (error) {
         console.error('Error in handleRiskButton:', error);
-        await interaction.followUp({
-            content: 'An error occurred while processing your request.',
-            ephemeral: true
-        });
+        await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
 

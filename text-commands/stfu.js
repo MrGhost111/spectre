@@ -2,7 +2,6 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
-
 // Initialize caches
 const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
 const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
@@ -432,12 +431,9 @@ module.exports = {
                     resultMessage + '\n\n' +
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     `<:idk:1064831073881694278> Luck: **${totalLuck}**`
-            )
-                .setFooter({ text: `Command used by: ${message.author.id}` })
+                )
                 .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
                 .setFooter({ text: `Total Uses: ${userStats.totalUses} | Successes: ${userStats.successes} | Fails: ${userStats.fails}` });
-
-                ;
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
