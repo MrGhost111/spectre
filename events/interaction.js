@@ -699,120 +699,151 @@ async function handleLeaderboardButton(interaction) {
     await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
 }
 async function handleInfoButton(interaction) {
-    const memberRoles = interaction.member.roles.cache;
+    try {
+        // Read current streaks
+        const streaksPath = path.join(__dirname, '../data/streaks.json');
+        let streaksData = { users: [] };
+        try {
+            const data = await fs.readFile(streaksPath, 'utf8');
+            streaksData = JSON.parse(data);
+        } catch (error) {
+            console.error(`Error reading streaks.json: ${error}`);
+        }
 
-    const baseRoles = {
-        '866641313754251297': 75,
-        '866641299355861022': 75,
-        '866641249452556309': 70,
-        '866641177943080960': 65,
-        '866641062441254932': 60,
-        '783032959350734868': 70,
-        '1038888209440067604': 75,
-        '946729964328337408': 75,
-        '768449168297033769': 70,
-        '768448955804811274': 65,
-        '1038106794200932512': 75,
-        '1028256279124250624': 70,
-        '1028256286560763984': 65,
-        '1030707878597763103': 60,
-        '721331975847411754': 65,
-    };
+        // Get user's current streak
+        const userStreak = streaksData.users.find(entry => entry.userId === interaction.user.id);
+        const currentStreak = userStreak ? userStreak.streak : 0;
+        const streakLuckBonus = Math.floor(currentStreak / 10); // 1% per 10 streak
 
-    const boosterRoles = {
-        '1038888209440067604': 5,
-        '721331975847411754': 5,
-        '721020858818232343': 5,
-        '713452411720827013': 5
-    };
+        const memberRoles = interaction.member.roles.cache;
 
-    let luck = 0;
-    let highestBaseRole = null;
-    let boosterLuck = 0;
-    let contributingRoles = [];
+        const baseRoles = {
+            '866641313754251297': 75,
+            '866641299355861022': 75,
+            '866641249452556309': 70,
+            '866641177943080960': 65,
+            '866641062441254932': 60,
+            '783032959350734868': 70,
+            '1038888209440067604': 75,
+            '946729964328337408': 75,
+            '768449168297033769': 70,
+            '768448955804811274': 65,
+            '1038106794200932512': 75,
+            '1028256279124250624': 70,
+            '1028256286560763984': 65,
+            '1030707878597763103': 60,
+            '721331975847411754': 65,
+        };
 
-    for (const [roleId, luckValue] of Object.entries(baseRoles)) {
-        if (memberRoles.has(roleId)) {
-            if (luckValue > luck) {
-                luck = luckValue;
-                highestBaseRole = `<@&${roleId}> (Base Luck: ${luckValue}%)`;
+        const boosterRoles = {
+            '1038888209440067604': 5,
+            '721331975847411754': 5,
+            '721020858818232343': 5,
+            '713452411720827013': 5
+        };
+
+        let luck = 0;
+        let highestBaseRole = null;
+        let boosterLuck = 0;
+        let contributingRoles = [];
+
+        for (const [roleId, luckValue] of Object.entries(baseRoles)) {
+            if (memberRoles.has(roleId)) {
+                if (luckValue > luck) {
+                    luck = luckValue;
+                    highestBaseRole = `<@&${roleId}> (Base Luck: ${luckValue}%)`;
+                }
             }
         }
-    }
 
-    for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
-        if (memberRoles.has(roleId)) {
-            boosterLuck += boostValue;
-            contributingRoles.push(`<@&${roleId}> (Booster Luck: +${boostValue}%)`);
-        }
-    }
-
-    const totalLuck = Math.min(luck + boosterLuck, 100);
-
-    if (!highestBaseRole) {
-        contributingRoles.push('No base luck roles assigned.');
-    }
-
-    const luckEmbed = new EmbedBuilder()
-        .setTitle('Luck Information')
-        .setColor(0x6666FF)
-        .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
-        .addFields(
-            { name: 'Highest Base Role', value: highestBaseRole || 'None' },
-            { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
-            {
-                name: '----------- Base Roles -----------',
-                value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
-            },
-            {
-                name: '----------- Booster Roles -----------',
-                value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
+        for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
+            if (memberRoles.has(roleId)) {
+                boosterLuck += boostValue;
+                contributingRoles.push(`<@&${roleId}> (Booster Luck: +${boostValue}%)`);
             }
-        )
-        .setFooter({ text: 'Luck is calculated based on your roles.' });
+        }
 
-    await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
+        // Add streak bonus to total luck
+        const totalLuck = Math.min(luck + boosterLuck + streakLuckBonus, 100);
+
+        if (!highestBaseRole) {
+            contributingRoles.push('No base luck roles assigned.');
+        }
+
+        // Add streak info if user has a streak
+        if (currentStreak > 0 && streakLuckBonus > 0) {
+            contributingRoles.push(`Streak Bonus: +${streakLuckBonus}% (Current streak: ${currentStreak})`);
+        }
+
+        const luckEmbed = new EmbedBuilder()
+            .setTitle('Luck Information')
+            .setColor(0x6666FF)
+            .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
+            .addFields(
+                { name: 'Highest Base Role', value: highestBaseRole || 'None' },
+                { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
+                {
+                    name: '----------- Base Roles -----------',
+                    value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
+                },
+                {
+                    name: '----------- Booster Roles -----------',
+                    value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
+                },
+                {
+                    name: '----------- Streak Bonus -----------',
+                    value: `+1% luck for every 10 streak points (Current: ${currentStreak} streak = +${streakLuckBonus}%)`
+                }
+            )
+            .setFooter({ text: 'Luck is calculated based on your roles and streak.' });
+
+        await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
+    } catch (error) {
+        console.error('Error in handleInfoButton:', error);
+        await interaction.reply({ content: 'An error occurred while fetching your luck information.', ephemeral: true });
+    }
 }
 
 async function handleRiskButton(interaction) {
     try {
         await interaction.deferUpdate();
+        const mutesPath = path.join(__dirname, '../data/mutes.json');
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
-        
+
         // Refresh member data to get the latest roles
         const member = await interaction.guild.members.fetch(interaction.user.id);
-        
+
         if (!member.roles.cache.has(mutedRole.id)) {
             return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
-        
+
         let mutesData = { users: [] };
         try {
-            const data = fs.readFileSync(mutesPath, 'utf8');
+            const data = await fs.readFile(mutesPath, 'utf8');
             mutesData = JSON.parse(data);
         } catch (error) {
             console.error(`Error reading mutes.json: ${error}`);
             return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
-        
+
         const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
         if (!userMute) {
             return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
-        
+
         if (userMute.button_clicked) {
             return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
         }
-        
+
         const currentTime = Math.floor(Date.now() / 1000);
         const remainingTime = userMute.muteEndTime - currentTime;
         if (remainingTime <= 0) {
             return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
-        
+
         const success = Math.random() < 0.5;
         let responseMessage;
-        
+
         if (success) {
             // Try to unmute up to 3 times
             let unmuted = false;
@@ -825,10 +856,35 @@ async function handleRiskButton(interaction) {
                     if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
-            
+
             if (unmuted) {
                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
-                
+
+                // Check if there's a muter to reverse the mute to
+                if (userMute.muterId) {
+                    try {
+                        // Get the original muter
+                        const muter = await interaction.guild.members.fetch(userMute.muterId);
+                        if (muter) {
+                            const doubledDuration = remainingTime * 2;
+
+                            // Apply mute to the original muter
+                            await handleMute(
+                                muter,
+                                doubledDuration,
+                                mutedRole,
+                                mutesData,
+                                interaction.user.id // Record who applied the reverse mute
+                            );
+
+                            responseMessage += ` Additionally, ${muter} has been muted for **${Math.floor(doubledDuration)} seconds** as karma!`;
+                        }
+                    } catch (error) {
+                        console.error('Error applying reverse mute:', error);
+                        responseMessage += ` However, there was an error applying the reverse mute to the original muter.`;
+                    }
+                }
+
                 // IMPORTANT: Remove the mute entry completely on success
                 mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
             } else {
@@ -839,31 +895,31 @@ async function handleRiskButton(interaction) {
             const newDuration = remainingTime * 2;
             const newEndTime = currentTime + newDuration;
             responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
-            
+
             userMute.muteEndTime = newEndTime;
             userMute.button_clicked = true;
-            
+
             // Schedule multiple unmute attempts
             [1000, 5000, 15000].forEach(offset => {
                 setTimeout(async () => {
                     try {
                         // Read the latest data to make sure we're using current state
-                        const latestMutes = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
-                        const stillMuted = latestMutes.users.some(mute => 
+                        const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
+                        const stillMuted = latestMutes.users.some(mute =>
                             mute.userId === interaction.user.id && mute.muteEndTime === newEndTime
                         );
-                        
+
                         if (stillMuted) {
                             const freshMember = await interaction.guild.members.fetch(interaction.user.id);
                             if (freshMember.roles.cache.has(mutedRole.id)) {
                                 await freshMember.roles.remove(mutedRole);
                                 console.log(`Unmuted ${interaction.user.tag} after doubled duration`);
-                                
+
                                 // Clean up after successful unmute
-                                latestMutes.users = latestMutes.users.filter(mute => 
+                                latestMutes.users = latestMutes.users.filter(mute =>
                                     !(mute.userId === interaction.user.id && mute.muteEndTime === newEndTime)
                                 );
-                                fs.writeFileSync(mutesPath, JSON.stringify(latestMutes, null, 2));
+                                await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 2), 'utf8');
                             }
                         }
                     } catch (error) {
@@ -872,14 +928,177 @@ async function handleRiskButton(interaction) {
                 }, newDuration * 1000 + offset);
             });
         }
-        
-        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
+
+        await fs.writeFile(mutesPath, JSON.stringify(mutesData, null, 2), 'utf8');
         await interaction.followUp({ content: responseMessage });
     } catch (error) {
         console.error('Error in handleRiskButton:', error);
         await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
+
+// Import the handleMute function from the main file
+async function handleMute(member, duration, muteRole, mutes, muterId = null) {
+    try {
+        if (!member) {
+            console.error('Member not found');
+            return false;
+        }
+        const muteStartTime = Math.floor(Date.now() / 1000);
+        const muteEndTime = muteStartTime + duration;
+
+        // Add mute role with retry mechanism
+        let muteAttempts = 0;
+        const maxAttempts = 3;
+        let muteSuccessful = false;
+
+        while (muteAttempts < maxAttempts && !muteSuccessful) {
+            try {
+                await member.roles.add(muteRole);
+                muteSuccessful = true;
+            } catch (error) {
+                muteAttempts++;
+                console.error(`Mute attempt ${muteAttempts} failed:`, error);
+                if (muteAttempts === maxAttempts) {
+                    console.error(`Failed to mute ${member.user.tag} after ${maxAttempts} attempts:`, error);
+                    return false;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            }
+        }
+
+        if (!muteSuccessful) {
+            return false;
+        }
+
+        // Create mute data
+        const muteData = {
+            userId: member.id,
+            muteStartTime,
+            muteEndTime,
+            button_clicked: false,
+            guildId: member.guild.id,
+            roleId: muteRole.id,
+            muterId: muterId // Store who issued the mute
+        };
+
+        // Add mute data to file
+        const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
+        if (existingMuteIndex !== -1) {
+            mutes.users[existingMuteIndex] = muteData;
+        } else {
+            mutes.users.push(muteData);
+        }
+
+        // Write to file immediately to ensure data is saved for risk button
+        const mutesPath = path.join(__dirname, '../data/mutes.json');
+        const writeSuccess = await fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), 'utf8')
+            .then(() => true)
+            .catch(error => {
+                console.error(`Failed to write mute data for ${member.user.tag}`, error);
+                return false;
+            });
+
+        if (!writeSuccess) {
+            console.error(`Failed to write mute data for ${member.user.tag}`);
+            // Don't return false here, still try to schedule unmutes even if write fails
+        }
+
+        // Update mute history
+        if (muterId) {
+            const muteHistoryPath = path.join(__dirname, '../data/muteHistory.json');
+            try {
+                const muteHistory = JSON.parse(await fs.readFile(muteHistoryPath, 'utf8'));
+
+                const muteData = {
+                    mutedUserId: member.id,
+                    muterId,
+                    muteTime: muteStartTime,
+                    duration,
+                    guildId: member.guild.id
+                };
+
+                const existingIndex = muteHistory.users.findIndex(entry => entry.mutedUserId === member.id);
+                if (existingIndex !== -1) {
+                    muteHistory.users[existingIndex] = muteData;
+                } else {
+                    muteHistory.users.push(muteData);
+                }
+
+                await fs.writeFile(muteHistoryPath, JSON.stringify(muteHistory, null, 4), 'utf8');
+            } catch (error) {
+                console.error('Error updating mute history:', error);
+            }
+        }
+
+        // Function to attempt unmute
+        const scheduleUnmute = async () => {
+            try {
+                const updatedMember = await member.guild.members.fetch(member.id);
+                if (updatedMember.roles.cache.has(muteRole.id)) {
+                    await updatedMember.roles.remove(muteRole);
+                    console.log(`Successfully unmuted ${member.user.tag}`);
+
+                    // After successful unmute, clean up mute data
+                    try {
+                        const mutesPath = path.join(__dirname, '../data/mutes.json');
+                        const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
+                        latestMutes.users = latestMutes.users.filter(mute =>
+                            !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
+                        );
+                        await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4), 'utf8');
+                    } catch (cleanupError) {
+                        console.error('Error cleaning up mute data:', cleanupError);
+                    }
+
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error(`Failed to unmute ${member.user.tag}:`, error);
+                // Retry after 5 seconds if failed
+                setTimeout(scheduleUnmute, 5000);
+                return false;
+            }
+        };
+
+        // Schedule multiple unmute attempts at different times
+        const unmuteTimes = [
+            duration * 1000,           // Exact duration
+            (duration * 1000) + 5000,  // 5 seconds after
+            (duration * 1000) + 15000  // 15 seconds after
+        ];
+
+        unmuteTimes.forEach(time => {
+            setTimeout(async () => {
+                try {
+                    // Check if this mute is still active and not risk-button-clicked
+                    const mutesPath = path.join(__dirname, '../data/mutes.json');
+                    const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
+                    const userMute = latestMutes.users.find(mute =>
+                        mute.userId === member.id && mute.muteEndTime === muteEndTime && !mute.button_clicked
+                    );
+
+                    if (userMute) {
+                        await scheduleUnmute();
+                    }
+                } catch (error) {
+                    console.error('Error in unmute timeout:', error);
+                }
+            }, time);
+        });
+
+        return true;
+    } catch (error) {
+        console.error('Error in handleMute:', error);
+        return false;
+    }
+}
+
+module.exports = {
+    handleInfoButton,
+    handleRiskButton
+};
 
 function calculateMaxFriends(member) {
     const roleLimits = {

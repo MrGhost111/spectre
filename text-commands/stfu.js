@@ -11,7 +11,8 @@ const DATA_PATHS = {
     mutes: path.join(__dirname, '../data/mutes.json'),
     cooldowns: path.join(__dirname, '../data/cooldowns.json'),
     bars: path.join(__dirname, '../data/bars.json'),
-    stats: path.join(__dirname, '../data/stats.json')
+    stats: path.join(__dirname, '../data/stats.json'),
+    muteHistory: path.join(__dirname, '../data/muteHistory.json')
 };
 // Role configurations
 const ROLE_CONFIGS = {
@@ -71,8 +72,8 @@ function getBar(value, bars, barType) {
     if (value <= 90) return bars[barType]['81-90'];
     return bars[barType]['91-100'];
 }
-function calculateLuck(member) {
-    const cacheKey = `luck_${member.id}`;
+function calculateLuck(member, streak = 0) {
+    const cacheKey = `luck_${member.id}_${streak}`;
     const cachedLuck = roleCache.get(cacheKey);
 
     if (cachedLuck !== undefined) {
@@ -92,7 +93,10 @@ function calculateLuck(member) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    const totalLuck = Math.min(luck + boosterLuck, 100);
+    // Add streak-based luck (1% per 10 streak)
+    const streakLuck = Math.floor(streak / 10);
+
+    const totalLuck = Math.min(luck + boosterLuck + streakLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -120,7 +124,33 @@ async function updateUserStats(userId, success) {
     await writeJsonFile(DATA_PATHS.stats, stats);
     return userStats;
 }
-async function handleMute(member, duration, muteRole, mutes) {
+async function updateMuteHistory(mutedUserId, muterId, duration, guildId) {
+    try {
+        const muteHistory = await readJsonFile(DATA_PATHS.muteHistory);
+
+        const muteData = {
+            mutedUserId,
+            muterId,
+            muteTime: Math.floor(Date.now() / 1000),
+            duration,
+            guildId
+        };
+
+        const existingIndex = muteHistory.users.findIndex(entry => entry.mutedUserId === mutedUserId);
+        if (existingIndex !== -1) {
+            muteHistory.users[existingIndex] = muteData;
+        } else {
+            muteHistory.users.push(muteData);
+        }
+
+        await writeJsonFile(DATA_PATHS.muteHistory, muteHistory);
+        return true;
+    } catch (error) {
+        console.error('Error updating mute history:', error);
+        return false;
+    }
+}
+async function handleMute(member, duration, muteRole, mutes, muterId = null) {
     try {
         if (!member) {
             console.error('Member not found');
@@ -160,7 +190,8 @@ async function handleMute(member, duration, muteRole, mutes) {
             muteEndTime,
             button_clicked: false,
             guildId: member.guild.id,
-            roleId: muteRole.id
+            roleId: muteRole.id,
+            muterId: muterId // Store who issued the mute
         };
 
         // Add mute data to file
@@ -177,6 +208,11 @@ async function handleMute(member, duration, muteRole, mutes) {
         if (!writeSuccess) {
             console.error(`Failed to write mute data for ${member.user.tag}`);
             // Don't return false here, still try to schedule unmutes even if write fails
+        }
+
+        // Update mute history
+        if (muterId) {
+            await updateMuteHistory(member.id, muterId, duration, member.guild.id);
         }
 
         // Function to attempt unmute
@@ -331,16 +367,16 @@ module.exports = {
                 return message.channel.send('Error loading bars data. Please try again later.');
             }
 
-            // Calculate luck and roll results
-            const totalLuck = calculateLuck(message.member);
-            const luckCheckRoll = Math.floor(Math.random() * 101);
-            const success = luckCheckRoll <= totalLuck;
-
             // Handle streaks
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
             const currentStreak = success ? (previousStreak + 1) : 0;
+
+            // Calculate luck with streaks and roll results
+            const totalLuck = calculateLuck(message.member, previousStreak);
+            const luckCheckRoll = Math.floor(Math.random() * 101);
+            const success = luckCheckRoll <= totalLuck;
 
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
@@ -361,7 +397,9 @@ module.exports = {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
-                        muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
+                        // Pass the muter's ID to track who issued the mute
+                        const muterId = success ? message.author.id : null;
+                        muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes, muterId);
                         if (!muteSuccess) {
                             console.error('Failed to apply mute');
                             message.channel.send('There was an issue applying the mute. Please try again or contact an admin.').catch(console.error);
@@ -416,10 +454,13 @@ module.exports = {
                         .setEmoji('<:creepypp:1060554596310843553>')
                 );
 
+            // Calculate streak-based luck bonus
+            const streakLuckBonus = Math.floor(previousStreak / 10);
+
             // Modify streak display for failed attempts
             const streakDisplay = success
-                ? `**${currentStreak}**`
-                : `**${previousStreak} → 0**`;
+                ? `**${currentStreak}**${streakLuckBonus > 0 ? ` (+${streakLuckBonus}% luck)` : ''}`
+                : `**${previousStreak} → 0**${streakLuckBonus > 0 ? ` (lost +${streakLuckBonus}% luck)` : ''}`;
 
             // Create embed
             const embed = new EmbedBuilder()
