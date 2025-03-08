@@ -74,12 +74,12 @@ function getBar(value, bars, barType) {
 function calculateLuck(member) {
     const cacheKey = `luck_${member.id}`;
     const cachedLuck = roleCache.get(cacheKey);
-    
+
     if (cachedLuck !== undefined) {
         return cachedLuck;
     }
     let luck = 0;
-    
+
     // Check tier roles
     for (const tier of Object.values(ROLE_CONFIGS)) {
         if (tier.roles.some(roleId => member.roles.cache.has(roleId))) {
@@ -87,14 +87,14 @@ function calculateLuck(member) {
             break;
         }
     }
-    
+
     // Add booster luck
-    const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) => 
+    const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
-    
+
     const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
-    
+
     return totalLuck;
 }
 async function updateUserStats(userId, success) {
@@ -128,12 +128,12 @@ async function handleMute(member, duration, muteRole, mutes) {
         }
         const muteStartTime = Math.floor(Date.now() / 1000);
         const muteEndTime = muteStartTime + duration;
-        
+
         // Add mute role with retry mechanism
         let muteAttempts = 0;
         const maxAttempts = 3;
         let muteSuccessful = false;
-        
+
         while (muteAttempts < maxAttempts && !muteSuccessful) {
             try {
                 await member.roles.add(muteRole);
@@ -148,11 +148,11 @@ async function handleMute(member, duration, muteRole, mutes) {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
             }
         }
-        
+
         if (!muteSuccessful) {
             return false;
         }
-        
+
         // Create mute data
         const muteData = {
             userId: member.id,
@@ -162,7 +162,7 @@ async function handleMute(member, duration, muteRole, mutes) {
             guildId: member.guild.id,
             roleId: muteRole.id
         };
-        
+
         // Add mute data to file
         const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
         if (existingMuteIndex !== -1) {
@@ -170,15 +170,15 @@ async function handleMute(member, duration, muteRole, mutes) {
         } else {
             mutes.users.push(muteData);
         }
-        
+
         // Write to file immediately to ensure data is saved for risk button
         const writeSuccess = await writeJsonFile(DATA_PATHS.mutes, mutes);
-        
+
         if (!writeSuccess) {
             console.error(`Failed to write mute data for ${member.user.tag}`);
             // Don't return false here, still try to schedule unmutes even if write fails
         }
-        
+
         // Function to attempt unmute
         const scheduleUnmute = async () => {
             try {
@@ -186,18 +186,18 @@ async function handleMute(member, duration, muteRole, mutes) {
                 if (updatedMember.roles.cache.has(muteRole.id)) {
                     await updatedMember.roles.remove(muteRole);
                     console.log(`Successfully unmuted ${member.user.tag}`);
-                    
+
                     // After successful unmute, clean up mute data
                     try {
                         const latestMutes = await readJsonFile(DATA_PATHS.mutes);
-                        latestMutes.users = latestMutes.users.filter(mute => 
+                        latestMutes.users = latestMutes.users.filter(mute =>
                             !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
                         );
                         await writeJsonFile(DATA_PATHS.mutes, latestMutes);
                     } catch (cleanupError) {
                         console.error('Error cleaning up mute data:', cleanupError);
                     }
-                    
+
                     return true;
                 }
                 return false;
@@ -208,23 +208,23 @@ async function handleMute(member, duration, muteRole, mutes) {
                 return false;
             }
         };
-        
+
         // Schedule multiple unmute attempts at different times
         const unmuteTimes = [
             duration * 1000,           // Exact duration
             (duration * 1000) + 5000,  // 5 seconds after
             (duration * 1000) + 15000  // 15 seconds after
         ];
-        
+
         unmuteTimes.forEach(time => {
             setTimeout(async () => {
                 try {
                     // Check if this mute is still active and not risk-button-clicked
                     const latestMutes = await readJsonFile(DATA_PATHS.mutes);
-                    const userMute = latestMutes.users.find(mute => 
+                    const userMute = latestMutes.users.find(mute =>
                         mute.userId === member.id && mute.muteEndTime === muteEndTime && !mute.button_clicked
                     );
-                    
+
                     if (userMute) {
                         await scheduleUnmute();
                     }
@@ -233,7 +233,7 @@ async function handleMute(member, duration, muteRole, mutes) {
                 }
             }, time);
         });
-        
+
         return true;
     } catch (error) {
         console.error('Error in handleMute:', error);
@@ -243,7 +243,7 @@ async function handleMute(member, duration, muteRole, mutes) {
 async function getMemberFromUser(guild, userId) {
     const cacheKey = `member_${guild.id}_${userId}`;
     let member = memberCache.get(cacheKey);
-    
+
     if (!member) {
         try {
             member = await guild.members.fetch(userId);
@@ -257,7 +257,7 @@ async function getMemberFromUser(guild, userId) {
             return null;
         }
     }
-    
+
     return member;
 }
 module.exports = {
@@ -273,7 +273,7 @@ module.exports = {
             const currentTime = Math.floor(Date.now() / 1000);
             const cooldowns = await readJsonFile(DATA_PATHS.cooldowns);
             const userCooldown = cooldowns.users.find(cd => cd.userId === message.author.id);
-            
+
             if (userCooldown && userCooldown.endTime > currentTime) {
                 return message.channel.send(`You can use it again at <t:${userCooldown.endTime}:t> (<t:${userCooldown.endTime}:R>)`);
             }
@@ -287,10 +287,10 @@ module.exports = {
                         console.error('Error fetching replied message:', error);
                     }
                 }
-                
+
                 const mentionedUser = message.mentions.users.first();
                 if (mentionedUser) return mentionedUser;
-                
+
                 const userArg = message.content.split(' ')[1];
                 if (userArg) {
                     try {
@@ -302,7 +302,7 @@ module.exports = {
                 }
                 return null;
             })();
-            
+
             if (!targetUser) {
                 return message.channel.send('Please specify a valid user to mute.');
             }
@@ -312,51 +312,51 @@ module.exports = {
             if (targetUser.bot) {
                 return message.channel.send("You can't use this command on bots.");
             }
-            
+
             // Check recent mutes - only consider active mutes (not ones cleared by risk button)
             const mutes = await readJsonFile(DATA_PATHS.mutes);
-            const recentMute = mutes.users.find(mute => 
-                mute.userId === targetUser.id && 
-                (currentTime - mute.muteStartTime) < 120 && 
+            const recentMute = mutes.users.find(mute =>
+                mute.userId === targetUser.id &&
+                (currentTime - mute.muteStartTime) < 120 &&
                 !mute.button_clicked
             );
-            
+
             if (recentMute) {
                 return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh.`);
             }
-            
+
             // Load bars data
             const barsData = await readJsonFile(DATA_PATHS.bars);
             if (!barsData.bars) {
                 return message.channel.send('Error loading bars data. Please try again later.');
             }
-            
+
             // Calculate luck and roll results
             const totalLuck = calculateLuck(message.member);
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
-            
+
             // Handle streaks
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
             const currentStreak = success ? (previousStreak + 1) : 0;
-            
+
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
-            const accuracyRoll = success ? 
-                Math.floor(Math.random() * 51) + 50 : 
+            const accuracyRoll = success ?
+                Math.floor(Math.random() * 51) + 50 :
                 Math.min(50, Math.floor(Math.random() * 51));
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
             const muteUser = success ? targetUser.id : message.author.id;
             const resultMessage = success ?
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
                 `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
-            
+
             // Handle mute role
             const mutedRole = message.guild.roles.cache.get('673978861335085107');
             let muteSuccess = false;
-            
+
             if (mutedRole) {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
@@ -382,7 +382,7 @@ module.exports = {
                 message.channel.send('The muted role could not be found. Please contact an admin.').catch(console.error);
                 return;
             }
-            
+
             // Update streak
             const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
             if (existingUserIndex !== -1) {
@@ -391,14 +391,14 @@ module.exports = {
                 streaks.users.push({ userId: message.author.id, streak: currentStreak });
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
-            
+
             // Update stats
             const userStats = await updateUserStats(message.author.id, success);
-            
+
             // Get bars
             const powerBar = getBar(powerRoll, barsData.bars, 'power');
             const accuracyBar = getBar(accuracyRoll, barsData.bars, 'accuracy');
-            
+
             // Create action row
             const actionRow = new ActionRowBuilder()
                 .addComponents(
@@ -415,12 +415,12 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                         .setEmoji('<:creepypp:1060554596310843553>')
                 );
-            
+
             // Modify streak display for failed attempts
-            const streakDisplay = success 
-                ? `**${currentStreak}**` 
+            const streakDisplay = success
+                ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
-            
+
             // Create embed
             const embed = new EmbedBuilder()
                 .setColor('#FFA500')
@@ -434,9 +434,9 @@ module.exports = {
                 )
                 .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
                 .setFooter({ text: `Total Uses: ${userStats.totalUses} | Successes: ${userStats.successes} | Fails: ${userStats.fails}` });
-            
+
             await message.channel.send({ embeds: [embed], components: [actionRow] });
-            
+
             // Update cooldown
             const cooldownEnd = currentTime + 3600; // 1 hour cooldown
             const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
