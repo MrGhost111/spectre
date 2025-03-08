@@ -29,15 +29,15 @@ module.exports = {
                 const words = messageContent.split(/\s+/);
                 const wordCount = words.length;
 
-                // Check if message has more than one word with special handling for punctuation
+                // Simple check: if we have 2 words, check if one is pure punctuation
                 let isValidMessage = false;
 
                 if (wordCount === 1) {
                     // Single word is always valid (subject to blacklist)
                     isValidMessage = true;
                 } else if (wordCount === 2) {
-                    // Check if one of the two items is purely punctuation
-                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…-]+$/.test(word);
+                    // Check if either word is pure punctuation
+                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
 
                     if (isPunctuation(words[0]) || isPunctuation(words[1])) {
                         isValidMessage = true;
@@ -63,15 +63,15 @@ module.exports = {
                 }
 
                 // Get the actual word (non-punctuation) for blacklist checking
-                let actualWord = messageContent;
+                let wordToCheck = messageContent;
                 if (wordCount === 2) {
                     // Find which part is the actual word
-                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…-]+$/.test(word);
-                    actualWord = isPunctuation(words[0]) ? words[1] : words[0];
+                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
+                    wordToCheck = isPunctuation(words[0]) ? words[1] : words[0];
                 }
 
                 // Enhanced blacklist check - check if any blacklisted word is contained within the message
-                const wordLower = actualWord.toLowerCase();
+                const wordLower = wordToCheck.toLowerCase();
                 if (channelBlacklist.some(blacklistedWord => {
                     // Check if the word contains any blacklisted word
                     const blacklistedWordLower = blacklistedWord.toLowerCase();
@@ -99,8 +99,6 @@ module.exports = {
                 console.error('Error checking one word story:', error);
             }
         }
-
-        // Rest of the code remains the same
 
         // Check for blacklist management command - Allow specific user ID in addition to manage messages perm
         if (message.content.startsWith(',blacklist') &&
