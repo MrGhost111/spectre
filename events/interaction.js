@@ -702,21 +702,21 @@ async function handleInfoButton(interaction) {
     const memberRoles = interaction.member.roles.cache;
 
     const baseRoles = {
-        '866641313754251297': 75, 
-        '866641299355861022': 75, 
+        '866641313754251297': 75,
+        '866641299355861022': 75,
         '866641249452556309': 70,
-        '866641177943080960': 65, 
+        '866641177943080960': 65,
         '866641062441254932': 60,
         '783032959350734868': 70,
-        '1038888209440067604': 75, 
-        '946729964328337408': 75, 
-        '768449168297033769': 70, 
-        '768448955804811274': 65, 
-        '1038106794200932512': 75, 
-        '1028256279124250624': 70, 
+        '1038888209440067604': 75,
+        '946729964328337408': 75,
+        '768449168297033769': 70,
+        '768448955804811274': 65,
+        '1038106794200932512': 75,
+        '1028256279124250624': 70,
         '1028256286560763984': 65,
         '1030707878597763103': 60,
-        '721331975847411754': 65, 
+        '721331975847411754': 65,
     };
 
     const boosterRoles = {
@@ -760,11 +760,13 @@ async function handleInfoButton(interaction) {
         .addFields(
             { name: 'Highest Base Role', value: highestBaseRole || 'None' },
             { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
-            { name: '----------- Base Roles -----------', 
-                value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None' 
+            {
+                name: '----------- Base Roles -----------',
+                value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
             },
-            { name: '----------- Booster Roles -----------', 
-                value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None' 
+            {
+                name: '----------- Booster Roles -----------',
+                value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
             }
         )
         .setFooter({ text: 'Luck is calculated based on your roles.' });
