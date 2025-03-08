@@ -41,9 +41,9 @@ module.exports = {
             } else {
                 console.error('Error handling interaction:', error);
                 try {
-                    await interaction.followUp({ 
-                        content: 'There was an error while executing this command!', 
-                        ephemeral: true 
+                    await interaction.followUp({
+                        content: 'There was an error while executing this command!',
+                        ephemeral: true
                     });
                 } catch (followUpError) {
                     console.error('Error sending follow-up message:', followUpError);
@@ -139,7 +139,7 @@ async function updateEmbed(interaction, weeklyData) {
         .slice(0, 10);
 
     let description = sortedUsers.length > 0
-        ? sortedUsers.map(([userId, count], index) => 
+        ? sortedUsers.map(([userId, count], index) =>
             `${index + 1}. <@${userId}> - ${count}`).join('\n')
         : 'No activities recorded this week.';
 
@@ -166,7 +166,7 @@ async function handleActivityButtons(interaction) {
         case 'add_one':
             activityData.weekly[interaction.user.id] = (activityData.weekly[interaction.user.id] || 0) + 1;
             donoLogs[interaction.user.id] = (donoLogs[interaction.user.id] || 0) + 1;
-            
+
             activityData.logs.push({
                 userId: interaction.user.id,
                 action: 'add',
@@ -234,7 +234,7 @@ async function handleActivityButtons(interaction) {
             const overallEmbed = new EmbedBuilder()
                 .setTitle('Overall Top 10 Activities')
                 .setDescription(
-                    sortedOverall.map(([userId, count], index) => 
+                    sortedOverall.map(([userId, count], index) =>
                         `${index + 1}. <@${userId}> - ${count}`).join('\n')
                 )
                 .setColor(0x6666FF);
@@ -242,140 +242,140 @@ async function handleActivityButtons(interaction) {
             await interaction.reply({ embeds: [overallEmbed], ephemeral: true });
             break;
 
-case 'reset_weekly':
-    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
-        return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
-    }
+        case 'reset_weekly':
+            if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+                return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
+            }
 
-    // Ask for confirmation to reset
-    const confirmEmbed = new EmbedBuilder()
-        .setTitle('Reset Weekly Tracking')
-        .setDescription('Are you sure you want to reset the weekly tracking? This action cannot be undone.')
-        .setColor(0xFF0000);
+            // Ask for confirmation to reset
+            const confirmEmbed = new EmbedBuilder()
+                .setTitle('Reset Weekly Tracking')
+                .setDescription('Are you sure you want to reset the weekly tracking? This action cannot be undone.')
+                .setColor(0xFF0000);
 
-    const yesButton = new ButtonBuilder()
-        .setCustomId('confirm_reset_yes')
-        .setLabel('Yes')
-        .setStyle(ButtonStyle.Danger);
-
-    const noButton = new ButtonBuilder()
-        .setCustomId('confirm_reset_no')
-        .setLabel('No')
-        .setStyle(ButtonStyle.Secondary);
-
-    const confirmRow = new ActionRowBuilder().addComponents(yesButton, noButton);
-
-    const confirmMessage = await interaction.reply({ 
-        embeds: [confirmEmbed], 
-        components: [confirmRow], 
-        ephemeral: true,
-        fetchReply: true  // This ensures we get the message object back
-    });
-
-    // Define a collector for the confirmation message specifically
-    const filter = i => 
-        ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) && 
-        i.user.id === interaction.user.id;
-
-    const collector = confirmMessage.createMessageComponentCollector({ filter, time: 15000 });
-
-    collector.on('collect', async i => {
-        if (i.customId === 'confirm_reset_yes') {
-            // Save the current weekly data to a file before resetting
-            const weeklyPath = './data/weekly.json';
-            fs.writeFileSync(weeklyPath, JSON.stringify(activityData.weekly, null, 2));
-            
-            // Reset the weekly tracking
-            activityData.weekly = {};
-
-            fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
-            await updateEmbed(interaction, activityData.weekly);
-
-            // Notify user about reset and ask if they want to assign the role
-            const assignRoleEmbed = new EmbedBuilder()
-                .setTitle('Assign Ultimate Staff Host Role')
-                .setDescription('Do you want to assign the Ultimate Staff Host role to the top user?')
-                .setColor(0x0099FF);
-
-            const assignYesButton = new ButtonBuilder()
-                .setCustomId('assign_role_yes')
+            const yesButton = new ButtonBuilder()
+                .setCustomId('confirm_reset_yes')
                 .setLabel('Yes')
-                .setStyle(ButtonStyle.Primary);
+                .setStyle(ButtonStyle.Danger);
 
-            const assignNoButton = new ButtonBuilder()
-                .setCustomId('assign_role_no')
+            const noButton = new ButtonBuilder()
+                .setCustomId('confirm_reset_no')
                 .setLabel('No')
                 .setStyle(ButtonStyle.Secondary);
 
-            const assignRoleRow = new ActionRowBuilder().addComponents(assignYesButton, assignNoButton);
+            const confirmRow = new ActionRowBuilder().addComponents(yesButton, noButton);
 
-            await i.update({ 
-                embeds: [assignRoleEmbed], 
-                components: [assignRoleRow]
+            const confirmMessage = await interaction.reply({
+                embeds: [confirmEmbed],
+                components: [confirmRow],
+                ephemeral: true,
+                fetchReply: true  // This ensures we get the message object back
             });
 
-        } else if (i.customId === 'confirm_reset_no') {
-            await i.update({ 
-                content: 'Reset action has been canceled.', 
-                embeds: [], 
-                components: [] 
-            });
+            // Define a collector for the confirmation message specifically
+            const filter = i =>
+                ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) &&
+                i.user.id === interaction.user.id;
 
-        } else if (i.customId === 'assign_role_yes') {
-            const weeklyPath = './data/weekly.json';
-            const savedWeeklyData = JSON.parse(fs.readFileSync(weeklyPath, 'utf8'));
-            const topUser = Object.entries(savedWeeklyData)
-                .sort(([, a], [, b]) => b - a)[0];
+            const collector = confirmMessage.createMessageComponentCollector({ filter, time: 15000 });
 
-            if (topUser) {
-                const topUserId = topUser[0];
-                const topMember = await interaction.guild.members.fetch(topUserId);
-                if (topMember) {
-                    await topMember.roles.add('713452411720827013');
-                    await i.update({ 
-                        content: 'Ultimate Staff Host role has been assigned to the top user!', 
-                        embeds: [], 
-                        components: [] 
+            collector.on('collect', async i => {
+                if (i.customId === 'confirm_reset_yes') {
+                    // Save the current weekly data to a file before resetting
+                    const weeklyPath = './data/weekly.json';
+                    fs.writeFileSync(weeklyPath, JSON.stringify(activityData.weekly, null, 2));
+
+                    // Reset the weekly tracking
+                    activityData.weekly = {};
+
+                    fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
+                    await updateEmbed(interaction, activityData.weekly);
+
+                    // Notify user about reset and ask if they want to assign the role
+                    const assignRoleEmbed = new EmbedBuilder()
+                        .setTitle('Assign Ultimate Staff Host Role')
+                        .setDescription('Do you want to assign the Ultimate Staff Host role to the top user?')
+                        .setColor(0x0099FF);
+
+                    const assignYesButton = new ButtonBuilder()
+                        .setCustomId('assign_role_yes')
+                        .setLabel('Yes')
+                        .setStyle(ButtonStyle.Primary);
+
+                    const assignNoButton = new ButtonBuilder()
+                        .setCustomId('assign_role_no')
+                        .setLabel('No')
+                        .setStyle(ButtonStyle.Secondary);
+
+                    const assignRoleRow = new ActionRowBuilder().addComponents(assignYesButton, assignNoButton);
+
+                    await i.update({
+                        embeds: [assignRoleEmbed],
+                        components: [assignRoleRow]
                     });
-                } else {
-                    await i.update({ 
-                        content: 'Top user not found in the guild!', 
-                        embeds: [], 
-                        components: [] 
+
+                } else if (i.customId === 'confirm_reset_no') {
+                    await i.update({
+                        content: 'Reset action has been canceled.',
+                        embeds: [],
+                        components: []
+                    });
+
+                } else if (i.customId === 'assign_role_yes') {
+                    const weeklyPath = './data/weekly.json';
+                    const savedWeeklyData = JSON.parse(fs.readFileSync(weeklyPath, 'utf8'));
+                    const topUser = Object.entries(savedWeeklyData)
+                        .sort(([, a], [, b]) => b - a)[0];
+
+                    if (topUser) {
+                        const topUserId = topUser[0];
+                        const topMember = await interaction.guild.members.fetch(topUserId);
+                        if (topMember) {
+                            await topMember.roles.add('713452411720827013');
+                            await i.update({
+                                content: 'Ultimate Staff Host role has been assigned to the top user!',
+                                embeds: [],
+                                components: []
+                            });
+                        } else {
+                            await i.update({
+                                content: 'Top user not found in the guild!',
+                                embeds: [],
+                                components: []
+                            });
+                        }
+                    } else {
+                        await i.update({
+                            content: 'No top user found to assign the role to.',
+                            embeds: [],
+                            components: []
+                        });
+                    }
+
+                } else if (i.customId === 'assign_role_no') {
+                    await i.update({
+                        content: 'Ultimate Staff Host role assignment has been skipped.',
+                        embeds: [],
+                        components: []
                     });
                 }
-            } else {
-                await i.update({ 
-                    content: 'No top user found to assign the role to.', 
-                    embeds: [], 
-                    components: [] 
-                });
-            }
-
-        } else if (i.customId === 'assign_role_no') {
-            await i.update({ 
-                content: 'Ultimate Staff Host role assignment has been skipped.', 
-                embeds: [], 
-                components: [] 
             });
-        }
-    });
 
-    collector.on('end', async (collected, reason) => {
-        if (reason === 'time') {
-            // Only try to edit if the message hasn't been modified
-            try {
-                await confirmMessage.edit({
-                    content: 'Confirmation timed out.',
-                    components: [],
-                    embeds: []
-                });
-            } catch (error) {
-                console.error('Error updating timed out message:', error);
-            }
-        }
-    });
-    break;
+            collector.on('end', async (collected, reason) => {
+                if (reason === 'time') {
+                    // Only try to edit if the message hasn't been modified
+                    try {
+                        await confirmMessage.edit({
+                            content: 'Confirmation timed out.',
+                            components: [],
+                            embeds: []
+                        });
+                    } catch (error) {
+                        console.error('Error updating timed out message:', error);
+                    }
+                }
+            });
+            break;
     }
 
     fs.writeFileSync(donoLogsPath, JSON.stringify(donoLogs, null, 2));
@@ -403,7 +403,7 @@ async function handleModalSubmit(interaction) {
             }
 
             // Check if user already has a channel
-            const hasChannel = Object.values(channelsData).some(entry => 
+            const hasChannel = Object.values(channelsData).some(entry =>
                 entry.userId === interaction.user.id && entry.channelId && entry.createdAt
             );
 
@@ -511,38 +511,38 @@ async function handleModalSubmit(interaction) {
 
 
 
-else if (interaction.customId === 'rename_channel_modal') {
-    try {
-        const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
-        
-        if (!newChannelName || newChannelName.length < 1) {
-            return await interaction.followUp({ content: 'Please provide a valid channel name.', ephemeral: true });
-        }
+        else if (interaction.customId === 'rename_channel_modal') {
+            try {
+                const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
 
-        const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
-        if (!userChannel) {
-            return await interaction.followUp({ content: 'You do not own a channel.', ephemeral: true });
-        }
+                if (!newChannelName || newChannelName.length < 1) {
+                    return await interaction.followUp({ content: 'Please provide a valid channel name.', ephemeral: true });
+                }
 
-        const channel = interaction.guild.channels.cache.get(userChannel.channelId);
-        if (!channel) {
-            return await interaction.followUp({ content: 'Channel not found.', ephemeral: true });
-        }
+                const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+                if (!userChannel) {
+                    return await interaction.followUp({ content: 'You do not own a channel.', ephemeral: true });
+                }
 
-        await channel.setName(newChannelName);
-        await interaction.followUp({
-            content: `Channel has been renamed to ${channel}!`,
-            ephemeral: true
-        });
-    } catch (error) {
-        console.error('Error in rename_channel_modal:', error);
-        await interaction.followUp({
-            content: 'There was an error while renaming the channel.',
-            ephemeral: true
-        });
+                const channel = interaction.guild.channels.cache.get(userChannel.channelId);
+                if (!channel) {
+                    return await interaction.followUp({ content: 'Channel not found.', ephemeral: true });
+                }
+
+                await channel.setName(newChannelName);
+                await interaction.followUp({
+                    content: `Channel has been renamed to ${channel}!`,
+                    ephemeral: true
+                });
+            } catch (error) {
+                console.error('Error in rename_channel_modal:', error);
+                await interaction.followUp({
+                    content: 'There was an error while renaming the channel.',
+                    ephemeral: true
+                });
+            }
+        }
     }
-}
-}
 
 
 
@@ -557,7 +557,7 @@ else if (interaction.customId === 'rename_channel_modal') {
 
 
 
-  else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
+    else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
         const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
         const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
         let activityData = JSON.parse(fs.readFileSync(activityLogsPath, 'utf8'));
@@ -609,8 +609,8 @@ async function handleDeleteSnipe(interaction) {
     const message = interaction.message;
 
     const originalCommandMessage = await interaction.channel.messages.fetch({ limit: 100 }).then(messages => {
-        return messages.find(msg => 
-            msg.content.startsWith(',snipe') || 
+        return messages.find(msg =>
+            msg.content.startsWith(',snipe') ||
             msg.content.startsWith(',esnipe')
         );
     });
@@ -684,7 +684,7 @@ async function handleLeaderboardButton(interaction) {
         const userTag = fetchedUser ? fetchedUser.tag : 'Unknown User';
 
         const userEmoji = interaction.user.id === user.userId ? '<:sweg:1010054002202906634>' : '';
-        
+
         return `${rankEmoji} ┊ ${userTag} - ${user.streak} ${userEmoji}`;
     }));
 
@@ -699,115 +699,84 @@ async function handleLeaderboardButton(interaction) {
     await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
 }
 async function handleInfoButton(interaction) {
-    try {
-        // Read current streaks
-        const streaksPath = path.join(__dirname, '../data/streaks.json');
-        let streaksData = { users: [] };
-        try {
-            const data = await fs.readFile(streaksPath, 'utf8');
-            streaksData = JSON.parse(data);
-        } catch (error) {
-            console.error(`Error reading streaks.json: ${error}`);
-        }
+    const memberRoles = interaction.member.roles.cache;
 
-        // Get user's current streak
-        const userStreak = streaksData.users.find(entry => entry.userId === interaction.user.id);
-        const currentStreak = userStreak ? userStreak.streak : 0;
-        const streakLuckBonus = Math.floor(currentStreak / 10); // 1% per 10 streak
+    const baseRoles = {
+        '866641313754251297': 75,
+        '866641299355861022': 75,
+        '866641249452556309': 70,
+        '866641177943080960': 65,
+        '866641062441254932': 60,
+        '783032959350734868': 70,
+        '1038888209440067604': 75,
+        '946729964328337408': 75,
+        '768449168297033769': 70,
+        '768448955804811274': 65,
+        '1038106794200932512': 75,
+        '1028256279124250624': 70,
+        '1028256286560763984': 65,
+        '1030707878597763103': 60,
+        '721331975847411754': 65,
+    };
 
-        const memberRoles = interaction.member.roles.cache;
+    const boosterRoles = {
+        '1038888209440067604': 5,
+        '721331975847411754': 5,
+        '721020858818232343': 5,
+        '713452411720827013': 5
+    };
 
-        const baseRoles = {
-            '866641313754251297': 75,
-            '866641299355861022': 75,
-            '866641249452556309': 70,
-            '866641177943080960': 65,
-            '866641062441254932': 60,
-            '783032959350734868': 70,
-            '1038888209440067604': 75,
-            '946729964328337408': 75,
-            '768449168297033769': 70,
-            '768448955804811274': 65,
-            '1038106794200932512': 75,
-            '1028256279124250624': 70,
-            '1028256286560763984': 65,
-            '1030707878597763103': 60,
-            '721331975847411754': 65,
-        };
+    let luck = 0;
+    let highestBaseRole = null;
+    let boosterLuck = 0;
+    let contributingRoles = [];
 
-        const boosterRoles = {
-            '1038888209440067604': 5,
-            '721331975847411754': 5,
-            '721020858818232343': 5,
-            '713452411720827013': 5
-        };
-
-        let luck = 0;
-        let highestBaseRole = null;
-        let boosterLuck = 0;
-        let contributingRoles = [];
-
-        for (const [roleId, luckValue] of Object.entries(baseRoles)) {
-            if (memberRoles.has(roleId)) {
-                if (luckValue > luck) {
-                    luck = luckValue;
-                    highestBaseRole = `<@&${roleId}> (Base Luck: ${luckValue}%)`;
-                }
+    for (const [roleId, luckValue] of Object.entries(baseRoles)) {
+        if (memberRoles.has(roleId)) {
+            if (luckValue > luck) {
+                luck = luckValue;
+                highestBaseRole = `<@&${roleId}> (Base Luck: ${luckValue}%)`;
             }
         }
-
-        for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
-            if (memberRoles.has(roleId)) {
-                boosterLuck += boostValue;
-                contributingRoles.push(`<@&${roleId}> (Booster Luck: +${boostValue}%)`);
-            }
-        }
-
-        // Add streak bonus to total luck
-        const totalLuck = Math.min(luck + boosterLuck + streakLuckBonus, 100);
-
-        if (!highestBaseRole) {
-            contributingRoles.push('No base luck roles assigned.');
-        }
-
-        // Add streak info if user has a streak
-        if (currentStreak > 0 && streakLuckBonus > 0) {
-            contributingRoles.push(`Streak Bonus: +${streakLuckBonus}% (Current streak: ${currentStreak})`);
-        }
-
-        const luckEmbed = new EmbedBuilder()
-            .setTitle('Luck Information')
-            .setColor(0x6666FF)
-            .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
-            .addFields(
-                { name: 'Highest Base Role', value: highestBaseRole || 'None' },
-                { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
-                {
-                    name: '----------- Base Roles -----------',
-                    value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
-                },
-                {
-                    name: '----------- Booster Roles -----------',
-                    value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
-                },
-                {
-                    name: '----------- Streak Bonus -----------',
-                    value: `+1% luck for every 10 streak points (Current: ${currentStreak} streak = +${streakLuckBonus}%)`
-                }
-            )
-            .setFooter({ text: 'Luck is calculated based on your roles and streak.' });
-
-        await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
-    } catch (error) {
-        console.error('Error in handleInfoButton:', error);
-        await interaction.reply({ content: 'An error occurred while fetching your luck information.', ephemeral: true });
     }
+
+    for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
+        if (memberRoles.has(roleId)) {
+            boosterLuck += boostValue;
+            contributingRoles.push(`<@&${roleId}> (Booster Luck: +${boostValue}%)`);
+        }
+    }
+
+    const totalLuck = Math.min(luck + boosterLuck, 100);
+
+    if (!highestBaseRole) {
+        contributingRoles.push('No base luck roles assigned.');
+    }
+
+    const luckEmbed = new EmbedBuilder()
+        .setTitle('Luck Information')
+        .setColor(0x6666FF)
+        .setDescription(`----------- Your Luck: **${totalLuck}%** -----------`)
+        .addFields(
+            { name: 'Highest Base Role', value: highestBaseRole || 'None' },
+            { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
+            {
+                name: '----------- Base Roles -----------',
+                value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
+            },
+            {
+                name: '----------- Booster Roles -----------',
+                value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
+            }
+        )
+        .setFooter({ text: 'Luck is calculated based on your roles.' });
+
+    await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
 }
 
 async function handleRiskButton(interaction) {
     try {
         await interaction.deferUpdate();
-        const mutesPath = path.join(__dirname, '../data/mutes.json');
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
 
         // Refresh member data to get the latest roles
@@ -819,7 +788,7 @@ async function handleRiskButton(interaction) {
 
         let mutesData = { users: [] };
         try {
-            const data = await fs.readFile(mutesPath, 'utf8');
+            const data = fs.readFileSync(mutesPath, 'utf8');
             mutesData = JSON.parse(data);
         } catch (error) {
             console.error(`Error reading mutes.json: ${error}`);
@@ -860,97 +829,6 @@ async function handleRiskButton(interaction) {
             if (unmuted) {
                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
 
-                // Check if there's a muter to reverse the mute to
-                if (userMute.muterId) {
-                    try {
-                        // Get the original muter
-                        const muter = await interaction.guild.members.fetch(userMute.muterId);
-                        if (muter) {
-                            const doubledDuration = remainingTime * 2;
-
-                            // Create a new mute data entry for the muter
-                            const muteStartTime = Math.floor(Date.now() / 1000);
-                            const muteEndTime = muteStartTime + doubledDuration;
-
-                            // Add mute role to the original muter with retry
-                            let muteSuccess = false;
-                            for (let attempt = 0; attempt < 3 && !muteSuccess; attempt++) {
-                                try {
-                                    await muter.roles.add(mutedRole);
-                                    muteSuccess = true;
-                                } catch (error) {
-                                    console.error(`Mute attempt ${attempt + 1} on original muter failed:`, error);
-                                    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
-                                }
-                            }
-
-                            if (muteSuccess) {
-                                // Add to mutes data
-                                const muteData = {
-                                    userId: muter.id,
-                                    muteStartTime,
-                                    muteEndTime,
-                                    button_clicked: false,
-                                    guildId: interaction.guild.id,
-                                    roleId: mutedRole.id,
-                                    muterId: interaction.user.id // Record who reversed the mute
-                                };
-
-                                // Update mutes data
-                                const existingMuteIndex = mutesData.users.findIndex(m => m.userId === muter.id);
-                                if (existingMuteIndex !== -1) {
-                                    mutesData.users[existingMuteIndex] = muteData;
-                                } else {
-                                    mutesData.users.push(muteData);
-                                }
-
-                                responseMessage += ` Additionally, ${muter} has been muted for **${Math.floor(doubledDuration)} seconds** as karma!`;
-
-                                // Schedule automatic unmute for the reversed mute
-                                const scheduleUnmute = async () => {
-                                    try {
-                                        const updatedMuter = await interaction.guild.members.fetch(muter.id);
-                                        if (updatedMuter.roles.cache.has(mutedRole.id)) {
-                                            await updatedMuter.roles.remove(mutedRole);
-                                            console.log(`Successfully unmuted ${muter.user.tag} after reversed mute`);
-
-                                            // Clean up mute data after unmute
-                                            try {
-                                                const latestData = await fs.readFile(mutesPath, 'utf8');
-                                                const latestMutes = JSON.parse(latestData);
-                                                latestMutes.users = latestMutes.users.filter(m =>
-                                                    !(m.userId === muter.id && m.muteEndTime === muteEndTime)
-                                                );
-                                                await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 2), 'utf8');
-                                            } catch (cleanupError) {
-                                                console.error('Error cleaning up reversed mute data:', cleanupError);
-                                            }
-                                        }
-                                    } catch (error) {
-                                        console.error(`Failed to unmute ${muter.user.tag} after reversed mute:`, error);
-                                    }
-                                };
-
-                                // Schedule multiple unmute attempts at different times
-                                [
-                                    doubledDuration * 1000,           // Exact duration
-                                    (doubledDuration * 1000) + 5000,  // 5 seconds after
-                                    (doubledDuration * 1000) + 15000  // 15 seconds after
-                                ].forEach(time => {
-                                    setTimeout(scheduleUnmute, time);
-                                });
-                            } else {
-                                responseMessage += ` However, there was an error applying the reverse mute to ${muter}.`;
-                            }
-                        } else {
-                            responseMessage += ` However, the original muter could not be found.`;
-                        }
-                    } catch (error) {
-                        console.error('Error applying reverse mute:', error);
-                        responseMessage += ` However, there was an error applying the reverse mute to the original muter.`;
-                    }
-                }
-
                 // IMPORTANT: Remove the mute entry completely on success
                 mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
             } else {
@@ -970,7 +848,7 @@ async function handleRiskButton(interaction) {
                 setTimeout(async () => {
                     try {
                         // Read the latest data to make sure we're using current state
-                        const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
+                        const latestMutes = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
                         const stillMuted = latestMutes.users.some(mute =>
                             mute.userId === interaction.user.id && mute.muteEndTime === newEndTime
                         );
@@ -985,7 +863,7 @@ async function handleRiskButton(interaction) {
                                 latestMutes.users = latestMutes.users.filter(mute =>
                                     !(mute.userId === interaction.user.id && mute.muteEndTime === newEndTime)
                                 );
-                                await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 2), 'utf8');
+                                fs.writeFileSync(mutesPath, JSON.stringify(latestMutes, null, 2));
                             }
                         }
                     } catch (error) {
@@ -995,13 +873,14 @@ async function handleRiskButton(interaction) {
             });
         }
 
-        await fs.writeFile(mutesPath, JSON.stringify(mutesData, null, 2), 'utf8');
+        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
         await interaction.followUp({ content: responseMessage });
     } catch (error) {
         console.error('Error in handleRiskButton:', error);
         await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
+
 function calculateMaxFriends(member) {
     const roleLimits = {
         '768448955804811274': 5,

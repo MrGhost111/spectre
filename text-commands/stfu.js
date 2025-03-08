@@ -11,8 +11,7 @@ const DATA_PATHS = {
     mutes: path.join(__dirname, '../data/mutes.json'),
     cooldowns: path.join(__dirname, '../data/cooldowns.json'),
     bars: path.join(__dirname, '../data/bars.json'),
-    stats: path.join(__dirname, '../data/stats.json'),
-    muteHistory: path.join(__dirname, '../data/muteHistory.json')
+    stats: path.join(__dirname, '../data/stats.json')
 };
 // Role configurations
 const ROLE_CONFIGS = {
@@ -72,8 +71,8 @@ function getBar(value, bars, barType) {
     if (value <= 90) return bars[barType]['81-90'];
     return bars[barType]['91-100'];
 }
-function calculateLuck(member, streak = 0) {
-    const cacheKey = `luck_${member.id}_${streak}`;
+function calculateLuck(member) {
+    const cacheKey = `luck_${member.id}`;
     const cachedLuck = roleCache.get(cacheKey);
 
     if (cachedLuck !== undefined) {
@@ -93,10 +92,7 @@ function calculateLuck(member, streak = 0) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Add streak-based luck (1% per 10 streak)
-    const streakLuck = Math.floor(streak / 10);
-
-    const totalLuck = Math.min(luck + boosterLuck + streakLuck, 100);
+    const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -124,33 +120,7 @@ async function updateUserStats(userId, success) {
     await writeJsonFile(DATA_PATHS.stats, stats);
     return userStats;
 }
-async function updateMuteHistory(mutedUserId, muterId, duration, guildId) {
-    try {
-        const muteHistory = await readJsonFile(DATA_PATHS.muteHistory);
-
-        const muteData = {
-            mutedUserId,
-            muterId,
-            muteTime: Math.floor(Date.now() / 1000),
-            duration,
-            guildId
-        };
-
-        const existingIndex = muteHistory.users.findIndex(entry => entry.mutedUserId === mutedUserId);
-        if (existingIndex !== -1) {
-            muteHistory.users[existingIndex] = muteData;
-        } else {
-            muteHistory.users.push(muteData);
-        }
-
-        await writeJsonFile(DATA_PATHS.muteHistory, muteHistory);
-        return true;
-    } catch (error) {
-        console.error('Error updating mute history:', error);
-        return false;
-    }
-}
-async function handleMute(member, duration, muteRole, mutes, muterId = null) {
+async function handleMute(member, duration, muteRole, mutes) {
     try {
         if (!member) {
             console.error('Member not found');
@@ -190,8 +160,7 @@ async function handleMute(member, duration, muteRole, mutes, muterId = null) {
             muteEndTime,
             button_clicked: false,
             guildId: member.guild.id,
-            roleId: muteRole.id,
-            muterId: muterId // Store who issued the mute
+            roleId: muteRole.id
         };
 
         // Add mute data to file
@@ -208,11 +177,6 @@ async function handleMute(member, duration, muteRole, mutes, muterId = null) {
         if (!writeSuccess) {
             console.error(`Failed to write mute data for ${member.user.tag}`);
             // Don't return false here, still try to schedule unmutes even if write fails
-        }
-
-        // Update mute history
-        if (muterId) {
-            await updateMuteHistory(member.id, muterId, duration, member.guild.id);
         }
 
         // Function to attempt unmute
@@ -367,15 +331,15 @@ module.exports = {
                 return message.channel.send('Error loading bars data. Please try again later.');
             }
 
+            // Calculate luck and roll results
+            const totalLuck = calculateLuck(message.member);
+            const luckCheckRoll = Math.floor(Math.random() * 101);
+            const success = luckCheckRoll <= totalLuck;
+
             // Handle streaks
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
-
-            // Calculate luck with streaks and roll results
-            const totalLuck = calculateLuck(message.member, previousStreak);
-            const luckCheckRoll = Math.floor(Math.random() * 101);
-            const success = luckCheckRoll <= totalLuck;
             const currentStreak = success ? (previousStreak + 1) : 0;
 
             // Calculate rolls and result message
@@ -397,10 +361,7 @@ module.exports = {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
-                        // Pass the muter's ID to track who issued the mute - this is critical for the risk button
-                        // If successful, the command user is the muter; if not, there's no muter (self-mute)
-                        const muterId = success ? message.author.id : null;
-                        muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes, muterId);
+                        muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
                         if (!muteSuccess) {
                             console.error('Failed to apply mute');
                             message.channel.send('There was an issue applying the mute. Please try again or contact an admin.').catch(console.error);
@@ -455,13 +416,10 @@ module.exports = {
                         .setEmoji('<:creepypp:1060554596310843553>')
                 );
 
-            // Calculate streak-based luck bonus
-            const streakLuckBonus = Math.floor(previousStreak / 10);
-
             // Modify streak display for failed attempts
             const streakDisplay = success
-                ? `**${currentStreak}**${streakLuckBonus > 0 ? ` (+${streakLuckBonus}% luck)` : ''}`
-                : `**${previousStreak} → 0**${streakLuckBonus > 0 ? ` (lost +${streakLuckBonus}% luck)` : ''}`;
+                ? `**${currentStreak}**`
+                : `**${previousStreak} → 0**`;
 
             // Create embed
             const embed = new EmbedBuilder()
@@ -474,7 +432,8 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     `<:idk:1064831073881694278> Luck: **${totalLuck}**`
                 )
-                .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251');
+                .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
+                .setFooter({ text: `Total Uses: ${userStats.totalUses} | Successes: ${userStats.successes} | Fails: ${userStats.fails}` });
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
