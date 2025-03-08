@@ -23,17 +23,33 @@ module.exports = {
             try {
                 const blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
                 const channelBlacklist = blacklistData[message.channelId] || [];
-                
-                // Check if message contains more than one word
+
+                // Check if message contains more than one word with punctuation handling
                 const messageContent = message.content.trim();
-                const wordCount = messageContent.split(/\s+/).length;
-                
-                if (wordCount > 1) {
+                const words = messageContent.split(/\s+/);
+                const wordCount = words.length;
+
+                // Check if message has more than one word with special handling for punctuation
+                let isValidMessage = false;
+
+                if (wordCount === 1) {
+                    // Single word is always valid (subject to blacklist)
+                    isValidMessage = true;
+                } else if (wordCount === 2) {
+                    // Check if one of the two items is purely punctuation
+                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…-]+$/.test(word);
+
+                    if (isPunctuation(words[0]) || isPunctuation(words[1])) {
+                        isValidMessage = true;
+                    }
+                }
+
+                if (!isValidMessage) {
                     await message.delete();
                     const warningMsg = await message.channel.send(
-                        `<@${message.author.id}> Only one word is allowed in this channel!`
+                        `<@${message.author.id}> Only one word is allowed in this channel! You can include standalone punctuation.`
                     );
-                    
+
                     // Delete the warning after 5 seconds
                     setTimeout(async () => {
                         try {
@@ -42,24 +58,32 @@ module.exports = {
                             console.error('Error deleting warning message:', err);
                         }
                     }, 5000);
-                    
+
                     return;
                 }
-                
+
+                // Get the actual word (non-punctuation) for blacklist checking
+                let actualWord = messageContent;
+                if (wordCount === 2) {
+                    // Find which part is the actual word
+                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…-]+$/.test(word);
+                    actualWord = isPunctuation(words[0]) ? words[1] : words[0];
+                }
+
                 // Enhanced blacklist check - check if any blacklisted word is contained within the message
-                const wordLower = messageContent.toLowerCase();
+                const wordLower = actualWord.toLowerCase();
                 if (channelBlacklist.some(blacklistedWord => {
                     // Check if the word contains any blacklisted word
                     const blacklistedWordLower = blacklistedWord.toLowerCase();
-                    return wordLower.includes(blacklistedWordLower) || 
-                           // Or check if blacklisted word is a root of the current word
-                           (blacklistedWordLower.length > 3 && wordLower.startsWith(blacklistedWordLower));
+                    return wordLower.includes(blacklistedWordLower) ||
+                        // Or check if blacklisted word is a root of the current word
+                        (blacklistedWordLower.length > 3 && wordLower.startsWith(blacklistedWordLower));
                 })) {
                     await message.delete();
                     const warningMsg = await message.channel.send(
                         `<@${message.author.id}> That word is blacklisted in this channel.`
                     );
-                    
+
                     // Delete the warning after 5 seconds
                     setTimeout(async () => {
                         try {
@@ -68,21 +92,23 @@ module.exports = {
                             console.error('Error deleting warning message:', err);
                         }
                     }, 5000);
-                    
+
                     return;
                 }
             } catch (error) {
                 console.error('Error checking one word story:', error);
             }
         }
-        
+
+        // Rest of the code remains the same
+
         // Check for blacklist management command - Allow specific user ID in addition to manage messages perm
-        if (message.content.startsWith(',blacklist') && 
+        if (message.content.startsWith(',blacklist') &&
             (message.member.permissions.has('ManageMessages') || message.author.id === '753491023208120321')) {
             const args = message.content.slice(',blacklist'.length).trim().split(/ +/);
             const action = args[0]?.toLowerCase();
             const channelId = args[1] || '1346427004299378718'; // Default to one word story channel
-            
+
             // Load current blacklist
             let blacklistData = {};
             try {
@@ -94,17 +120,17 @@ module.exports = {
                 console.error('Error loading blacklist:', error);
                 blacklistData[channelId] = [];
             }
-            
+
             if (action === 'add' && args.length > 2) {
                 // Add words to blacklist
                 const wordsToAdd = args.slice(2).join(' ').split(',').map(word => word.trim());
-                
+
                 for (const word of wordsToAdd) {
                     if (word && !blacklistData[channelId].includes(word)) {
                         blacklistData[channelId].push(word);
                     }
                 }
-                
+
                 fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
                 message.reply(`Added ${wordsToAdd.length} word(s) to the blacklist for channel <#${channelId}>.`);
                 return;
@@ -112,11 +138,11 @@ module.exports = {
                 // Remove words from blacklist
                 const wordsToRemove = args.slice(2).join(' ').split(',').map(word => word.trim());
                 const initialCount = blacklistData[channelId].length;
-                
+
                 blacklistData[channelId] = blacklistData[channelId].filter(
                     word => !wordsToRemove.includes(word)
                 );
-                
+
                 fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
                 message.reply(`Removed ${initialCount - blacklistData[channelId].length} word(s) from the blacklist for channel <#${channelId}>.`);
                 return;
@@ -183,13 +209,13 @@ module.exports = {
             '720398363186692216'
         ];
 
-        if (!message.author.bot && 
-            message.channelId !== faceRevealChannelId && 
-            message.channel.parentId && 
+        if (!message.author.bot &&
+            message.channelId !== faceRevealChannelId &&
+            message.channel.parentId &&
             !blacklistedCategories.includes(message.channel.parentId)) {
-            
-            const hasImage = message.attachments.some(attachment => 
-                attachment.contentType?.startsWith('image/')) || 
+
+            const hasImage = message.attachments.some(attachment =>
+                attachment.contentType?.startsWith('image/')) ||
                 /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(message.content);
 
             if (hasImage) {
@@ -316,8 +342,8 @@ module.exports = {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
-        const command = client.textCommands.get(commandName) || 
-                       client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+        const command = client.textCommands.get(commandName) ||
+            client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
         if (!command) return;
 
