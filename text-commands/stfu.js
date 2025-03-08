@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
+
 // Initialize caches
 const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
 const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
