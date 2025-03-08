@@ -1,5 +1,3 @@
-// Add this to index.js or create a new file called hot-reload.js
-
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
