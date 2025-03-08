@@ -868,16 +868,82 @@ async function handleRiskButton(interaction) {
                         if (muter) {
                             const doubledDuration = remainingTime * 2;
 
-                            // Apply mute to the original muter
-                            await handleMute(
-                                muter,
-                                doubledDuration,
-                                mutedRole,
-                                mutesData,
-                                interaction.user.id // Record who applied the reverse mute
-                            );
+                            // Create a new mute data entry for the muter
+                            const muteStartTime = Math.floor(Date.now() / 1000);
+                            const muteEndTime = muteStartTime + doubledDuration;
 
-                            responseMessage += ` Additionally, ${muter} has been muted for **${Math.floor(doubledDuration)} seconds** as karma!`;
+                            // Add mute role to the original muter with retry
+                            let muteSuccess = false;
+                            for (let attempt = 0; attempt < 3 && !muteSuccess; attempt++) {
+                                try {
+                                    await muter.roles.add(mutedRole);
+                                    muteSuccess = true;
+                                } catch (error) {
+                                    console.error(`Mute attempt ${attempt + 1} on original muter failed:`, error);
+                                    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+                            }
+
+                            if (muteSuccess) {
+                                // Add to mutes data
+                                const muteData = {
+                                    userId: muter.id,
+                                    muteStartTime,
+                                    muteEndTime,
+                                    button_clicked: false,
+                                    guildId: interaction.guild.id,
+                                    roleId: mutedRole.id,
+                                    muterId: interaction.user.id // Record who reversed the mute
+                                };
+
+                                // Update mutes data
+                                const existingMuteIndex = mutesData.users.findIndex(m => m.userId === muter.id);
+                                if (existingMuteIndex !== -1) {
+                                    mutesData.users[existingMuteIndex] = muteData;
+                                } else {
+                                    mutesData.users.push(muteData);
+                                }
+
+                                responseMessage += ` Additionally, ${muter} has been muted for **${Math.floor(doubledDuration)} seconds** as karma!`;
+
+                                // Schedule automatic unmute for the reversed mute
+                                const scheduleUnmute = async () => {
+                                    try {
+                                        const updatedMuter = await interaction.guild.members.fetch(muter.id);
+                                        if (updatedMuter.roles.cache.has(mutedRole.id)) {
+                                            await updatedMuter.roles.remove(mutedRole);
+                                            console.log(`Successfully unmuted ${muter.user.tag} after reversed mute`);
+
+                                            // Clean up mute data after unmute
+                                            try {
+                                                const latestData = await fs.readFile(mutesPath, 'utf8');
+                                                const latestMutes = JSON.parse(latestData);
+                                                latestMutes.users = latestMutes.users.filter(m =>
+                                                    !(m.userId === muter.id && m.muteEndTime === muteEndTime)
+                                                );
+                                                await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 2), 'utf8');
+                                            } catch (cleanupError) {
+                                                console.error('Error cleaning up reversed mute data:', cleanupError);
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error(`Failed to unmute ${muter.user.tag} after reversed mute:`, error);
+                                    }
+                                };
+
+                                // Schedule multiple unmute attempts at different times
+                                [
+                                    doubledDuration * 1000,           // Exact duration
+                                    (doubledDuration * 1000) + 5000,  // 5 seconds after
+                                    (doubledDuration * 1000) + 15000  // 15 seconds after
+                                ].forEach(time => {
+                                    setTimeout(scheduleUnmute, time);
+                                });
+                            } else {
+                                responseMessage += ` However, there was an error applying the reverse mute to ${muter}.`;
+                            }
+                        } else {
+                            responseMessage += ` However, the original muter could not be found.`;
                         }
                     } catch (error) {
                         console.error('Error applying reverse mute:', error);
@@ -934,164 +1000,6 @@ async function handleRiskButton(interaction) {
     } catch (error) {
         console.error('Error in handleRiskButton:', error);
         await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
-    }
-}
-
-// Import the handleMute function from the main file
-async function handleMute(member, duration, muteRole, mutes, muterId = null) {
-    try {
-        if (!member) {
-            console.error('Member not found');
-            return false;
-        }
-        const muteStartTime = Math.floor(Date.now() / 1000);
-        const muteEndTime = muteStartTime + duration;
-
-        // Add mute role with retry mechanism
-        let muteAttempts = 0;
-        const maxAttempts = 3;
-        let muteSuccessful = false;
-
-        while (muteAttempts < maxAttempts && !muteSuccessful) {
-            try {
-                await member.roles.add(muteRole);
-                muteSuccessful = true;
-            } catch (error) {
-                muteAttempts++;
-                console.error(`Mute attempt ${muteAttempts} failed:`, error);
-                if (muteAttempts === maxAttempts) {
-                    console.error(`Failed to mute ${member.user.tag} after ${maxAttempts} attempts:`, error);
-                    return false;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-            }
-        }
-
-        if (!muteSuccessful) {
-            return false;
-        }
-
-        // Create mute data
-        const muteData = {
-            userId: member.id,
-            muteStartTime,
-            muteEndTime,
-            button_clicked: false,
-            guildId: member.guild.id,
-            roleId: muteRole.id,
-            muterId: muterId // Store who issued the mute
-        };
-
-        // Add mute data to file
-        const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
-        if (existingMuteIndex !== -1) {
-            mutes.users[existingMuteIndex] = muteData;
-        } else {
-            mutes.users.push(muteData);
-        }
-
-        // Write to file immediately to ensure data is saved for risk button
-        const mutesPath = path.join(__dirname, '../data/mutes.json');
-        const writeSuccess = await fs.writeFile(mutesPath, JSON.stringify(mutes, null, 4), 'utf8')
-            .then(() => true)
-            .catch(error => {
-                console.error(`Failed to write mute data for ${member.user.tag}`, error);
-                return false;
-            });
-
-        if (!writeSuccess) {
-            console.error(`Failed to write mute data for ${member.user.tag}`);
-            // Don't return false here, still try to schedule unmutes even if write fails
-        }
-
-        // Update mute history
-        if (muterId) {
-            const muteHistoryPath = path.join(__dirname, '../data/muteHistory.json');
-            try {
-                const muteHistory = JSON.parse(await fs.readFile(muteHistoryPath, 'utf8'));
-
-                const muteData = {
-                    mutedUserId: member.id,
-                    muterId,
-                    muteTime: muteStartTime,
-                    duration,
-                    guildId: member.guild.id
-                };
-
-                const existingIndex = muteHistory.users.findIndex(entry => entry.mutedUserId === member.id);
-                if (existingIndex !== -1) {
-                    muteHistory.users[existingIndex] = muteData;
-                } else {
-                    muteHistory.users.push(muteData);
-                }
-
-                await fs.writeFile(muteHistoryPath, JSON.stringify(muteHistory, null, 4), 'utf8');
-            } catch (error) {
-                console.error('Error updating mute history:', error);
-            }
-        }
-
-        // Function to attempt unmute
-        const scheduleUnmute = async () => {
-            try {
-                const updatedMember = await member.guild.members.fetch(member.id);
-                if (updatedMember.roles.cache.has(muteRole.id)) {
-                    await updatedMember.roles.remove(muteRole);
-                    console.log(`Successfully unmuted ${member.user.tag}`);
-
-                    // After successful unmute, clean up mute data
-                    try {
-                        const mutesPath = path.join(__dirname, '../data/mutes.json');
-                        const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
-                        latestMutes.users = latestMutes.users.filter(mute =>
-                            !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
-                        );
-                        await fs.writeFile(mutesPath, JSON.stringify(latestMutes, null, 4), 'utf8');
-                    } catch (cleanupError) {
-                        console.error('Error cleaning up mute data:', cleanupError);
-                    }
-
-                    return true;
-                }
-                return false;
-            } catch (error) {
-                console.error(`Failed to unmute ${member.user.tag}:`, error);
-                // Retry after 5 seconds if failed
-                setTimeout(scheduleUnmute, 5000);
-                return false;
-            }
-        };
-
-        // Schedule multiple unmute attempts at different times
-        const unmuteTimes = [
-            duration * 1000,           // Exact duration
-            (duration * 1000) + 5000,  // 5 seconds after
-            (duration * 1000) + 15000  // 15 seconds after
-        ];
-
-        unmuteTimes.forEach(time => {
-            setTimeout(async () => {
-                try {
-                    // Check if this mute is still active and not risk-button-clicked
-                    const mutesPath = path.join(__dirname, '../data/mutes.json');
-                    const latestMutes = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
-                    const userMute = latestMutes.users.find(mute =>
-                        mute.userId === member.id && mute.muteEndTime === muteEndTime && !mute.button_clicked
-                    );
-
-                    if (userMute) {
-                        await scheduleUnmute();
-                    }
-                } catch (error) {
-                    console.error('Error in unmute timeout:', error);
-                }
-            }, time);
-        });
-
-        return true;
-    } catch (error) {
-        console.error('Error in handleMute:', error);
-        return false;
     }
 }
 
