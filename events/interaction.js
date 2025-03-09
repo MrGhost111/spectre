@@ -9,63 +9,6 @@ const streaksPath = './data/streaks.json';
 const fs = require('fs').promises;
 const path = require('path');
 
-async function handleRiskButton(interaction) {
-    try {
-        await interaction.deferUpdate();
-        const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
-
-        // Check if mutedRole exists
-        if (!mutedRole) {
-            console.error('Muted role not found');
-            return await interaction.followUp({ content: 'Could not find the muted role.', ephemeral: true });
-        }
-
-        if (!interaction.member.roles.cache.has(mutedRole.id)) {
-            return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
-        }
-
-        // Read mutes data with better error handling
-        const mutesPath = path.join(__dirname, '../data/mutes.json');
-        let mutesData;
-
-        try {
-            const data = await fs.readFile(mutesPath, 'utf8');
-            mutesData = JSON.parse(data);
-
-            // Ensure the structure is valid
-            if (!mutesData || !Array.isArray(mutesData.users)) {
-                console.error('Invalid mutes data structure:', mutesData);
-                mutesData = { users: [] };
-            }
-        } catch (error) {
-            console.error(`Error reading mutes.json:`, error);
-            return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
-        }
-
-        // Find user mute data
-        const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
-
-        if (!userMute) {
-            return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
-        }
-
-        if (userMute.button_clicked) {
-            return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
-        }
-
-        // Check if mute is still active
-        const currentTime = Math.floor(Date.now() / 1000);
-        const remainingTime = userMute.muteEndTime - currentTime;
-
-        if (remainingTime <= 0) {
-            return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
-        }
-
-        // Check if we have a muter ID
-        if (!userMute.muterId) {
-            return await interaction.followUp({ content: 'Cannot determine who muted you. Risk function unavailable.', ephemeral: true });
-        }
-
 
 
 module.exports = {
