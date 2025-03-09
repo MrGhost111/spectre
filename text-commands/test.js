@@ -242,7 +242,7 @@ async function getMemberFromUser(guild, userId) {
 }
 
 module.exports = {
-    name: 'test.js',
+    name: 'test',
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     async execute(message) {
         try {
