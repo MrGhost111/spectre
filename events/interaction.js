@@ -699,8 +699,10 @@ async function handleLeaderboardButton(interaction) {
     await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
 }
 async function handleInfoButton(interaction) {
+    // Get member roles
     const memberRoles = interaction.member.roles.cache;
 
+    // Base roles with their luck values
     const baseRoles = {
         '866641313754251297': 75,
         '866641299355861022': 75,
@@ -719,6 +721,7 @@ async function handleInfoButton(interaction) {
         '721331975847411754': 65,
     };
 
+    // Booster roles with their luck bonuses
     const boosterRoles = {
         '1038888209440067604': 5,
         '721331975847411754': 5,
@@ -731,6 +734,7 @@ async function handleInfoButton(interaction) {
     let boosterLuck = 0;
     let contributingRoles = [];
 
+    // Calculate base role luck
     for (const [roleId, luckValue] of Object.entries(baseRoles)) {
         if (memberRoles.has(roleId)) {
             if (luckValue > luck) {
@@ -740,6 +744,7 @@ async function handleInfoButton(interaction) {
         }
     }
 
+    // Calculate booster role luck
     for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
         if (memberRoles.has(roleId)) {
             boosterLuck += boostValue;
@@ -747,12 +752,37 @@ async function handleInfoButton(interaction) {
         }
     }
 
-    const totalLuck = Math.min(luck + boosterLuck, 100);
+    // Get user streak from streaks.json
+    const streaksPath = path.join(__dirname, '../data/streaks.json');
+    let streakBonus = 0;
+    let userStreak = 0;
+
+    try {
+        const streaksData = await fs.readFile(streaksPath, 'utf8');
+        const streaks = JSON.parse(streaksData);
+        const userStreakData = streaks.users.find(user => user.userId === interaction.user.id);
+
+        if (userStreakData) {
+            userStreak = userStreakData.streak;
+            // 1% bonus for every 10 streak points
+            streakBonus = Math.floor(userStreak / 10);
+
+            if (streakBonus > 0) {
+                contributingRoles.push(`Streak Bonus: +${streakBonus}% (from streak of ${userStreak})`);
+            }
+        }
+    } catch (error) {
+        console.error('Error reading streaks data:', error);
+    }
+
+    // Calculate total luck with streak bonus
+    const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
 
     if (!highestBaseRole) {
         contributingRoles.push('No base luck roles assigned.');
     }
 
+    // Create and send the embed
     const luckEmbed = new EmbedBuilder()
         .setTitle('Luck Information')
         .setColor(0x6666FF)
@@ -760,6 +790,7 @@ async function handleInfoButton(interaction) {
         .addFields(
             { name: 'Highest Base Role', value: highestBaseRole || 'None' },
             { name: 'Contributing Roles', value: contributingRoles.join('\n') || 'None' },
+            { name: 'Current Streak', value: `${userStreak} (Bonus: +${streakBonus}%)` },
             {
                 name: '----------- Base Roles -----------',
                 value: Object.entries(baseRoles).map(([roleId, luckValue]) => `<@&${roleId}> (Luck: ${luckValue}%)`).join('\n') || 'None'
@@ -769,7 +800,7 @@ async function handleInfoButton(interaction) {
                 value: Object.entries(boosterRoles).map(([roleId, boostValue]) => `<@&${roleId}> (Luck: +${boostValue}%)`).join('\n') || 'None'
             }
         )
-        .setFooter({ text: 'Luck is calculated based on your roles.' });
+        .setFooter({ text: 'Luck is calculated based on your roles and streak.' });
 
     await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
 }

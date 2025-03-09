@@ -73,8 +73,8 @@ function getBar(value, bars, barType) {
     return bars[barType]['91-100'];
 }
 
-function calculateLuck(member) {
-    const cacheKey = `luck_${member.id}`;
+function calculateLuck(member, streak = 0) {
+    const cacheKey = `luck_${member.id}_${streak}`;
     const cachedLuck = roleCache.get(cacheKey);
 
     if (cachedLuck !== undefined) {
@@ -95,7 +95,10 @@ function calculateLuck(member) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    const totalLuck = Math.min(luck + boosterLuck, 100);
+    // Add streak bonus: 1% for every 10 streak points
+    const streakBonus = Math.floor(streak / 10);
+
+    const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -301,16 +304,28 @@ module.exports = {
                 return message.channel.send('Error loading bars data. Please try again later.');
             }
 
-            // Calculate luck and roll results
-            const totalLuck = calculateLuck(message.member);
-            const luckCheckRoll = Math.floor(Math.random() * 101);
-            const success = luckCheckRoll <= totalLuck;
-
-            // Handle streaks
+            // Get user streak
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
+
+            // Calculate luck with streak bonus
+            const totalLuck = calculateLuck(message.member, previousStreak);
+            const luckCheckRoll = Math.floor(Math.random() * 101);
+            const success = luckCheckRoll <= totalLuck;
+
+            // Update streak
             const currentStreak = success ? (previousStreak + 1) : 0;
+            const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
+            if (existingUserIndex !== -1) {
+                streaks.users[existingUserIndex].streak = currentStreak;
+            } else {
+                streaks.users.push({ userId: message.author.id, streak: currentStreak });
+            }
+            await writeJsonFile(DATA_PATHS.streaks, streaks);
+
+            // Calculate streak bonus for display
+            const streakBonus = Math.floor(previousStreak / 10);
 
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
@@ -341,15 +356,6 @@ module.exports = {
                 }
             }
 
-            // Update streak
-            const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
-            if (existingUserIndex !== -1) {
-                streaks.users[existingUserIndex].streak = currentStreak;
-            } else {
-                streaks.users.push({ userId: message.author.id, streak: currentStreak });
-            }
-            await writeJsonFile(DATA_PATHS.streaks, streaks);
-
             // Update stats
             const userStats = await updateUserStats(message.author.id, success);
 
@@ -379,7 +385,12 @@ module.exports = {
                 ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
 
-            // Create embed
+            // Create embed with streak bonus info
+            let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
+            if (streakBonus > 0) {
+                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}** (${totalLuck - streakBonus} + ${streakBonus} from streak)`;
+            }
+
             const embed = new EmbedBuilder()
                 .setColor('#FFA500')
                 .setDescription(
@@ -388,10 +399,10 @@ module.exports = {
                     `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
                     resultMessage + '\n\n' +
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
-                    `<:idk:1064831073881694278> Luck: **${totalLuck}**`
+                    luckDisplay
                 )
                 .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
-                .setFooter({ text: `Total Uses: ${userStats.totalUses} | Successes: ${userStats.successes} | Fails: ${userStats.fails}` });
+                ;
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
