@@ -1,5 +1,4 @@
-﻿//lets see if this works   .  . . . 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+﻿const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
@@ -132,7 +131,7 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-async function handleMute(member, duration, muteRole, mutes) {
+async function handleMute(member, duration, muteRole, mutes, muterId) {
     try {
         if (!member) {
             console.error('Member not found');
@@ -181,7 +180,8 @@ async function handleMute(member, duration, muteRole, mutes) {
             muteEndTime,
             button_clicked: false,
             guildId: member.guild.id,
-            roleId: muteRole.id
+            roleId: muteRole.id,
+            muterId: muterId // Store who muted this user
         };
 
         const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
@@ -347,7 +347,9 @@ module.exports = {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
-                        const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
+                        // Store the muter's ID when muting a user
+                        const muterId = message.author.id;
+                        const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes, muterId);
                         if (!muteSuccess) {
                             console.error('Failed to apply mute');
                         }
