@@ -389,7 +389,7 @@ module.exports = {
             let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
             if (streakBonus > 0) {
                 luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
-
+            }
             const embed = new EmbedBuilder()
                 .setColor('#FFA500')
                 .setDescription(
