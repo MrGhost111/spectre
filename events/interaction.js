@@ -8,11 +8,6 @@ const riskPath = './data/risk.json';
 const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
-<<<<<<< HEAD
-       module.exports = {
-            name: 'interactionCreate',
-            async execute(client, interaction) {
-=======
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -45,7 +40,6 @@ module.exports = {
                 console.log('Interaction already acknowledged, ignoring:', error.message);
             } else {
                 console.error('Error handling interaction:', error);
->>>>>>> a6e03a5cb6294351fc27782f82a5fa2059736c42
                 try {
                     await interaction.followUp({
                         content: 'There was an error while executing this command!',
@@ -115,16 +109,10 @@ async function handleChannelButtons(interaction) {
 
             await interaction.showModal(modal);
 
-<<<<<<< HEAD
-
-                    const actionRow = new ActionRowBuilder().addComponents(nameInput);
-                    modal.addComponents(actionRow);
-=======
         } else if (interaction.customId === 'view_friends') {
             if (!userChannel || userChannel.userId !== interaction.user.id) {
                 return interaction.reply({ content: "You don't own a channel.", ephemeral: true });
             }
->>>>>>> a6e03a5cb6294351fc27782f82a5fa2059736c42
 
             const friends = userChannel.friends;
             const friendsMentions = friends.map(friendId => `<@${friendId}>`).join('\n') || 'No friends added.';
@@ -816,56 +804,45 @@ async function handleInfoButton(interaction) {
 
     await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
 }
-
 async function handleRiskButton(interaction) {
     try {
         await interaction.deferUpdate();
-
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
         if (!interaction.member.roles.cache.has(mutedRole.id)) {
             return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
-
         let mutesData = { users: [] };
         try {
             const data = fs.readFileSync(mutesPath, 'utf8');
             mutesData = JSON.parse(data);
         } catch (error) {
-            console.error(`Error reading mutes.json: ${error}`);
+            console.error(Error reading mutes.json: ${error});
             return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
-
         const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
         if (!userMute) {
             return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
-
         if (userMute.button_clicked) {
             return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
         }
-
         const currentTime = Math.floor(Date.now() / 1000);
         const remainingTime = userMute.muteEndTime - currentTime;
-
         if (remainingTime <= 0) {
             return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
-
         const success = Math.random() < 0.5;
         let responseMessage;
-
         if (success) {
             await interaction.member.roles.remove(mutedRole);
-            responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+            responseMessage = ${interaction.user} took the risk and succeeded. They are no longer muted!;
             userMute.button_clicked = true;
         } else {
             const newDuration = remainingTime * 2;
             const newEndTime = currentTime + newDuration;
-            responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
-
+            responseMessage = ${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.;
             userMute.muteEndTime = newEndTime;
             userMute.button_clicked = true;
-
             setTimeout(async () => {
                 try {
                     await interaction.member.roles.remove(mutedRole);
@@ -876,7 +853,6 @@ async function handleRiskButton(interaction) {
                 }
             }, newDuration * 1000);
         }
-
         fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
         await interaction.followUp({ content: responseMessage });
     } catch (error) {
@@ -903,14 +879,7 @@ function calculateMaxFriends(member) {
         if (member.roles.cache.has(roleId)) {
             maxFriends += limit;
         }
-<<<<<<< HEAD
-  }
-
-    return maxFriends;
-}
-=======
     }
 
     return maxFriends;
 }
->>>>>>> a6e03a5cb6294351fc27782f82a5fa2059736c42
