@@ -805,62 +805,90 @@ async function handleInfoButton(interaction) {
     await interaction.reply({ embeds: [luckEmbed], ephemeral: true });
 }
 async function handleRiskButton(interaction) {
-    try {
-        await interaction.deferUpdate();
-        const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
-        if (!interaction.member.roles.cache.has(mutedRole.id)) {
-            return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
-        }
-        let mutesData = { users: [] };
-        try {
-            const data = fs.readFileSync(mutesPath, 'utf8');
-            mutesData = JSON.parse(data);
-        } catch (error) {
-            console.error(Error reading mutes.json: ${error});
-            return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
-        }
-        const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
-        if (!userMute) {
-            return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
-        }
-        if (userMute.button_clicked) {
-            return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
-        }
-        const currentTime = Math.floor(Date.now() / 1000);
-        const remainingTime = userMute.muteEndTime - currentTime;
-        if (remainingTime <= 0) {
-            return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
-        }
-        const success = Math.random() < 0.5;
-        let responseMessage;
-        if (success) {
-            await interaction.member.roles.remove(mutedRole);
-            responseMessage = ${interaction.user} took the risk and succeeded. They are no longer muted!;
-            userMute.button_clicked = true;
-        } else {
-            const newDuration = remainingTime * 2;
-            const newEndTime = currentTime + newDuration;
-            responseMessage = ${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.;
-            userMute.muteEndTime = newEndTime;
-            userMute.button_clicked = true;
-            setTimeout(async () => {
-                try {
-                    await interaction.member.roles.remove(mutedRole);
-                    mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
-                    fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
-                } catch (error) {
-                    console.error('Error in unmute timeout:', error);
-                }
-            }, newDuration * 1000);
-        }
-        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
-        await interaction.followUp({ content: responseMessage });
-    } catch (error) {
-        console.error('Error in handleRiskButton:', error);
-        await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
+  try {
+    await interaction.deferUpdate();
+    const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
+    
+    if (!interaction.member.roles.cache.has(mutedRole.id)) {
+      return await interaction.followUp({ 
+        content: 'This button is only for muted users.', 
+        ephemeral: true 
+      });
     }
+    
+    let mutesData = { users: [] };
+    try {
+      const data = fs.readFileSync(mutesPath, 'utf8');
+      mutesData = JSON.parse(data);
+    } catch (error) {
+      console.error(`Error reading mutes.json: ${error}`);
+      return await interaction.followUp({ 
+        content: 'An error occurred while processing your request.', 
+        ephemeral: true 
+      });
+    }
+    
+    const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
+    if (!userMute) {
+      return await interaction.followUp({ 
+        content: 'No mute data found for you.', 
+        ephemeral: true 
+      });
+    }
+    
+    if (userMute.button_clicked) {
+      return await interaction.followUp({ 
+        content: 'You have already used the risk button for this mute.', 
+        ephemeral: true 
+      });
+    }
+    
+    const currentTime = Math.floor(Date.now() / 1000);
+    const remainingTime = userMute.muteEndTime - currentTime;
+    
+    if (remainingTime <= 0) {
+      return await interaction.followUp({ 
+        content: 'Your mute has already expired.', 
+        ephemeral: true 
+      });
+    }
+    
+    const success = Math.random() < 0.5;
+    let responseMessage;
+    
+    if (success) {
+      await interaction.member.roles.remove(mutedRole);
+      responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+      userMute.button_clicked = true;
+    } else {
+      const newDuration = remainingTime * 2;
+      const newEndTime = currentTime + newDuration;
+      responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
+      userMute.muteEndTime = newEndTime;
+      userMute.button_clicked = true;
+      
+      setTimeout(async () => {
+        try {
+          await interaction.member.roles.remove(mutedRole);
+          mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
+          fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
+        } catch (error) {
+          console.error(`Error in unmute timeout: ${error}`);
+        }
+      }, newDuration * 1000);
+    }
+    
+    fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
+    await interaction.followUp({ content: responseMessage });
+    
+  } catch (error) {
+    console.error(`Error in handleRiskButton: ${error}`);
+    await interaction.followUp({ 
+      content: 'An error occurred while processing your request.', 
+      ephemeral: true 
+    });
+  }
 }
-
 function calculateMaxFriends(member) {
     const roleLimits = {
         '768448955804811274': 5,
