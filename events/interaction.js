@@ -811,175 +811,56 @@ async function handleRiskButton(interaction) {
     try {
         await interaction.deferUpdate();
         const mutedRole = interaction.guild.roles.cache.get('673978861335085107');
-
-        // Check if user is currently muted
         if (!interaction.member.roles.cache.has(mutedRole.id)) {
-            return await interaction.followUp({
-                content: 'This button is only for muted users.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'This button is only for muted users.', ephemeral: true });
         }
-
-        // Read mutes data
         let mutesData = { users: [] };
         try {
-            const data = await fs.readFile(mutesPath, 'utf8');
+            const data = fs.readFileSync(mutesPath, 'utf8');
             mutesData = JSON.parse(data);
         } catch (error) {
-            console.error(`Error reading mutes.json: ${error}`);
-            return await interaction.followUp({
-                content: 'An error occurred while processing your request.',
-                ephemeral: true
-            });
+            console.error(Error reading mutes.json: ${ error });
+            return await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
         }
-
-        // Find user's mute data
         const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
         if (!userMute) {
-            return await interaction.followUp({
-                content: 'No mute data found for you.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'No mute data found for you.', ephemeral: true });
         }
-
-        // Check if button was already clicked
         if (userMute.button_clicked) {
-            return await interaction.followUp({
-                content: 'You have already used the risk button for this mute.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'You have already used the risk button for this mute.', ephemeral: true });
         }
-
-        // Check if mute has expired
         const currentTime = Math.floor(Date.now() / 1000);
         const remainingTime = userMute.muteEndTime - currentTime;
         if (remainingTime <= 0) {
-            return await interaction.followUp({
-                content: 'Your mute has already expired.',
-                ephemeral: true
-            });
+            return await interaction.followUp({ content: 'Your mute has already expired.', ephemeral: true });
         }
-
-        // 50/50 chance of success
         const success = Math.random() < 0.5;
         let responseMessage;
-
         if (success) {
-            // Remove mute from the user
             await interaction.member.roles.remove(mutedRole);
-
-            // Check if muterId exists and is not the same as userId (not self-muted)
-            if (userMute.muterId && userMute.muterId !== userMute.userId) {
-                try {
-                    // Get the muter member
-                    const muterMember = await interaction.guild.members.fetch(userMute.muterId);
-
-                    if (muterMember) {
-                        // Apply mute to the person who muted the user
-                        await muterMember.roles.add(mutedRole);
-
-                        // Calculate remaining duration
-                        const muteDuration = Math.floor(remainingTime);
-
-                        // Create new mute entry for the muter
-                        const muterMuteData = {
-                            userId: userMute.muterId,
-                            muterId: interaction.user.id, // Track who returned the mute
-                            muteStartTime: currentTime,
-                            muteEndTime: currentTime + muteDuration,
-                            button_clicked: false,
-                            guildId: interaction.guild.id,
-                            roleId: mutedRole.id,
-                            isReturnedMute: true
-                        };
-
-                        // Add new mute to the mutes array
-                        mutesData.users.push(muterMuteData);
-
-                        // Schedule unmute for the muter
-                        setTimeout(async () => {
-                            try {
-                                const updatedMuterMember = await interaction.guild.members.fetch(userMute.muterId);
-                                if (updatedMuterMember && updatedMuterMember.roles.cache.has(mutedRole.id)) {
-                                    await updatedMuterMember.roles.remove(mutedRole);
-
-                                    // Clean up mute data after successful unmute
-                                    try {
-                                        const latestMutesData = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
-                                        latestMutesData.users = latestMutesData.users.filter(mute =>
-                                            !(mute.userId === userMute.muterId && mute.muteEndTime === currentTime + muteDuration)
-                                        );
-                                        await fs.writeFile(mutesPath, JSON.stringify(latestMutesData, null, 2));
-                                    } catch (readError) {
-                                        console.error('Error cleaning up mute data:', readError);
-                                    }
-                                }
-                            } catch (error) {
-                                console.error('Error in muter unmute timeout:', error);
-                            }
-                        }, muteDuration * 1000);
-
-                        responseMessage = `${interaction.user} took the risk and succeeded! The mute has been returned to ${muterMember.user} for the remaining ${muteDuration} seconds!`;
-                    } else {
-                        responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted! (Could not find the original muter)`;
-                    }
-                } catch (error) {
-                    console.error('Error fetching muter:', error);
-                    responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted! (Error returning mute)`;
-                }
-            } else {
-                responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
-            }
-
-            // Mark button as clicked
+            responseMessage = ${ interaction.user } took the risk and succeeded.They are no longer muted!;
             userMute.button_clicked = true;
-
-            // Remove the user's mute entry
-            mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
         } else {
-            // Double the mute duration
             const newDuration = remainingTime * 2;
             const newEndTime = currentTime + newDuration;
-
-            responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
-
-            // Update mute data
+            responseMessage = ${ interaction.user } took the risk and failed miserably.Mute duration is now doubled to ** ${ Math.floor(newDuration) }** seconds.;
             userMute.muteEndTime = newEndTime;
             userMute.button_clicked = true;
-
-            // Schedule unmute
             setTimeout(async () => {
                 try {
-                    const updatedMember = await interaction.guild.members.fetch(interaction.user.id);
-                    if (updatedMember && updatedMember.roles.cache.has(mutedRole.id)) {
-                        await updatedMember.roles.remove(mutedRole);
-
-                        // Clean up mute data after successful unmute
-                        try {
-                            const latestMutesData = JSON.parse(await fs.readFile(mutesPath, 'utf8'));
-                            latestMutesData.users = latestMutesData.users.filter(mute => mute.userId !== interaction.user.id);
-                            await fs.writeFile(mutesPath, JSON.stringify(latestMutesData, null, 2));
-                        } catch (readError) {
-                            console.error('Error cleaning up mute data:', readError);
-                        }
-                    }
+                    await interaction.member.roles.remove(mutedRole);
+                    mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
+                    fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
                 } catch (error) {
                     console.error('Error in unmute timeout:', error);
                 }
             }, newDuration * 1000);
         }
-
-        // Save updated mutes data
-        await fs.writeFile(mutesPath, JSON.stringify(mutesData, null, 2));
-
-        // Send response
+        fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
         await interaction.followUp({ content: responseMessage });
     } catch (error) {
         console.error('Error in handleRiskButton:', error);
-        await interaction.followUp({
-            content: 'An error occurred while processing your request.',
-            ephemeral: true
-        });
+        await interaction.followUp({ content: 'An error occurred while processing your request.', ephemeral: true });
     }
 }
 function calculateMaxFriends(member) {
