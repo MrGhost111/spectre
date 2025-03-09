@@ -982,26 +982,26 @@ async function handleRiskButton(interaction) {
         });
     }
 }
-        function calculateMaxFriends(member) {
-            const roleLimits = {
-                '768448955804811274': 5,
-                '768449168297033769': 5,
-                '946729964328337408': 5,
-                '1028256286560763984': 5,
-                '1028256279124250624': 5,
-                '1038106794200932512': 5,
-                '1038888209440067604': 5,
-                '783032959350734868': 10
-            };
+function calculateMaxFriends(member) {
+    const roleLimits = {
+        '768448955804811274': 5,
+        '768449168297033769': 5,
+        '946729964328337408': 5,
+        '1028256286560763984': 5,
+        '1028256279124250624': 5,
+        '1038106794200932512': 5,
+        '1038888209440067604': 5,
+        '783032959350734868': 10
+    };
 
-            let maxFriends = 0;
+    let maxFriends = 0;
 
-            for (const [roleId, limit] of Object.entries(roleLimits)) {
-                if (member.roles.cache.has(roleId)) {
-                    maxFriends += limit;
-                }
-            }
-
-            return maxFriends;
+    for (const [roleId, limit] of Object.entries(roleLimits)) {
+        if (member.roles.cache.has(roleId)) {
+            maxFriends += limit;
         }
-    
+
+
+        return maxFriends;
+    }
+}
