@@ -176,12 +176,12 @@ async function handleMute(member, duration, muteRole, mutes, muterId) {
 
         const muteData = {
             userId: member.id,
+            muterId: muterId, // Store who initiated the mute
             muteStartTime,
             muteEndTime,
             button_clicked: false,
             guildId: member.guild.id,
-            roleId: muteRole.id,
-            muterId: muterId // Store who muted this user
+            roleId: muteRole.id
         };
 
         const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
