@@ -1,4 +1,5 @@
-﻿const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+﻿//lets see if this works   .  . . . 
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
@@ -131,7 +132,7 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-async function handleMute(member, duration, muteRole, mutes, muterId) {
+async function handleMute(member, duration, muteRole, mutes) {
     try {
         if (!member) {
             console.error('Member not found');
@@ -180,8 +181,7 @@ async function handleMute(member, duration, muteRole, mutes, muterId) {
             muteEndTime,
             button_clicked: false,
             guildId: member.guild.id,
-            roleId: muteRole.id,
-            muterId: muterId // Store who muted this user
+            roleId: muteRole.id
         };
 
         const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
@@ -347,9 +347,7 @@ module.exports = {
                 try {
                     const targetMember = await getMemberFromUser(message.guild, muteUser);
                     if (targetMember) {
-                        // Store the muter's ID when muting a user
-                        const muterId = message.author.id;
-                        const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes, muterId);
+                        const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
                         if (!muteSuccess) {
                             console.error('Failed to apply mute');
                         }
@@ -391,7 +389,7 @@ module.exports = {
             // Create embed with streak bonus info
             let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
             if (streakBonus > 0) {
-                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
+                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}** (${totalLuck - streakBonus} + ${streakBonus} from streak)`;
             }
 
             const embed = new EmbedBuilder()
