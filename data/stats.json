@@ -302,8 +302,8 @@
         },
         {
             "userId": "770593236129284126",
-            "totalUses": 17,
-            "successes": 16,
+            "totalUses": 18,
+            "successes": 17,
             "fails": 1
         },
         {
@@ -370,6 +370,12 @@
             "userId": "749474658738241556",
             "totalUses": 2,
             "successes": 2,
+            "fails": 0
+        },
+        {
+            "userId": "434939219279085575",
+            "totalUses": 1,
+            "successes": 1,
             "fails": 0
         }
     ],
