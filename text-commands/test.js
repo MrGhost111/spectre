@@ -305,7 +305,7 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     luckDisplay
                 )
-                .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&heighhttps://media.discordapp.net/attachments/843413781409169412/1349965785942196354/ezgif-151b9e33476276.gif?ex=67d5051c&is=67d3b39c&hm=439a9386b027e1dc33c98b491bcc27dce17758fd84ca207c50394e3dce2a11f5&=&width=395&height=189t=251');
+                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349965785942196354/ezgif-151b9e33476276.gif');
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
