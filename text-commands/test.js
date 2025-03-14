@@ -1,21 +1,10 @@
-//lets see if this works   .  . . . 
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
 
 // Initialize caches
 const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
 const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
-
-// Define paths
-const DATA_PATHS = {
-    streaks: path.join(__dirname, '../data/streaks.json'),
-    mutes: path.join(__dirname, '../data/mutes.json'),
-    cooldowns: path.join(__dirname, '../data/cooldowns.json'),
-    bars: path.join(__dirname, '../data/bars.json'),
-    stats: path.join(__dirname, '../data/stats.json')
-};
 
 // Role configurations
 const ROLE_CONFIGS = {
@@ -45,20 +34,29 @@ const REQUIRED_ROLES = [
     ...ROLE_CONFIGS.tier4.roles
 ];
 
+// Constants
+const MUTED_ROLE_ID = '673978861335085107';
+const DATA_PATHS = {
+    streaks: path.join(__dirname, '../data/streaks.json'),
+    stats: path.join(__dirname, '../data/stats.json'),
+    cooldowns: path.join(__dirname, '../data/cooldowns.json'),
+    bars: path.join(__dirname, '../data/bars.json')
+};
+
 // Helper functions
 async function readJsonFile(path, defaultValue = { users: [] }) {
     try {
-        const data = await fs.readFile(path, 'utf8');
+        const data = await require('fs').promises.readFile(path, 'utf8');
         return JSON.parse(data);
     } catch (error) {
         console.error(`Error reading ${path}:`, error);
-        await fs.writeFile(path, JSON.stringify(defaultValue), 'utf8');
+        await require('fs').promises.writeFile(path, JSON.stringify(defaultValue), 'utf8');
         return defaultValue;
     }
 }
 
 async function writeJsonFile(path, data) {
-    await fs.writeFile(path, JSON.stringify(data, null, 4), 'utf8');
+    await require('fs').promises.writeFile(path, JSON.stringify(data, null, 4), 'utf8');
 }
 
 function getBar(value, bars, barType) {
@@ -132,110 +130,18 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-async function handleMute(member, duration, muteRole, mutes) {
-    try {
-        if (!member) {
-            console.error('Member not found');
-            return false;
-        }
-
-        const muteStartTime = Math.floor(Date.now() / 1000);
-        const muteEndTime = muteStartTime + duration;
-
-        // Add redundant unmute jobs at different intervals
-        const scheduleUnmute = async () => {
-            try {
-                const updatedMember = await member.guild.members.fetch(member.id);
-                if (updatedMember.roles.cache.has(muteRole.id)) {
-                    await updatedMember.roles.remove(muteRole);
-                    console.log(`Successfully unmuted ${member.user.tag}`);
-                }
-            } catch (error) {
-                console.error(`Failed to unmute ${member.user.tag}:`, error);
-                // Retry after 5 seconds if failed
-                setTimeout(scheduleUnmute, 5000);
-            }
-        };
-
-        // Add mute role with retry mechanism
-        let muteAttempts = 0;
-        const maxAttempts = 3;
-
-        while (muteAttempts < maxAttempts) {
-            try {
-                await member.roles.add(muteRole);
-                break;
-            } catch (error) {
-                muteAttempts++;
-                if (muteAttempts === maxAttempts) {
-                    console.error(`Failed to mute ${member.user.tag} after ${maxAttempts} attempts:`, error);
-                    return false;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-            }
-        }
-
-        const muteData = {
-            userId: member.id,
-            muteStartTime,
-            muteEndTime,
-            button_clicked: false,
-            guildId: member.guild.id,
-            roleId: muteRole.id
-        };
-
-        const existingMuteIndex = mutes.users.findIndex(mute => mute.userId === member.id);
-        if (existingMuteIndex !== -1) {
-            mutes.users[existingMuteIndex] = muteData;
-        } else {
-            mutes.users.push(muteData);
-        }
-
-        await writeJsonFile(DATA_PATHS.mutes, mutes);
-
-        // Schedule multiple unmute attempts
-        const unmuteTimes = [
-            duration * 1000, // Original duration
-            (duration * 1000) + 5000, // 5 seconds after
-            (duration * 1000) + 15000 // 15 seconds after
-        ];
-
-        unmuteTimes.forEach(time => {
-            setTimeout(async () => {
-                try {
-                    const latestMutes = await readJsonFile(DATA_PATHS.mutes);
-                    const userMute = latestMutes.users.find(mute =>
-                        mute.userId === member.id && mute.muteEndTime === muteEndTime
-                    );
-
-                    if (userMute && !userMute.button_clicked) {
-                        await scheduleUnmute();
-                        // Clean up mute data after successful unmute
-                        latestMutes.users = latestMutes.users.filter(mute =>
-                            !(mute.userId === member.id && mute.muteEndTime === muteEndTime)
-                        );
-                        await writeJsonFile(DATA_PATHS.mutes, latestMutes);
-                    }
-                } catch (error) {
-                    console.error('Error in unmute timeout:', error);
-                }
-            }, time);
-        });
-
-        return true;
-    } catch (error) {
-        console.error('Error in handleMute:', error);
-        return false;
-    }
-}
-
 async function getMemberFromUser(guild, userId) {
     const cacheKey = `member_${guild.id}_${userId}`;
     let member = memberCache.get(cacheKey);
 
     if (!member) {
-        member = await guild.members.fetch(userId);
-        memberCache.set(cacheKey, member);
+        try {
+            member = await guild.members.fetch(userId);
+            memberCache.set(cacheKey, member);
+        } catch (error) {
+            console.error(`Failed to fetch member ${userId}:`, error);
+            return null;
+        }
     }
 
     return member;
@@ -289,8 +195,8 @@ module.exports = {
                 return message.channel.send("You can't use this command on bots.");
             }
 
-            // Check recent mutes
-            const mutes = await readJsonFile(DATA_PATHS.mutes);
+            // Check if target was recently muted
+            const mutes = await message.client.muteManager.getMutes();
             const recentMute = mutes.users.find(mute =>
                 mute.userId === targetUser.id && (currentTime - mute.muteStartTime) < 120
             );
@@ -341,20 +247,17 @@ module.exports = {
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
                 `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
-            // Handle mute role
-            const mutedRole = message.guild.roles.cache.get('673978861335085107');
-            if (mutedRole) {
-                try {
-                    const targetMember = await getMemberFromUser(message.guild, muteUser);
-                    if (targetMember) {
-                        const muteSuccess = await handleMute(targetMember, muteDuration, mutedRole, mutes);
-                        if (!muteSuccess) {
-                            console.error('Failed to apply mute');
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error fetching member or applying mute:', error);
-                }
+            // Handle mute with the new muteManager
+            const muteSuccess = await message.client.muteManager.addMute(
+                muteUser,
+                message.guild.id,
+                MUTED_ROLE_ID,
+                muteDuration
+            );
+
+            if (!muteSuccess) {
+                console.error('Failed to apply mute');
+                return message.channel.send('An error occurred while trying to mute. Please try again later.');
             }
 
             // Update stats
@@ -402,8 +305,7 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     luckDisplay
                 )
-                .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251')
-                ;
+                .setImage('https://media.discordapp.net/attachments/986130247692996628/1259196768822759444/battlefield-2042-ezgif.com-crop.gif?ex=66f64020&is=66f4eea0&hm=6422c352520ce212a6144066b0ded88fa4cd68bc02b15c41beb3d81612616ef1&=&width=750&height=251');
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
@@ -420,7 +322,7 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.cooldowns, cooldowns);
         } catch (error) {
-            console.error('Error in shut command:', error);
+            console.error('Error in stfu command:', error);
             message.channel.send('An error occurred while executing the command. Please try again later.');
         }
     },

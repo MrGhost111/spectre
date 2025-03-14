@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
+const MuteManager = require('./utils/muteManager');
 require('dotenv').config();
 
 const client = new Client({
@@ -34,7 +35,6 @@ const loadCommands = () => {
             client.textCommands.set(command.name, command);
         }
     }
-
     // Load slash commands
     const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
@@ -65,9 +65,13 @@ loadEvents();
 // Set up client ready handler
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    
+
+    // Initialize the MuteManager
+    client.muteManager = new MuteManager(client);
+    console.log('Mute Manager initialized successfully');
+
     const { weeklyReset } = require('./events/mupdate.js');
-    
+
     // Schedule weekly reset for Sunday at 00:00 UTC
     cron.schedule('0 0 * * 0', async () => {
         console.log('Weekly reset triggered at:', new Date().toISOString());
@@ -82,8 +86,20 @@ client.once('ready', () => {
         scheduled: true,
         runOnInit: false
     });
-    
+
     console.log('Weekly reset schedule set up successfully');
+});
+
+// Setup button interaction handler for risk button
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isButton()) return;
+
+    const { customId } = interaction;
+
+    if (customId === 'risk') {
+        await client.muteManager.handleRiskButton(interaction);
+    }
+    // Handle other buttons here...
 });
 
 // Login the client
