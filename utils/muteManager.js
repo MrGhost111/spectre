@@ -1,4 +1,3 @@
-// In a separate file (muteManager.js)
 const { scheduleJob } = require('node-schedule');
 const fs = require('fs').promises;
 const path = require('path');
