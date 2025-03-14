@@ -244,8 +244,8 @@ module.exports = {
             const muteUser = success ? targetUser.id : message.author.id;
 
             const resultMessage = success ?
-                `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
-                `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
+                `> You hit **${targetUser.username}** right into the face and \nmuted them for **${muteDuration} seconds**.` :
+                `> You tried to hit **${targetUser.username}** but failed miserably. \nEnjoy **${muteDuration} second mute for showing skill issue**.`;
 
             // Handle mute with the new muteManager
             const muteSuccess = await message.client.muteManager.addMute(
