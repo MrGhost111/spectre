@@ -119,6 +119,14 @@
             "button_clicked": true,
             "guildId": "673970118744735764",
             "roleId": "673978861335085107"
+        },
+        {
+            "userId": "827983414308241448",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1741927599,
+            "muteEndTime": 1741927637,
+            "button_clicked": false
         }
     ]
 }
