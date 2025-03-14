@@ -192,7 +192,7 @@ module.exports = {
             }
 
             if (targetUser.bot) {
-                return message.channel.send("You can't use this command on bots.");
+                return message.channel.send("You can't use this command on a bot smh");
             }
 
             // Check if target was recently muted
