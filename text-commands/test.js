@@ -295,6 +295,11 @@ module.exports = {
                 luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
             }
 
+            // Choose image based on success or failure
+            const imageUrl = success
+                ? 'https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166'
+                : 'https://media.discordapp.net/attachments/1014096605059756032/1350242262256320592/goku.gif?ex=67d60699&is=67d4b519&hm=2a2c950931f683d10b93238a554132fce5d95fc31b39da5663d4c7876e03d912&=&width=798&height=340';
+
             const embed = new EmbedBuilder()
                 .setColor('#FFA500')
                 .setDescription(
@@ -305,7 +310,7 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     luckDisplay
                 )
-                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166');
+                .setImage(imageUrl);
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
