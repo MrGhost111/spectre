@@ -73,28 +73,12 @@
             "roleId": "673978861335085107"
         },
         {
-            "userId": "1345364873051242496",
+            "userId": "693463277442826240",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1741978880,
-            "muteEndTime": 1741978963,
+            "muteStartTime": 1741978943,
+            "muteEndTime": 1741979058,
             "button_clicked": true
-        },
-        {
-            "userId": "621379895104372757",
-            "guildId": "673970118744735764",
-            "roleId": "673978861335085107",
-            "muteStartTime": 1741978896,
-            "muteEndTime": 1741978959,
-            "button_clicked": false
-        },
-        {
-            "userId": "918097380291772416",
-            "guildId": "673970118744735764",
-            "roleId": "673978861335085107",
-            "muteStartTime": 1741978915,
-            "muteEndTime": 1741978975,
-            "button_clicked": false
         }
     ]
 }
