@@ -305,7 +305,7 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     luckDisplay
                 )
-                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349983331185463367/test.gif');
+                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166');
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
