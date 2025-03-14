@@ -291,10 +291,7 @@ class MuteManager {
             await interaction.followUp({ content: responseMessage });
         } catch (error) {
             console.error(`Error in handleRiskButton:`, error);
-            await interaction.followUp({
-                content: 'An error occurred while processing your request.',
-                ephemeral: true
-            });
+
         }
     }
 }
