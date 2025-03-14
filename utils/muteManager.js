@@ -68,6 +68,49 @@ class MuteManager {
                 button_clicked: false
             };
 
+            // IMPORTANT: Actually apply the mute role
+            const guild = this.client.guilds.cache.get(guildId);
+            if (!guild) {
+                console.error(`Guild ${guildId} not found`);
+                return null;
+            }
+
+            // Fetch member and apply role with retry logic
+            let member;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    member = await guild.members.fetch(userId);
+                    break;
+                } catch (e) {
+                    if (attempt === 3) {
+                        console.error(`Failed to fetch member ${userId} after 3 attempts`);
+                        return null;
+                    }
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+
+            if (!member) {
+                console.error(`Member ${userId} not found`);
+                return null;
+            }
+
+            // Apply mute role with retry
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    await member.roles.add(roleId);
+                    console.log(`Successfully muted ${member.user.tag} for ${duration} seconds`);
+                    break;
+                } catch (e) {
+                    if (attempt === 3) {
+                        console.error(`Failed to add role to ${member.user.tag} after 3 attempts`, e);
+                        return null;
+                    }
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+
+            // Save to database and schedule unmute
             mutesData.users.push(muteData);
             await this.saveMutes(mutesData);
 
