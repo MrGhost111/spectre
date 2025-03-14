@@ -244,8 +244,8 @@ module.exports = {
             const muteUser = success ? targetUser.id : message.author.id;
 
             const resultMessage = success ?
-                `> You hit **${targetUser.username}** right into the face and \nmuted them for **${muteDuration} seconds**.` :
-                `> You tried to hit **${targetUser.username}** but failed miserably. \nEnjoy **${muteDuration} second mute for showing skill issue**.`;
+                `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
+                `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
             // Handle mute with the new muteManager
             const muteSuccess = await message.client.muteManager.addMute(
@@ -305,7 +305,7 @@ module.exports = {
                     `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
                     luckDisplay
                 )
-                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349983331185463367/test.gif?ex=67d51573&is=67d3c3f3&hm=7bf8e35c339ec8591f59a5a89f570bb9ef5c9fdfb524d49ce907871c4a247dea&=&width=273&height=110');
+                .setImage('https://media.discordapp.net/attachments/843413781409169412/1349983331185463367/test.gif');
 
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
