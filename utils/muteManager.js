@@ -260,7 +260,8 @@ class MuteManager {
                 });
             }
 
-            const success = Math.random() < 0.5;
+            // Modified to always succeed (true) for testing purposes
+            const success = true; // Math.random() < 0.5;
             let responseMessage;
 
             if (success) {
@@ -289,17 +290,17 @@ class MuteManager {
                         const issuer = await interaction.guild.members.fetch(issuerId).catch(() => null);
 
                         if (issuer && !issuer.roles.cache.has(mutedRoleId)) {
-                            // Return the mute to the issuer
+                            // Return the mute to the issuer with DOUBLED duration
                             const returnMuteResult = await this.addMute(
                                 issuerId,
                                 interaction.guild.id,
                                 mutedRoleId,
-                                remainingTime,
+                                remainingTime * 2, // Double the remaining time
                                 interaction.user.id // Now the current user becomes the issuer
                             );
 
                             if (returnMuteResult) {
-                                responseMessage = `${interaction.user} took the risk and succeeded! The mute has been returned to <@${issuerId}> for ${Math.floor(remainingTime)} seconds!`;
+                                responseMessage = `${interaction.user} took the risk and succeeded! The mute has been returned to <@${issuerId}> for ${Math.floor(remainingTime * 2)} seconds (doubled)!`;
                             } else {
                                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted! (Failed to return mute to issuer)`;
                             }
