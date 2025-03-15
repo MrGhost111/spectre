@@ -48,7 +48,7 @@ class MuteManager {
         await fs.writeFile(this.mutesPath, JSON.stringify(mutesData, null, 4), 'utf8');
     }
 
-    async addMute(userId, guildId, roleId, duration, issuerId = null) {
+    async addMute(userId, guildId, roleId, duration, issuerId = null, muteChainId = null) {
         try {
             console.log(`Adding mute for ${userId}, issued by ${issuerId}, duration: ${duration}s`);
 
@@ -59,6 +59,11 @@ class MuteManager {
             // Remove existing mute if present
             mutesData.users = mutesData.users.filter(mute => mute.userId !== userId);
 
+            // Create muteChainId if not provided (first mute in a chain)
+            if (!muteChainId) {
+                muteChainId = `chain_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+            }
+
             // Add new mute
             const muteData = {
                 userId,
@@ -67,7 +72,9 @@ class MuteManager {
                 muteStartTime: currentTime,
                 muteEndTime,
                 button_clicked: false,
-                issuerId  // Store who issued the mute
+                issuerId,  // Store who issued the mute
+                muteChainId, // Track the chain of mutes
+                usedRiskInChain: false // Track if user has used risk in this chain
             };
 
             console.log(`Mute data created:`, JSON.stringify(muteData));
@@ -257,6 +264,15 @@ class MuteManager {
                 });
             }
 
+            // Check if the user has already used risk in this mute chain
+            // This is the key check to prevent infinite chains
+            if (userMute.usedRiskInChain) {
+                return await interaction.followUp({
+                    content: 'You have already used the risk button in this mute chain. You cannot use it again until a new mute is applied to you.',
+                    ephemeral: true
+                });
+            }
+
             const currentTime = Math.floor(Date.now() / 1000);
             const remainingTime = userMute.muteEndTime - currentTime;
 
@@ -274,10 +290,12 @@ class MuteManager {
             if (success) {
                 // Store important data before unmuting and cleaning up
                 const issuerId = userMute.issuerId;
-                console.log(`Found issuer ID: ${issuerId}`);
+                const muteChainId = userMute.muteChainId || `chain_${Date.now()}`;
+                console.log(`Found issuer ID: ${issuerId}, Chain ID: ${muteChainId}`);
 
                 // Mark the button as clicked
                 userMute.button_clicked = true;
+                userMute.usedRiskInChain = true;
 
                 // Unmute the current user
                 try {
@@ -312,16 +330,34 @@ class MuteManager {
                             const doubledTime = remainingTime * 2;
                             console.log(`Attempting to return doubled mute (${doubledTime}s) to issuer ${issuerId}`);
 
+                            // Check if issuer has used risk in this chain before
+                            const issuerUsedRiskInChain = mutesData.users.some(
+                                mute => mute.userId === issuerId &&
+                                    mute.muteChainId === muteChainId &&
+                                    mute.usedRiskInChain
+                            );
+
                             // Return the mute to the issuer with doubled duration
                             const returnMuteResult = await this.addMute(
                                 issuerId,
                                 interaction.guild.id,
                                 mutedRoleId,
                                 doubledTime,
-                                interaction.user.id // Now the current user becomes the issuer
+                                interaction.user.id, // Now the current user becomes the issuer
+                                muteChainId // Keep the same chain ID
                             );
 
                             if (returnMuteResult) {
+                                // Mark that the issuer has used risk in this chain if they previously did
+                                if (issuerUsedRiskInChain) {
+                                    const updatedMutes = await this.getMutes();
+                                    const issuerMute = updatedMutes.users.find(mute => mute.userId === issuerId);
+                                    if (issuerMute) {
+                                        issuerMute.usedRiskInChain = true;
+                                        await this.saveMutes(updatedMutes);
+                                    }
+                                }
+
                                 console.log(`Successfully returned mute to issuer: ${issuerId}`);
                                 responseMessage = `${interaction.user} took the risk and succeeded! <@${issuerId}> is muted for ${Math.floor(doubledTime)} seconds.`;
                             } else {
@@ -358,6 +394,7 @@ class MuteManager {
                 // Update mute and reschedule
                 userMute.muteEndTime = newEndTime;
                 userMute.button_clicked = true;
+                userMute.usedRiskInChain = true; // Mark as used risk in this chain
 
                 // Remove old mute entry and add updated one
                 mutesData.users = mutesData.users.filter(mute => mute.userId !== interaction.user.id);
@@ -401,7 +438,6 @@ Stack: \`\`\`${error.stack}\`\`\`
             } catch (followUpError) {
                 // If we can't send to channel, at least try to inform the user
                 console.error('Error sending error details to channel:', followUpError);
-
             }
         }
     }
