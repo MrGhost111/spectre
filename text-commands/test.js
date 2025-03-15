@@ -247,12 +247,13 @@ module.exports = {
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
                 `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
-            // Handle mute with the new muteManager
+            // Handle mute with the new muteManager - pass the issuer's ID as well
             const muteSuccess = await message.client.muteManager.addMute(
                 muteUser,
                 message.guild.id,
                 MUTED_ROLE_ID,
-                muteDuration
+                muteDuration,
+                message.author.id  // Add the issuer's ID
             );
 
             if (!muteSuccess) {

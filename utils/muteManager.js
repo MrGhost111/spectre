@@ -48,7 +48,7 @@ class MuteManager {
         await fs.writeFile(this.mutesPath, JSON.stringify(mutesData, null, 4), 'utf8');
     }
 
-    async addMute(userId, guildId, roleId, duration) {
+    async addMute(userId, guildId, roleId, duration, issuerId = null) {
         try {
             const mutesData = await this.getMutes();
             const currentTime = Math.floor(Date.now() / 1000);
@@ -64,7 +64,8 @@ class MuteManager {
                 roleId,
                 muteStartTime: currentTime,
                 muteEndTime,
-                button_clicked: false
+                button_clicked: false,
+                issuerId  // Store who issued the mute
             };
 
             // IMPORTANT: Actually apply the mute role
@@ -263,9 +264,38 @@ class MuteManager {
             let responseMessage;
 
             if (success) {
-                // Unmute immediately
-                await interaction.member.roles.remove(interaction.guild.roles.cache.get(mutedRoleId));
-                responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+                // Unmute the current user
+                await interaction.member.roles.remove(mutedRoleId);
+
+                // Get the issuer ID - if it exists and isn't the user themselves
+                const issuerId = userMute.issuerId;
+
+                if (issuerId && issuerId !== interaction.user.id) {
+                    try {
+                        const issuer = await interaction.guild.members.fetch(issuerId);
+
+                        // Check if issuer is valid and not already muted
+                        if (issuer && !issuer.roles.cache.has(mutedRoleId)) {
+                            // Return the mute to the issuer
+                            await this.addMute(
+                                issuerId,
+                                interaction.guild.id,
+                                mutedRoleId,
+                                remainingTime,
+                                interaction.user.id // Now the current user becomes the issuer
+                            );
+
+                            responseMessage = `${interaction.user} took the risk and succeeded! The mute has been returned to ${issuer}!`;
+                        } else {
+                            responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+                        }
+                    } catch (error) {
+                        console.error(`Error returning mute to issuer:`, error);
+                        responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+                    }
+                } else {
+                    responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted!`;
+                }
 
                 // Mark as clicked and clean up
                 userMute.button_clicked = true;
@@ -290,7 +320,10 @@ class MuteManager {
             await interaction.followUp({ content: responseMessage });
         } catch (error) {
             console.error(`Error in handleRiskButton:`, error);
-
+            await interaction.followUp({
+                content: 'An error occurred while processing your risk attempt.',
+                ephemeral: true
+            });
         }
     }
 }
