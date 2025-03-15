@@ -401,14 +401,7 @@ Stack: \`\`\`${error.stack}\`\`\`
             } catch (followUpError) {
                 // If we can't send to channel, at least try to inform the user
                 console.error('Error sending error details to channel:', followUpError);
-                try {
-                    await interaction.followUp({
-                        content: `An error occurred: ${error.message}`,
-                        ephemeral: true
-                    });
-                } catch {
-                    // If all attempts fail, we've at least logged to console
-                }
+
             }
         }
     }
