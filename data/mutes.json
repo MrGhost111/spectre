@@ -4,10 +4,19 @@
             "userId": "1193260295565611120",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1742030287,
-            "muteEndTime": 1742030532,
+            "muteStartTime": 1742030482,
+            "muteEndTime": 1742031398,
             "button_clicked": true,
-            "issuerId": "753491023208120321"
+            "issuerId": "1345364873051242496"
+        },
+        {
+            "userId": "753491023208120321",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1742030484,
+            "muteEndTime": 1742030590,
+            "button_clicked": true,
+            "issuerId": "1345364873051242496"
         }
     ]
 }
