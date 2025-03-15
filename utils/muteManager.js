@@ -267,8 +267,7 @@ class MuteManager {
                 });
             }
 
-            // Always succeed for testing purposes
-            const success = true;
+            const success = Math.random() >= 0.5;
             let responseMessage;
 
             if (success) {
