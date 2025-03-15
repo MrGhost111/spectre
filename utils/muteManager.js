@@ -267,7 +267,8 @@ class MuteManager {
                 });
             }
 
-            const success = Math.random() >= 0.5;
+            // Generate 50-50 chance (true = success, false = failure)
+            const success = Math.random() < 0.5;
             let responseMessage;
 
             if (success) {
@@ -322,7 +323,7 @@ class MuteManager {
 
                             if (returnMuteResult) {
                                 console.log(`Successfully returned mute to issuer: ${issuerId}`);
-                                responseMessage = `${interaction.user} took the risk and succeeded! <@${issuerId}> has been muted for ${Math.floor(doubledTime)} seconds.`;
+                                responseMessage = `${interaction.user} took the risk and succeeded! <@${issuerId}> is muted for ${Math.floor(doubledTime)} seconds.`;
                             } else {
                                 console.error(`Failed to return mute to issuer: ${issuerId}`);
                                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted! (Failed to return mute to issuer)`;
@@ -349,7 +350,7 @@ class MuteManager {
                     }
                 }
             } else {
-                // Double remaining time (this code path won't be executed in testing mode)
+                // Double remaining time for failure case
                 const newDuration = remainingTime * 2;
                 const newEndTime = currentTime + newDuration;
                 responseMessage = `${interaction.user} took the risk and failed miserably. Mute duration is now doubled to **${Math.floor(newDuration)}** seconds.`;
