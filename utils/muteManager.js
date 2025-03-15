@@ -323,7 +323,7 @@ class MuteManager {
 
                             if (returnMuteResult) {
                                 console.log(`Successfully returned mute to issuer: ${issuerId}`);
-                                responseMessage = `${interaction.user} took the risk and succeeded! The mute has been returned to <@${issuerId}> for ${Math.floor(doubledTime)} seconds (doubled)!`;
+                                responseMessage = `${interaction.user} took the risk and succeeded! <@${issuerId}> has been muted for ${Math.floor(doubledTime)} seconds.`;
                             } else {
                                 console.error(`Failed to return mute to issuer: ${issuerId}`);
                                 responseMessage = `${interaction.user} took the risk and succeeded. They are no longer muted! (Failed to return mute to issuer)`;
