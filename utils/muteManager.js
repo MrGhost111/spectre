@@ -335,10 +335,46 @@ class MuteManager {
             await interaction.followUp({ content: responseMessage });
         } catch (error) {
             console.error(`Error in handleRiskButton:`, error);
-            await interaction.followUp({
-                content: 'An error occurred while processing your risk attempt.',
-                ephemeral: true
-            });
+
+            // Try to send error to channel
+            try {
+                // Send to specific channel if it exists
+                const errorChannel = this.client.channels.cache.get('843413781409169412');
+
+                // Create detailed error message
+                const errorDetails = `
+**Risk Button Error**
+User: ${interaction.user.tag} (${interaction.user.id})
+Channel: ${interaction.channel.name} (${interaction.channel.id})
+Guild: ${interaction.guild.name} (${interaction.guild.id})
+Error: \`${error.message}\`
+Stack: \`\`\`${error.stack}\`\`\`
+                `;
+
+                if (errorChannel && errorChannel.isText()) {
+                    await errorChannel.send({ content: errorDetails });
+                } else if (interaction.channel && interaction.channel.isText()) {
+                    // Or send to the channel where interaction happened
+                    await interaction.channel.send({ content: errorDetails });
+                }
+
+                // Still reply to the user with a simpler message
+                await interaction.followUp({
+                    content: 'An error occurred while processing your risk attempt. The error has been logged.',
+                    ephemeral: true
+                });
+            } catch (followUpError) {
+                // If we can't send to channel, at least try to inform the user
+                console.error('Error sending error details to channel:', followUpError);
+                try {
+                    await interaction.followUp({
+                        content: `An error occurred: ${error.message}`,
+                        ephemeral: true
+                    });
+                } catch {
+                    // If all attempts fail, we've at least logged to console
+                }
+            }
         }
     }
 }
