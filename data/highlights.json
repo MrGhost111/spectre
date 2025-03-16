@@ -6,7 +6,8 @@
     ],
     "blacklist": {
       "words": [
-        "GhostSip"
+        "GhostSip",
+        "ghosting"
       ],
       "users": [],
       "channels": [
