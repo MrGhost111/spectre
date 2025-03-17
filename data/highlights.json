@@ -444,7 +444,8 @@
       "purple",
       "7109",
       "burple",
-      "purp"
+      "purp",
+      "___"
     ],
     "blacklist": {
       "words": [],
@@ -465,6 +466,16 @@
   "860577817510019103": {
     "words": [
       "farm"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
+  },
+  "736599653373706262": {
+    "words": [
+      "shub"
     ],
     "blacklist": {
       "words": [],
