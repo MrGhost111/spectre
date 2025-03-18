@@ -7,16 +7,6 @@ const riskPath = './data/risk.json';
 const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
-// Import existing handlers
-// Add these functions from your original interactionCreate.js
-// (If these functions are defined elsewhere, you can remove these placeholder declarations)
-async function handleDeleteSnipe(interaction) { /* Your implementation */ }
-async function handleChannelButtons(interaction) { /* Your implementation */ }
-async function handleLeaderboardButton(interaction) { /* Your implementation */ }
-async function handleInfoButton(interaction) { /* Your implementation */ }
-async function handleRiskButton(interaction) { /* Your implementation */ }
-async function handleActivityButtons(interaction) { /* Your implementation */ }
-async function handleModalSubmit(interaction) { /* Your implementation */ }
 
 module.exports = {
     name: 'interactionCreate',
