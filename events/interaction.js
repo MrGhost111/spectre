@@ -1,7 +1,6 @@
 const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
-
 const myChannelCommand = require(path.join(__dirname, '../commands/myc.js'));
 const dataPath = './data/channels.json';
 const riskPath = './data/risk.json';
@@ -18,11 +17,15 @@ module.exports = {
                 await command.execute(interaction);
             } else if (interaction.isButton()) {
                 console.log(`Button Interaction Detected: ${interaction.customId}`);
-                // In your button handling code
-                if (interaction.customId === 'risk') {
+                // Check if this is a guess game button
+                if (['play_new', 'replay', 'answer', 'leaderboard'].includes(interaction.customId)) {
+                    // The button handlers are already in the guess.js command
+                    return;
+                }
+                // Handle other buttons
+                else if (interaction.customId === 'risk') {
                     return await interaction.client.muteManager.handleRiskButton(interaction);
                 }
-               
                 else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                     await handleDeleteSnipe(interaction);
                 } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
@@ -37,6 +40,12 @@ module.exports = {
                     await handleActivityButtons(interaction);
                 }
             } else if (interaction.isModalSubmit()) {
+                // Check if this is a guess game modal
+                if (interaction.customId.startsWith('answer_modal_')) {
+                    // The modal submission is handled in the guess.js command
+                    return;
+                }
+                // Handle other modals
                 await handleModalSubmit(interaction);
             }
         } catch (error) {
@@ -56,7 +65,6 @@ module.exports = {
         }
     }
 };
-
 async function handleChannelButtons(interaction) {
     try {
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
