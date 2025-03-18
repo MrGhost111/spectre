@@ -1,15 +1,19 @@
 ﻿const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
 const fs = require('fs');
 const path = require('path');
 const audioFolderPath = path.join(__dirname, '../../audio');
 
-// Create a path for the JSON file to store answers and synonyms
+// Create paths for the JSON files to store answers and leaderboard
 const dataPath = path.join(__dirname, '../data/sound-answers.json');
 const leaderboardPath = path.join(__dirname, '../data/sound-leaderboard.json');
 
 // Initialize the answers data structure if it doesn't exist
 function initializeAnswersData() {
+    if (!fs.existsSync(path.dirname(dataPath))) {
+        fs.mkdirSync(path.dirname(dataPath), { recursive: true });
+    }
+
     if (!fs.existsSync(dataPath)) {
         const answersData = {
             "bubbles.mp3": ["bubbles", "bubble"],
@@ -35,6 +39,10 @@ function initializeAnswersData() {
 
 // Initialize the leaderboard data structure if it doesn't exist
 function initializeLeaderboardData() {
+    if (!fs.existsSync(path.dirname(leaderboardPath))) {
+        fs.mkdirSync(path.dirname(leaderboardPath), { recursive: true });
+    }
+
     if (!fs.existsSync(leaderboardPath)) {
         const leaderboardData = {};
         fs.writeFileSync(leaderboardPath, JSON.stringify(leaderboardData, null, 2));
@@ -67,8 +75,8 @@ function getRandomAudioFile(previousFile = null) {
 }
 
 // Function to update the player buttons based on state
-function updatePlayerButtons(isPlaying, playerState) {
-    const buttons = new ActionRowBuilder().addComponents(
+function updatePlayerButtons(isPlaying) {
+    return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('play_new')
             .setLabel('Play New')
@@ -90,8 +98,6 @@ function updatePlayerButtons(isPlaying, playerState) {
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(false)
     );
-
-    return buttons;
 }
 
 // Function to check if the answer is correct
@@ -138,7 +144,11 @@ function updateLeaderboard(userId, username, correct) {
 function getLeaderboardData() {
     try {
         const leaderboardData = JSON.parse(fs.readFileSync(leaderboardPath, 'utf8'));
-        return Object.values(leaderboardData)
+        return Object.entries(leaderboardData)
+            .map(([id, data]) => ({
+                id,
+                ...data
+            }))
             .sort((a, b) => b.correct - a.correct)
             .slice(0, 10); // Top 10
     } catch (error) {
@@ -146,6 +156,9 @@ function getLeaderboardData() {
         return [];
     }
 }
+
+// Store player states
+const playerStates = new Map();
 
 module.exports = {
     name: 'guess',
@@ -173,7 +186,11 @@ module.exports = {
             });
 
             // Create audio player
-            const player = createAudioPlayer();
+            const player = createAudioPlayer({
+                behaviors: {
+                    noSubscriber: NoSubscriberBehavior.Play
+                }
+            });
             connection.subscribe(player);
 
             // Create the embed
@@ -198,109 +215,207 @@ module.exports = {
                 currentClip: null,
                 isPlaying: false,
                 embed,
-                messageId: playerMessage.id
+                messageId: playerMessage.id,
+                channelId: voiceChannel.id
             };
 
-            // Store the player state globally
-            global.playerStates = global.playerStates || {};
-            global.playerStates[playerMessage.id] = playerState;
+            // Store the player state
+            playerStates.set(playerMessage.id, playerState);
 
-            // Set up button collector
+            // Set up collectors for the interactive elements
             const collector = playerMessage.createMessageComponentCollector({
                 time: 3600000 // 1 hour timeout
             });
 
-            // Handle button interactions
-            collector.on('collect', async i => {
-                // Check if the user is in the same voice channel
-                if (!i.member.voice.channel || i.member.voice.channelId !== voiceChannel.id) {
-                    await i.reply({ content: 'You need to be in the same voice channel to use this!', ephemeral: true });
-                    return;
-                }
-
-                const currentState = global.playerStates[playerMessage.id];
-
-                if (i.customId === 'play_new') {
-                    // Select a random audio file (different from the current one)
-                    const audioFile = getRandomAudioFile(currentState.currentClip);
-                    currentState.currentClip = audioFile;
-                    currentState.isPlaying = true;
-
-                    // Create an audio resource from the file
-                    const resource = createAudioResource(path.join(audioFolderPath, audioFile));
-                    player.play(resource);
-
-                    // Update the embed
-                    const updatedEmbed = EmbedBuilder.from(currentState.embed)
-                        .setDescription('🔊 Sound is playing! Listen carefully and try to guess.\n\nPress "Replay" to hear it again or "Answer" to submit your guess.');
-
-                    // Update the buttons
-                    const updatedButtons = updatePlayerButtons(true, currentState);
-
-                    await i.update({
-                        embeds: [updatedEmbed],
-                        components: [updatedButtons]
-                    });
-                }
-                else if (i.customId === 'replay') {
-                    // Replay the current audio
-                    if (currentState.currentClip) {
-                        const resource = createAudioResource(path.join(audioFolderPath, currentState.currentClip));
-                        player.play(resource);
-                        await i.reply({ content: 'Playing the sound again...', ephemeral: true });
-                    } else {
-                        await i.reply({ content: 'No sound has been played yet!', ephemeral: true });
-                    }
-                }
-                else if (i.customId === 'answer') {
-                    // Create a modal for the user to submit their answer
-                    const modal = new ModalBuilder()
-                        .setCustomId(`answer_modal_${playerMessage.id}`)
-                        .setTitle('What sound is this?');
-
-                    const answerInput = new TextInputBuilder()
-                        .setCustomId('answer_input')
-                        .setLabel('Your answer:')
-                        .setStyle(TextInputStyle.Short)
-                        .setRequired(true)
-                        .setPlaceholder('Type your answer here...');
-
-                    const firstActionRow = new ActionRowBuilder().addComponents(answerInput);
-                    modal.addComponents(firstActionRow);
-
-                    await i.showModal(modal);
-                }
-                else if (i.customId === 'leaderboard') {
-                    // Show the leaderboard
-                    const leaderboardData = getLeaderboardData();
-
-                    let leaderboardText = "**Sound Guessing Game Leaderboard**\n\n";
-
-                    if (leaderboardData.length === 0) {
-                        leaderboardText += "No scores recorded yet!";
-                    } else {
-                        leaderboardData.forEach((user, index) => {
-                            leaderboardText += `${index + 1}. **${user.username}**: ${user.correct} correct (${user.attempts} attempts)\n`;
+            collector.on('collect', async (interaction) => {
+                try {
+                    // Check if the user is in the correct voice channel
+                    if (!interaction.member.voice.channel ||
+                        interaction.member.voice.channelId !== voiceChannel.id) {
+                        await interaction.reply({
+                            content: 'You need to be in the same voice channel to use this!',
+                            ephemeral: true
                         });
-                    }
-
-                    await i.reply({ content: leaderboardText, ephemeral: true });
-                }
-            });
-
-            // Handle modal submissions
-            message.client.on('interactionCreate', async interaction => {
-                if (!interaction.isModalSubmit()) return;
-
-                if (interaction.customId === `answer_modal_${playerMessage.id}`) {
-                    const userAnswer = interaction.fields.getTextInputValue('answer_input');
-                    const currentState = global.playerStates[playerMessage.id];
-
-                    if (!currentState || !currentState.currentClip) {
-                        await interaction.reply({ content: 'No sound is currently playing!', ephemeral: true });
                         return;
                     }
 
+                    const currentState = playerStates.get(playerMessage.id);
+                    if (!currentState) {
+                        await interaction.reply({
+                            content: 'This game session has expired. Please start a new one!',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    // Handle button interactions
+                    if (interaction.customId === 'play_new') {
+                        console.log('Play New button clicked');
+
+                        // Select a random audio file
+                        const audioFile = getRandomAudioFile(currentState.currentClip);
+                        if (!audioFile) {
+                            await interaction.reply({
+                                content: 'No audio files found in the audio directory!',
+                                ephemeral: true
+                            });
+                            return;
+                        }
+
+                        currentState.currentClip = audioFile;
+                        currentState.isPlaying = true;
+
+                        console.log(`Playing audio file: ${audioFile}`);
+
+                        // Create and play the audio
+                        try {
+                            const resourcePath = path.join(audioFolderPath, audioFile);
+                            console.log(`Audio file path: ${resourcePath}`);
+
+                            const resource = createAudioResource(resourcePath);
+                            player.play(resource);
+
+                            // Update the embed
+                            const updatedEmbed = EmbedBuilder.from(currentState.embed)
+                                .setDescription('🔊 Sound is playing! Listen carefully and try to guess.\n\nPress "Replay" to hear it again or "Answer" to submit your guess.');
+
+                            // Update the buttons
+                            const updatedButtons = updatePlayerButtons(true);
+
+                            await interaction.update({
+                                embeds: [updatedEmbed],
+                                components: [updatedButtons]
+                            });
+                        } catch (audioError) {
+                            console.error('Error playing audio:', audioError);
+                            await interaction.reply({
+                                content: `Error playing audio: ${audioError.message}`,
+                                ephemeral: true
+                            });
+                        }
+                    }
+                    else if (interaction.customId === 'replay') {
+                        if (!currentState.currentClip) {
+                            await interaction.reply({
+                                content: 'No sound has been played yet!',
+                                ephemeral: true
+                            });
+                            return;
+                        }
+
+                        // Replay the current clip
+                        try {
+                            const resource = createAudioResource(path.join(audioFolderPath, currentState.currentClip));
+                            currentState.player.play(resource);
+                            await interaction.reply({
+                                content: 'Playing the sound again...',
+                                ephemeral: true
+                            });
+                        } catch (replayError) {
+                            console.error('Error replaying audio:', replayError);
+                            await interaction.reply({
+                                content: `Error replaying audio: ${replayError.message}`,
+                                ephemeral: true
+                            });
+                        }
+                    }
+                    else if (interaction.customId === 'answer') {
+                        if (!currentState.currentClip) {
+                            await interaction.reply({
+                                content: 'No sound has been played yet!',
+                                ephemeral: true
+                            });
+                            return;
+                        }
+
+                        // Create the answer modal
+                        const modal = new ModalBuilder()
+                            .setCustomId(`answer_modal_${playerMessage.id}`)
+                            .setTitle('What sound is this?');
+
+                        const answerInput = new TextInputBuilder()
+                            .setCustomId('answer_input')
+                            .setLabel('Your answer:')
+                            .setStyle(TextInputStyle.Short)
+                            .setRequired(true)
+                            .setPlaceholder('Type your answer here...');
+
+                        const firstActionRow = new ActionRowBuilder().addComponents(answerInput);
+                        modal.addComponents(firstActionRow);
+
+                        await interaction.showModal(modal);
+                    }
+                    else if (interaction.customId === 'leaderboard') {
+                        const leaderboardData = getLeaderboardData();
+
+                        let leaderboardText = "**Sound Guessing Game Leaderboard**\n\n";
+
+                        if (leaderboardData.length === 0) {
+                            leaderboardText += "No scores recorded yet!";
+                        } else {
+                            leaderboardData.forEach((user, index) => {
+                                leaderboardText += `${index + 1}. **${user.username}**: ${user.correct} correct (${user.attempts} attempts)\n`;
+                            });
+                        }
+
+                        await interaction.reply({
+                            content: leaderboardText,
+                            ephemeral: true
+                        });
+                    }
+                } catch (interactionError) {
+                    console.error('Error handling button interaction:', interactionError);
+
+                    try {
+                        if (!interaction.replied && !interaction.deferred) {
+                            await interaction.reply({
+                                content: `An error occurred: ${interactionError.message}`,
+                                ephemeral: true
+                            });
+                        }
+                    } catch (replyError) {
+                        console.error('Error sending error response:', replyError);
+                    }
+                }
+            });
+
+            // Handle collector end
+            collector.on('end', async () => {
+                const state = playerStates.get(playerMessage.id);
+                if (state) {
+                    state.connection.destroy();
+                    playerStates.delete(playerMessage.id);
+
+                    try {
+                        await playerMessage.edit({
+                            content: 'Sound guessing game session has expired. Type the command again to start a new game!',
+                            embeds: [],
+                            components: []
+                        });
+                    } catch (error) {
+                        console.error('Error updating expired message:', error);
+                    }
+                }
+            });
+
+            // Set up modal submit handling
+            message.client.on('interactionCreate', async (interaction) => {
+                if (!interaction.isModalSubmit()) return;
+
+                // Check if this is a guess game modal
+                if (interaction.customId.startsWith('answer_modal_')) {
+                    const messageId = interaction.customId.replace('answer_modal_', '');
+                    const currentState = playerStates.get(messageId);
+
+                    if (!currentState) {
+                        await interaction.reply({
+                            content: 'This game session has expired. Please start a new one!',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    const userAnswer = interaction.fields.getTextInputValue('answer_input');
                     const correct = isAnswerCorrect(userAnswer, currentState.currentClip);
 
                     // Update the leaderboard
@@ -324,7 +439,11 @@ module.exports = {
 
                     // Update the buttons
                     currentState.isPlaying = false;
-                    const updatedButtons = updatePlayerButtons(false, currentState);
+                    const updatedButtons = updatePlayerButtons(false);
+
+                    // Get the message to update
+                    const channel = await interaction.client.channels.fetch(interaction.channelId);
+                    const playerMessage = await channel.messages.fetch(messageId);
 
                     await playerMessage.edit({
                         embeds: [updatedEmbed],
@@ -338,30 +457,13 @@ module.exports = {
                 }
             });
 
-            // Handle player state changes
+            // Handle audio player status changes
             player.on(AudioPlayerStatus.Idle, () => {
-                // The audio has finished playing
                 console.log('Audio playback finished');
             });
 
-            // Handle collector end
-            collector.on('end', async () => {
-                // Clean up resources
-                if (global.playerStates[playerMessage.id]) {
-                    connection.destroy();
-                    delete global.playerStates[playerMessage.id];
-
-                    try {
-                        // Try to update the message to show it's expired
-                        await playerMessage.edit({
-                            content: 'Sound guessing game session has expired. Type the command again to start a new game!',
-                            embeds: [],
-                            components: []
-                        });
-                    } catch (error) {
-                        console.error('Error updating expired message:', error);
-                    }
-                }
+            player.on('error', error => {
+                console.error('Error in audio player:', error);
             });
 
         } catch (error) {

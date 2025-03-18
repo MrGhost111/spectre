@@ -1,4 +1,4 @@
-const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 const myChannelCommand = require(path.join(__dirname, '../commands/myc.js'));
@@ -7,26 +7,53 @@ const riskPath = './data/risk.json';
 const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
+// Import existing handlers
+// Add these functions from your original interactionCreate.js
+// (If these functions are defined elsewhere, you can remove these placeholder declarations)
+async function handleDeleteSnipe(interaction) { /* Your implementation */ }
+async function handleChannelButtons(interaction) { /* Your implementation */ }
+async function handleLeaderboardButton(interaction) { /* Your implementation */ }
+async function handleInfoButton(interaction) { /* Your implementation */ }
+async function handleRiskButton(interaction) { /* Your implementation */ }
+async function handleActivityButtons(interaction) { /* Your implementation */ }
+async function handleModalSubmit(interaction) { /* Your implementation */ }
+
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
         try {
+            // Handle slash commands
             if (interaction.isCommand()) {
                 const command = client.commands.get(interaction.commandName);
                 if (!command) return;
                 await command.execute(interaction);
-            } else if (interaction.isButton()) {
+                return;
+            }
+
+            // The guess command handles its own modal submissions
+            if (interaction.isModalSubmit() && interaction.customId.startsWith('answer_modal_')) {
+                return; // Handled by the guess.js command
+            }
+
+            // Handle other modal submissions
+            if (interaction.isModalSubmit()) {
+                await handleModalSubmit(interaction);
+                return;
+            }
+
+            // Handle button interactions
+            if (interaction.isButton()) {
                 console.log(`Button Interaction Detected: ${interaction.customId}`);
-                // Check if this is a guess game button
+
+                // Skip the sound game buttons - they're handled in the guess.js
                 if (['play_new', 'replay', 'answer', 'leaderboard'].includes(interaction.customId)) {
-                    // The button handlers are already in the guess.js command
-                    return;
+                    return; // These are handled in guess.js
                 }
-                // Handle other buttons
-                else if (interaction.customId === 'risk') {
+
+                // Handle other buttons with your existing code
+                if (interaction.customId === 'risk') {
                     return await interaction.client.muteManager.handleRiskButton(interaction);
-                }
-                else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+                } else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                     await handleDeleteSnipe(interaction);
                 } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
                     await handleChannelButtons(interaction);
@@ -39,23 +66,16 @@ module.exports = {
                 } else if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
                     await handleActivityButtons(interaction);
                 }
-            } else if (interaction.isModalSubmit()) {
-                // Check if this is a guess game modal
-                if (interaction.customId.startsWith('answer_modal_')) {
-                    // The modal submission is handled in the guess.js command
-                    return;
-                }
-                // Handle other modals
-                await handleModalSubmit(interaction);
             }
         } catch (error) {
             if (error.name === 'InteractionAlreadyReplied') {
                 console.log('Interaction already acknowledged, ignoring:', error.message);
             } else {
-                console.error('Error handling interaction:', error);
+                console.error('Error handling interaction:', error, error.stack);
                 try {
-                    await interaction.followUp({
-                        content: 'There was an error while executing this command!',
+                    const replyMethod = interaction.replied ? 'followUp' : 'reply';
+                    await interaction[replyMethod]({
+                        content: 'There was an error while processing this interaction!',
                         ephemeral: true
                     });
                 } catch (followUpError) {
