@@ -8807,7 +8807,103 @@
       "action": "add",
       "amount": 1,
       "timestamp": 1742153681865
+    },
+    {
+      "userId": "749951391249727598",
+      "action": "add",
+      "amount": 2,
+      "timestamp": 1742193511905
+    },
+    {
+      "userId": "947149661389590578",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742201145727
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742208513565
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742213241023
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 4,
+      "timestamp": 1742221335858
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742222015543
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742222017317
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 3,
+      "timestamp": 1742223237335
+    },
+    {
+      "userId": "749951391249727598",
+      "action": "add",
+      "amount": 5,
+      "timestamp": 1742227073221
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742228098514
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742228161816
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742230062782
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742230156566
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742230392188
+    },
+    {
+      "userId": "707531701638660147",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1742288844060
     }
   ],
-  "weekly": {}
+  "weekly": {
+    "749951391249727598": 7,
+    "947149661389590578": 1,
+    "784764536673796126": 12,
+    "918097380291772416": 4,
+    "707531701638660147": 1
+  }
 }
