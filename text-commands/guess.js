@@ -2,7 +2,7 @@
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, NoSubscriberBehavior } = require('@discordjs/voice');
 const fs = require('fs');
 const path = require('path');
-const audioFolderPath = path.join(__dirname, 'home/ubuntu/spectre/audio');
+const audioFolderPath = path.join(__dirname, '../audio');
 
 // Create paths for the JSON files to store answers and leaderboard
 const dataPath = path.join(__dirname, '../data/sound-answers.json');
