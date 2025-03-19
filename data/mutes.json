@@ -1,25 +1,25 @@
 {
     "users": [
         {
-            "userId": "770593236129284126",
+            "userId": "784764536673796126",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1742376181,
-            "muteEndTime": 1742376252,
+            "muteStartTime": 1742376289,
+            "muteEndTime": 1742376430,
             "button_clicked": true,
-            "issuerId": "784764536673796126",
-            "muteChainId": "chain_1742376181917_t4r2l1",
+            "issuerId": "947149661389590578",
+            "muteChainId": "chain_1742376285510_tq9yuk",
             "usedRiskInChain": true
         },
         {
-            "userId": "682122261758869504",
+            "userId": "947149661389590578",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1742376212,
-            "muteEndTime": 1742376292,
+            "muteStartTime": 1742376299,
+            "muteEndTime": 1742376367,
             "button_clicked": false,
-            "issuerId": "784764536673796126",
-            "muteChainId": "chain_1742376207175_wu4gyq",
+            "issuerId": "1345364873051242496",
+            "muteChainId": "chain_1742376299510_1v9013",
             "usedRiskInChain": false
         }
     ]
