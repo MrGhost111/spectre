@@ -10,6 +10,17 @@
             "issuerId": "1345364873051242496",
             "muteChainId": "chain_1742456826621_1otkzf",
             "usedRiskInChain": true
+        },
+        {
+            "userId": "1291407336711127052",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1742490453,
+            "muteEndTime": 1742490772,
+            "button_clicked": true,
+            "issuerId": "737010955233394792",
+            "muteChainId": "chain_1742490427474_2l1ypx",
+            "usedRiskInChain": true
         }
     ]
 }
