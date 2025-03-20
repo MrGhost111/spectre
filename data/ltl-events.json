@@ -1,49 +1,8 @@
 {
   "944924720158085190": {
-    "status": "active",
-    "logChannelId": "944924520647643156",
-    "participants": {
-      "772371637755707394": {
-        "username": "gd_zyxo",
-        "joinTime": 1736373874167,
-        "leaveTime": 1736453309921,
-        "status": "left",
-        "rank": null,
-        "lastStateUpdate": 1736402985582
-      },
-      "1223622854537646172": {
-        "username": "zeraxy11",
-        "joinTime": 1736373874167,
-        "leaveTime": 1736435032413,
-        "status": "left",
-        "rank": null
-      },
-      "753091612300542014": {
-        "username": "satan9003",
-        "joinTime": 1736373874167,
-        "leaveTime": 1736402423357,
-        "status": "left",
-        "rank": null,
-        "lastStateUpdate": 1736375695483
-      },
-      "730401940311244880": {
-        "username": "faiz2501",
-        "joinTime": 1736373874167,
-        "leaveTime": 1736391354720,
-        "status": "left",
-        "rank": null
-      },
-      "560093267497189396": {
-        "username": "ashwin_d9",
-        "joinTime": 1736373874167,
-        "leaveTime": 1736407872709,
-        "status": "left",
-        "rank": null,
-        "lastStateUpdate": 1736403624519
-      }
-    },
-    "statusMessageId": "1326672928615563315",
-    "startTime": 1736373874167,
-    "winnerMessageId": "1326929443876372532"
+    "status": "waiting",
+    "logChannelId": "1345827809767194625",
+    "participants": {},
+    "statusMessageId": "1352334961096655039"
   }
 }
