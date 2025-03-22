@@ -1,14 +1,14 @@
 {
     "users": [
         {
-            "userId": "770593236129284126",
+            "userId": "740108592283385868",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1742624202,
-            "muteEndTime": 1742624287,
+            "muteStartTime": 1742624262,
+            "muteEndTime": 1742624574,
             "button_clicked": true,
-            "issuerId": "753491023208120321",
-            "muteChainId": "chain_1742624202370_urctu1",
+            "issuerId": "770593236129284126",
+            "muteChainId": "chain_1742624250666_d5xpw2",
             "usedRiskInChain": true
         }
     ]
