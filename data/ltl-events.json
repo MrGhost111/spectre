@@ -1,8 +1,73 @@
 {
   "944924720158085190": {
-    "status": "waiting",
+    "status": "active",
     "logChannelId": "944924520647643156",
-    "participants": {},
-    "statusMessageId": "1353344874304376892"
+    "participants": {
+      "1292753210322325595": {
+        "username": "breadhoodle796",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "434939219279085575": {
+        "username": "idkprogamer",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "770593236129284126": {
+        "username": "kou9266",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "784764536673796126": {
+        "username": "purplephoenix.",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "483029278703878147": {
+        "username": "prime40z",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "534057021524279297": {
+        "username": "jiawensx",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1223622854537646172": {
+        "username": "zeraxy11",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1269591067670614060": {
+        "username": "tomidinho",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "749951391249727598": {
+        "username": "mcraft.",
+        "joinTime": 1742736590041,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      }
+    },
+    "statusMessageId": "1353360093336305664",
+    "startTime": 1742736590041
   }
 }
