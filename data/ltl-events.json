@@ -30,7 +30,8 @@
         "joinTime": 1742736590041,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1742741574814
       },
       "483029278703878147": {
         "username": "prime40z",
