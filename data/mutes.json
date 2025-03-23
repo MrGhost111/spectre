@@ -1,3 +1,26 @@
 {
-    "users": []
+    "users": [
+        {
+            "userId": "736599653373706262",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1742723194,
+            "muteEndTime": 1742723591,
+            "button_clicked": true,
+            "issuerId": "753491023208120321",
+            "muteChainId": "chain_1742723183496_41s5lw",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "693463277442826240",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1742723208,
+            "muteEndTime": 1742723305,
+            "button_clicked": true,
+            "issuerId": "693463277442826240",
+            "muteChainId": "chain_1742723208624_8nt2np",
+            "usedRiskInChain": true
+        }
+    ]
 }
