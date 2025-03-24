@@ -38,7 +38,8 @@
         "joinTime": 1742736590041,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1742784201778
       },
       "534057021524279297": {
         "username": "jiawensx",
