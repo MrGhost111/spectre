@@ -58,8 +58,8 @@
       "1269591067670614060": {
         "username": "tomidinho",
         "joinTime": 1742736590041,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1742799090309,
+        "status": "left",
         "rank": null,
         "lastStateUpdate": 1742751568331
       },
@@ -72,6 +72,7 @@
       }
     },
     "statusMessageId": "1353360093336305664",
-    "startTime": 1742736590041
+    "startTime": 1742736590041,
+    "winnerMessageId": "1353622238011854870"
   }
 }
