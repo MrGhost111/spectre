@@ -1,17 +1,6 @@
 {
     "users": [
         {
-            "userId": "736599653373706262",
-            "guildId": "673970118744735764",
-            "roleId": "673978861335085107",
-            "muteStartTime": 1742775779,
-            "muteEndTime": 1742776147,
-            "button_clicked": true,
-            "issuerId": "770593236129284126",
-            "muteChainId": "chain_1742775756579_vhgu86",
-            "usedRiskInChain": true
-        },
-        {
             "userId": "682122261758869504",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
