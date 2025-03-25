@@ -1,6 +1,4 @@
-const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle, } = require('discord.js');
+const { ButtonStyle, ChannelType, ActionRowBuilder, ButtonBuilder, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 const myChannelCommand = require(path.join(__dirname, '../commands/myc.js'));
