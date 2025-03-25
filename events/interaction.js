@@ -76,7 +76,70 @@ module.exports = {
     }
 };
 
-
+async function handleChannelButtons(interaction) {
+    try {
+        const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        const userChannel = Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
+        if (interaction.customId === 'rename_channel' || interaction.customId === 'view_friends') {
+            const channelOwnerId = interaction.message.embeds[0]?.footer?.text?.replace('Channel Owner ID: ', '');
+            if (interaction.user.id !== channelOwnerId) {
+                return interaction.reply({ content: "You don't have permission to use this button.", ephemeral: true });
+            }
+        }
+        if (interaction.customId === 'create_channel') {
+            if (userChannel) {
+                return interaction.reply({ content: "You already own a channel.", ephemeral: true });
+            }
+            const modal = new ModalBuilder()
+                .setCustomId('create_channel_modal')
+                .setTitle('Create Your Channel');
+            const nameInput = new TextInputBuilder()
+                .setCustomId('channel_name_input')
+                .setLabel('Channel Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+                .setMinLength(1)
+                .setMaxLength(100);
+            const actionRow = new ActionRowBuilder().addComponents(nameInput);
+            modal.addComponents(actionRow);
+            await interaction.showModal(modal);
+        } else if (interaction.customId === 'rename_channel') {
+            if (!userChannel || userChannel.userId !== interaction.user.id) {
+                return interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+            }
+            const modal = new ModalBuilder()
+                .setCustomId('rename_channel_modal')
+                .setTitle('Rename Your Channel');
+            const nameInput = new TextInputBuilder()
+                .setCustomId('new_channel_name_input')
+                .setLabel('New Channel Name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+                .setMinLength(1)
+                .setMaxLength(100);
+            const actionRow = new ActionRowBuilder().addComponents(nameInput);
+            modal.addComponents(actionRow);
+            await interaction.showModal(modal);
+        } else if (interaction.customId === 'view_friends') {
+            if (!userChannel || userChannel.userId !== interaction.user.id) {
+                return interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+            }
+            const friends = userChannel.friends;
+            const friendsMentions = friends.map(friendId => < @${ friendId } >).join('\n') || 'No friends added.';
+            const embed = new EmbedBuilder()
+                .setTitle(Friends(${ friends.length } / ${ calculateMaxFriends(interaction.member)}))
+                .setDescription(friendsMentions)
+            .setColor(0x6666ff);
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    } catch (error) {
+    console.error('Error in handleChannelButtons:', error);
+    await interaction.reply({
+        content: 'An error occurred while processing your request.',
+        ephemeral: true
+    });
+}
+}
 async function updateEmbed(interaction, weeklyData) {
     const sortedUsers = Object.entries(weeklyData)
         .sort(([, a], [, b]) => b - a)
@@ -648,6 +711,7 @@ async function handleInfoButton(interaction) {
 
     // Base roles with their luck values
     const baseRoles = {
+        '1349716423706148894': 80,
         '866641313754251297': 75,
         '866641299355861022': 75,
         '866641249452556309': 70,
