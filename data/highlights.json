@@ -18,11 +18,12 @@
     }
   },
   "345597856041926666": {
-    "words": [
-      "dom",
-      "raid",
-      "aquarium"
-    ]
+    "words": [],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
   },
   "730401940311244880": {
     "words": [
@@ -447,7 +448,8 @@
       "7109",
       "burple",
       "purp",
-      "___"
+      "___",
+      "purpl"
     ],
     "blacklist": {
       "words": [],
