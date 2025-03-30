@@ -171,6 +171,8 @@ async function updateStatusBoard(client) {
 }
 async function weeklyReset(client) {
     try {
+        console.log('[RESET] Starting weekly reset process');
+
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
@@ -190,7 +192,7 @@ async function weeklyReset(client) {
         for (const [memberId, member] of members) {
             const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
             const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
-            
+
             if (hasTier1 || hasTier2) {
                 if (!usersData[memberId]) {
                     usersData[memberId] = {
@@ -228,7 +230,7 @@ async function weeklyReset(client) {
         if (tier2Users.length > 0) {
             weeklyStatsEmbed.addFields({
                 name: '<:streak:1064909945373458522>  Tier 2',
-                value: tier2Users.map((user, index) => 
+                value: tier2Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
@@ -237,7 +239,7 @@ async function weeklyReset(client) {
         if (tier1Users.length > 0) {
             weeklyStatsEmbed.addFields({
                 name: '<:YJ_streak:1259258046924853421>  Tier 1',
-                value: tier1Users.map((user, index) => 
+                value: tier1Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
@@ -245,11 +247,11 @@ async function weeklyReset(client) {
 
         let pingMessage = `<@&${TIER_1_ROLE_ID}> 
 The scoreboard has now been reset! Thank you for all of your donations. We have collected ⏣ ${formatNumber(weeklyDonations)} coins this week`;
-        
+
         if (statsData.totalDonations && statsData.totalDonations !== weeklyDonations) {
             pingMessage += ` making the total ⏣ ${formatNumber(statsData.totalDonations)}`;
         }
-        
+
         pingMessage += `. Keep up the great work. 
 Congratulations to any promoted members and good luck for the next week. 
 You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according to your level!!`;
@@ -259,24 +261,50 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
 
         const promotionUserIds = [];
 
-        const currentProMakerMembers = await guild.members.fetch();
-        for (const [memberId, member] of currentProMakerMembers) {
-            if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
-                await member.roles.remove(PRO_MAKER_ROLE_ID);
+        // ISOLATED SECTION 1: Pro Maker Role Management
+        try {
+            console.log('[RESET] Removing existing Pro Maker roles');
+            const currentProMakerMembers = await guild.members.fetch();
+            for (const [memberId, member] of currentProMakerMembers) {
+                if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
+                    await member.roles.remove(PRO_MAKER_ROLE_ID);
+                }
+            }
+        } catch (roleRemovalError) {
+            console.error('[RESET] Error removing Pro Maker roles:', roleRemovalError);
+            try {
+                await announcementChannel.send('<:xmark:934659388386451516> There was an issue updating Pro Money Maker roles. Please notify an admin.');
+            } catch (notifyError) {
+                console.error('[RESET] Could not send role error notification:', notifyError);
             }
         }
 
-        if (topDonor) {
-            const topDonorMember = await guild.members.fetch(topDonor);
-            await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
+        // ISOLATED SECTION 2: Top Donor Processing
+        try {
+            console.log('[RESET] Processing top donor');
+            if (topDonor) {
+                const topDonorMember = await guild.members.fetch(topDonor);
+                await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
+                console.log(`[RESET] Added Pro Maker role to ${topDonorMember.user.tag}`);
 
-            const topDonorEmbed = new EmbedBuilder()
-                .setTitle('<:winners:1000018706874781806>  Pro Money Maker of the Week')
-                .setColor('#4c00b0')
-                .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
-                .setTimestamp();
+                const topDonorEmbed = new EmbedBuilder()
+                    .setTitle('<:winners:1000018706874781806>  Pro Money Maker of the Week')
+                    .setColor('#4c00b0')
+                    .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
+                    .setTimestamp();
 
-            await announcementChannel.send({ embeds: [topDonorEmbed] });
+                await announcementChannel.send({ embeds: [topDonorEmbed] });
+                console.log('[RESET] Sent top donor announcement');
+            } else {
+                console.log('[RESET] No top donor found this week');
+            }
+        } catch (topDonorError) {
+            console.error('[RESET] Error processing top donor:', topDonorError);
+            try {
+                await announcementChannel.send(`<:xmark:934659388386451516> There was an issue announcing the Pro Money Maker of the week. ${topDonor ? `Congratulations to <@${topDonor}> with ⏣ ${formatNumber(topDonation)}!` : 'No top donor found this week.'}`);
+            } catch (notifyError) {
+                console.error('[RESET] Could not send top donor error notification:', notifyError);
+            }
         }
 
         for (const [userId, userData] of Object.entries(usersData)) {
@@ -312,11 +340,11 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 const requirement = TIER_1_REQUIREMENT + (userData.missedAmount || 0);
                 if (userData.weeklyDonated < requirement) {
                     const missedBy = requirement - userData.weeklyDonated;
-                    
+
                     if (userData.status === 'good') {
                         userData.status = 'warned';
                         userData.missedAmount = missedBy;
-                        
+
                         summary.warnings.push({
                             userId,
                             missedBy,
@@ -386,7 +414,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         if (summary.warnings.length > 0) {
             summaryEmbed.addFields({
                 name: '<:xmark:934659388386451516> Warnings',
-                value: summary.warnings.map(w => 
+                value: summary.warnings.map(w =>
                     `> <@${w.userId}> (Tier ${w.tier})\n>  Missed by ⏣ ${formatNumber(w.missedBy)}\n> New requirement: ⏣ ${formatNumber(w.newRequirement)}`
                 ).join('\n\n')
             });
@@ -395,7 +423,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         if (summary.demotions.length > 0) {
             summaryEmbed.addFields({
                 name: '<:xmark:934659388386451516> Demotions',
-                value: summary.demotions.map(d => 
+                value: summary.demotions.map(d =>
                     `> <@${d.userId}> (Tier ${d.fromTier} → ${d.toTier})\n> Missed by ⏣ ${formatNumber(d.missedBy)}`
                 ).join('\n\n')
             });
@@ -404,7 +432,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         if (summary.promotions.length > 0) {
             summaryEmbed.addFields({
                 name: '<:purpledot:860074414853586984>  Promotions',
-                value: summary.promotions.map(p => 
+                value: summary.promotions.map(p =>
                     `> <@${p.userId}> → Tier ${p.newTier}\n> Donated: ⏣ ${formatNumber(p.donated)}`
                 ).join('\n\n')
             });
@@ -417,20 +445,53 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             });
         }
 
-        if (summary.warnings.length > 0 || summary.demotions.length > 0 || 
+        if (summary.warnings.length > 0 || summary.demotions.length > 0 ||
             summary.promotions.length > 0 || tier2DonationsList) {
             await adminChannel.send({ embeds: [summaryEmbed] });
         }
-        
-        statsData.totalDonations += weeklyDonations;
-        saveStatsData();
-        saveUsersData();
-        await updateStatusBoard(client);
+
+        // ISOLATED SECTION 3: Data Saving
+        try {
+            console.log('[RESET] Saving stats and user data');
+            saveStatsData();
+            saveUsersData();
+            console.log('[RESET] Data saved successfully');
+        } catch (saveError) {
+            console.error('[RESET] Error saving data:', saveError);
+            try {
+                await adminChannel.send('<:xmark:934659388386451516> There was an error saving the data during weekly reset. Please check the logs and verify data integrity.');
+            } catch (notifyError) {
+                console.error('[RESET] Could not send data save error notification:', notifyError);
+            }
+        }
+
+        // ISOLATED SECTION 4: Status Board Update
+        try {
+            console.log('[RESET] Updating status board');
+            await updateStatusBoard(client);
+            console.log('[RESET] Status board updated successfully');
+        } catch (statusError) {
+            console.error('[RESET] Error updating status board:', statusError);
+            try {
+                await adminChannel.send('<:xmark:934659388386451516> There was an error updating the status board during weekly reset.');
+            } catch (notifyError) {
+                console.error('[RESET] Could not send status board error notification:', notifyError);
+            }
+        }
+
+        console.log('[RESET] Weekly reset completed successfully');
+        return true;
     } catch (error) {
-        console.error('Error in weekly reset:', error);
+        console.error('[RESET] Critical error in weekly reset:', error);
+        try {
+            const errorChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
+            await errorChannel.send('<:xmark:934659388386451516> **CRITICAL ERROR DURING WEEKLY RESET**\nThe weekly reset encountered a critical error. Please check the logs and may need to run a manual reset.');
+        } catch (notifyError) {
+            console.error('[RESET] Could not send critical error notification:', notifyError);
+        }
+        return false;
     }
 }
-
 module.exports = {
     name: Events.MessageUpdate,
     weeklyReset,

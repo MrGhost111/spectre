@@ -76,10 +76,14 @@ client.once('ready', () => {
     cron.schedule('0 0 * * 0', async () => {
         console.log('Weekly reset triggered at:', new Date().toISOString());
         try {
-            await weeklyReset(client);
-            console.log('Weekly reset completed successfully');
+            const success = await weeklyReset(client);
+            if (success) {
+                console.log('Weekly reset completed successfully');
+            } else {
+                console.log('Weekly reset completed with errors - check logs for details');
+            }
         } catch (error) {
-            console.error('Error during weekly reset:', error);
+            console.error('Unhandled error during weekly reset:', error);
         }
     }, {
         timezone: "UTC",
