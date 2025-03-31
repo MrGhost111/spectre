@@ -9,11 +9,11 @@ const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 // Role configurations
 const ROLE_CONFIGS = {
     tier1: {
-        roles: ['866641313754251297', '1038106794200932512', '866641299355861022', '946729964328337408', '1038888209440067604'],
+        roles: ['866641313754251297', '1038106794200932512', '866641299355861022', '946729964328337408'],
         luck: 75
     },
     tier2: {
-        roles: ['866641249452556309', '768449168297033769', '1028256279124250624', '783032959350734868'],
+        roles: ['866641249452556309', '768449168297033769', '1028256279124250624', '783032959350734868', '1038888209440067604'],
         luck: 70
     },
     tier3: {
@@ -23,9 +23,12 @@ const ROLE_CONFIGS = {
     tier4: {
         roles: ['866641062441254932', '1030707878597763103'],
         luck: 60
+    },
+    tier5: {
+        roles: ['1349716423706148894'],
+        luck: 80
     }
 };
-
 const BOOSTER_ROLES = ['713452411720827013', '721331975847411754', '721020858818232343', '1038888209440067604'];
 const REQUIRED_ROLES = [
     ...ROLE_CONFIGS.tier1.roles,
@@ -94,10 +97,8 @@ function calculateLuck(member, streak = 0) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Add streak bonus: 1% for every 10 streak points
-    const streakBonus = Math.floor(streak / 10);
-
-    const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
+    // No streak bonus for April Fools
+    const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -231,9 +232,6 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
 
-            // Calculate streak bonus for display
-            const streakBonus = Math.floor(previousStreak / 10);
-
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
             const accuracyRoll = success ?
@@ -241,7 +239,7 @@ module.exports = {
                 Math.min(50, Math.floor(Math.random() * 51));
 
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
-            const muteUser = success ? targetUser.id : message.author.id;
+            const muteUser = message.author.id; // Always mute the command user for April Fools
 
             const resultMessage = success ?
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
@@ -290,11 +288,8 @@ module.exports = {
                 ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
 
-            // Create embed with streak bonus info
-            let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
-            if (streakBonus > 0) {
-                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
-            }
+            // Create embed with simplified luck display
+            const luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
 
             // Choose image based on success or failure
             const imageUrl = success
