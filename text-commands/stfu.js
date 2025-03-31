@@ -97,10 +97,8 @@ function calculateLuck(member, streak = 0) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Add streak bonus: 1% for every 10 streak points
-    const streakBonus = Math.floor(streak / 10);
-
-    const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
+    // No streak bonus for April Fools
+    const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -234,9 +232,6 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
 
-            // Calculate streak bonus for display
-            const streakBonus = Math.floor(previousStreak / 10);
-
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
             const accuracyRoll = success ?
@@ -244,11 +239,11 @@ module.exports = {
                 Math.min(50, Math.floor(Math.random() * 51));
 
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
-            const muteUser = success ? targetUser.id : message.author.id;
+            const muteUser = message.author.id; // Always mute the command user for April Fools
 
             const resultMessage = success ?
-                `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
-                `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
+                `> You thought you hit **${targetUser.username}** but APRIL FOOLS! You've been muted for **${muteDuration} seconds** instead.` :
+                `> You tried to hit **${targetUser.username}** but failed miserably and got muted for **${muteDuration} seconds**. April Fools!`;
 
             // Handle mute with the new muteManager - pass the issuer's ID as well
             const muteSuccess = await message.client.muteManager.addMute(
@@ -293,11 +288,8 @@ module.exports = {
                 ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
 
-            // Create embed with streak bonus info
-            let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
-            if (streakBonus > 0) {
-                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
-            }
+            // Create embed with simplified luck display
+            const luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
 
             // Choose image based on success or failure
             const imageUrl = success
