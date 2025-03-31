@@ -11,13 +11,48 @@ const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+// Parse shorthand number formats (1k, 1m, 1b, etc.)
+const parseAmount = (amountStr) => {
+    // Remove commas and convert to lowercase
+    amountStr = amountStr.replace(/,/g, '').toLowerCase();
+
+    // Check for scientific notation (1e6, etc.)
+    if (amountStr.includes('e')) {
+        return Math.floor(Number(amountStr));
+    }
+
+    // Check for shorthand notations
+    const multipliers = {
+        'k': 1000,
+        'm': 1000000,
+        'b': 1000000000,
+        't': 1000000000000
+    };
+
+    // Match number followed by letter
+    const match = amountStr.match(/^(\d+\.?\d*)([kmbt])$/i);
+
+    if (match) {
+        const value = parseFloat(match[1]);
+        const multiplier = multipliers[match[2].toLowerCase()];
+        return Math.floor(value * multiplier);
+    }
+
+    // If no shorthand, try parsing as regular number
+    return Math.floor(Number(amountStr));
+};
+
 module.exports = {
     name: 'editmm',
     description: 'Add or remove donation amount for a Money Maker',
     async execute(message, args) {
-        // Permission check - adjust roles as needed for your setup
-        const adminRoleIds = ['713452411720827013', '765988972596822036', '946729964328337408'];
-        const hasPermission = message.member.roles.cache.some(role => adminRoleIds.includes(role.id));
+        // Updated permission check - specific role ID or user ID
+        const targetRoleId = '746298070685188197';
+        const targetUserId = '753491023208120321';
+
+        const hasPermission =
+            message.member.roles.cache.has(targetRoleId) ||
+            message.author.id === targetUserId;
 
         if (!hasPermission) {
             return message.reply('You do not have permission to use this command.');
@@ -40,10 +75,12 @@ module.exports = {
             return message.reply('Please mention a valid user.');
         }
 
-        // Parse amount
-        const amount = parseInt(args[2].replace(/,/g, ''));
+        // Parse amount with flexible format support
+        const amountStr = args[2];
+        const amount = parseAmount(amountStr);
+
         if (isNaN(amount) || amount <= 0) {
-            return message.reply('Please provide a valid positive amount.');
+            return message.reply('Please provide a valid positive amount (examples: 1000, 1k, 1.5m, 1b, 1e6).');
         }
 
         try {
