@@ -242,8 +242,8 @@ module.exports = {
             const muteUser = message.author.id; // Always mute the command user for April Fools
 
             const resultMessage = success ?
-                `> You thought you hit **${targetUser.username}** but APRIL FOOLS! You've been muted for **${muteDuration} seconds** instead.` :
-                `> You tried to hit **${targetUser.username}** but failed miserably and got muted for **${muteDuration} seconds**. April Fools!`;
+                `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
+                `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
             // Handle mute with the new muteManager - pass the issuer's ID as well
             const muteSuccess = await message.client.muteManager.addMute(
