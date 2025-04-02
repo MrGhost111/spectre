@@ -94,7 +94,7 @@ function calculateLuck(member) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Removed streak bonus code here
+    // Removed streak bonus code heree
 
     const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
