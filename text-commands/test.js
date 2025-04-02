@@ -34,7 +34,7 @@ const REQUIRED_ROLES = [
     ...ROLE_CONFIGS.tier4.roles
 ];
 
-// Constant
+// Constants
 const MUTED_ROLE_ID = '673978861335085107';
 const DATA_PATHS = {
     streaks: path.join(__dirname, '../data/streaks.json'),
