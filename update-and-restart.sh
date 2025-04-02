@@ -10,7 +10,7 @@ cd /home/ubuntu/spectre || exit 1
 # Get Discord token from .env file
 DISCORD_TOKEN=$(grep DISCORD_TOKEN .env | cut -d '=' -f2)
 
-# Error log file for rate limiting
+# Error log file for rate limiting (10 hour cooldown)
 ERROR_LOG="/tmp/spectre_update_errors.log"
 touch "$ERROR_LOG"
 
@@ -18,7 +18,7 @@ touch "$ERROR_LOG"
 send_discord_message() {
     local message="$1"
     local error_type="$2"
-    local cooldown=36000 # cooldown for errors
+    local cooldown=36000 # 10 hour cooldown for errors
     
     # For errors, check if same error was recently sent
     if [[ -n "$error_type" ]]; then
@@ -34,44 +34,34 @@ send_discord_message() {
          -H "Authorization: Bot $DISCORD_TOKEN" > /dev/null 2>&1
 }
 
-# Set up git credentials
-git config --global credential.helper 'cache --timeout=3600'
+# Set up git credentials quietly
+git config --global credential.helper 'cache --timeout=3600' > /dev/null 2>&1
 
-# Check for local changes
+# Silently handle local changes without notifications
 if [[ -n "$(git status --porcelain)" ]]; then
-    # Add and commit changes quietly
     git add . > /dev/null 2>&1
     git commit -m "Auto-commit: Server data update $(date)" > /dev/null 2>&1
-    
-    if git push origin main > /dev/null 2>&1; then
-        # Only notify about pushes if they contain important changes
-        changed_files=$(git diff --name-only HEAD~1 HEAD | tr '\n' ' ')
-        if [[ "$changed_files" =~ (\.js|\.json|deploy|commands/) ]]; then
-            send_discord_message "<a:tickloop:926319357288648784> Pushed local changes: ${changed_files:0:100}..."
-        fi
-    else
-        send_discord_message "❌ [Rate Limited] Failed to push local changes" "git_push_failed"
-    fi
+    git push origin main > /dev/null 2>&1 || \
+    send_discord_message "❌ [Rate Limited] Failed to push local changes" "git_push_failed"
 fi
 
-# Pull changes
+# Pull changes and implement if needed
 PULL_OUTPUT=$(git pull 2>&1)
 PULL_EXIT_CODE=$?
 
 if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
 elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
-    # Get changed files list for notification
-    changed_files=$(git diff --name-only HEAD@{1} HEAD | tr '\n' ' ')
-    send_discord_message "<a:tickloop:926319357288648784> Updated bot with changes: ${changed_files:0:100}..."
-
-    # Deploy slash commands quietly
-    if ! node deploy.js > /dev/null 2>&1; then
-        send_discord_message "❌ [Rate Limited] Failed to deploy slash commands" "deploy_failed"
-    fi
-
-    # Restart bot
-    if ! npx pm2 restart spectre --update-env > /dev/null 2>&1; then
-        send_discord_message "❌ [Rate Limited] Failed to restart bot after changes" "restart_failed"
-    fi
+    # Get the latest commit message
+    COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr -d '\n')
+    
+    # Deploy and restart quietly
+    node deploy.js > /dev/null 2>&1 || \
+    send_discord_message "❌ [Rate Limited] Failed to deploy slash commands" "deploy_failed"
+    
+    npx pm2 restart spectre --update-env > /dev/null 2>&1 || \
+    send_discord_message "❌ [Rate Limited] Failed to restart bot" "restart_failed"
+    
+    # Send notification with commit message
+    send_discord_message "<a:tickloop:926319357288648784> Implemented update: \"${COMMIT_MSG:0:200}\""
 fi
