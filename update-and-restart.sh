@@ -38,14 +38,22 @@ if [[ -n "$(git status --porcelain)" ]]; then
     git push origin main > /dev/null 2>&1 || \
     send_discord_message "❌ [Rate Limited] Failed to push local changes" "git_push_failed"
 fi
+# Store the current commit hash before pulling
+BEFORE_PULL=$(git rev-parse HEAD)
 # Pull changes and implement if needed
 PULL_OUTPUT=$(git pull 2>&1)
 PULL_EXIT_CODE=$?
 if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
 elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
-    # Get latest commit message
-    commit_message=$(git log -1 --pretty=%B)
+    # Get the incoming commit message (your Visual Studio commit)
+    # This gets all commits that weren't in the repo before the pull
+    commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Merge branch" | head -1)
+    
+    # If no non-merge commit was found, try to get the most recent commit message
+    if [[ -z "$commit_message" ]]; then
+        commit_message=$(git log -1 --pretty=format:"%s")
+    fi
     
     # Deploy and restart quietly
     node deploy.js > /dev/null 2>&1 || \
