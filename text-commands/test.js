@@ -72,8 +72,8 @@ function getBar(value, bars, barType) {
     return bars[barType]['91-100'];
 }
 
-function calculateLuck(member, streak = 0) {
-    const cacheKey = `luck_${member.id}_${streak}`;
+function calculateLuck(member) {
+    const cacheKey = `luck_${member.id}`;
     const cachedLuck = roleCache.get(cacheKey);
 
     if (cachedLuck !== undefined) {
@@ -94,10 +94,9 @@ function calculateLuck(member, streak = 0) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Add streak bonus: 1% for every 10 streak points
-    const streakBonus = Math.floor(streak / 10);
+    // Removed streak bonus code here
 
-    const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
+    const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
     return totalLuck;
@@ -216,8 +215,8 @@ module.exports = {
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
 
-            // Calculate luck with streak bonus
-            const totalLuck = calculateLuck(message.member, previousStreak);
+            // Calculate luck without streak bonus
+            const totalLuck = calculateLuck(message.member);
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
 
@@ -230,9 +229,6 @@ module.exports = {
                 streaks.users.push({ userId: message.author.id, streak: currentStreak });
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
-
-            // Calculate streak bonus for display
-            const streakBonus = Math.floor(previousStreak / 10);
 
             // Calculate rolls and result message
             const powerRoll = Math.floor(Math.random() * 71) + 30;
@@ -290,11 +286,8 @@ module.exports = {
                 ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
 
-            // Create embed with streak bonus info
+            // Create embed without streak bonus info
             let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
-            if (streakBonus > 0) {
-                luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck - streakBonus} + ${streakBonus}**`;
-            }
 
             // Choose image based on success or failure
             const imageUrl = success
