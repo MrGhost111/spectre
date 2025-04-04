@@ -498,5 +498,15 @@
       "users": [],
       "channels": []
     }
+  },
+  "707531701638660147": {
+    "words": [
+      "fish"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
   }
 }
