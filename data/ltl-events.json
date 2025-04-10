@@ -1,8 +1,59 @@
 {
   "944924720158085190": {
-    "status": "waiting",
+    "status": "active",
     "logChannelId": "944924520647643156",
-    "participants": {},
-    "statusMessageId": "1359912307630543081"
+    "participants": {
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "784764536673796126": {
+        "username": "purplephoenix.",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "534057021524279297": {
+        "username": "jiawensx",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "733798791601455154": {
+        "username": "cal.rain",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "770593236129284126": {
+        "username": "kou9266",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "693463277442826240": {
+        "username": "okfentseller",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "825400508591112282": {
+        "username": "istalker",
+        "joinTime": 1744304509818,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      }
+    },
+    "statusMessageId": "1359936426241818644",
+    "startTime": 1744304509817
   }
 }
