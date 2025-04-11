@@ -65,8 +65,8 @@
       "631092568246976513": {
         "username": "raze_e",
         "joinTime": 1744385860015,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1744396075719,
+        "status": "left",
         "rank": null,
         "lastStateUpdate": 1744394385043
       },
@@ -91,7 +91,7 @@
         "leaveTime": null,
         "status": "active",
         "rank": null,
-        "lastStateUpdate": 1744395484891
+        "lastStateUpdate": 1744396031934
       }
     },
     "statusMessageId": "1360277633237127529",
