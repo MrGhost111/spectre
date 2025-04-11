@@ -6,8 +6,8 @@
       "733798791601455154": {
         "username": "cal.rain",
         "joinTime": 1744385860015,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1744395756751,
+        "status": "left",
         "rank": null
       },
       "635547489730166784": {
@@ -83,7 +83,7 @@
         "leaveTime": null,
         "status": "active",
         "rank": null,
-        "lastStateUpdate": 1744395682393
+        "lastStateUpdate": 1744395774441
       },
       "829267404890439740": {
         "username": "_jillianne",
