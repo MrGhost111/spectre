@@ -36,7 +36,8 @@
         "joinTime": 1744385860015,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1744387057425
       },
       "784764536673796126": {
         "username": "purplephoenix.",
