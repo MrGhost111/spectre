@@ -1,8 +1,94 @@
 {
   "944924720158085190": {
-    "status": "waiting",
+    "status": "active",
     "logChannelId": "944924520647643156",
-    "participants": {},
-    "statusMessageId": "1360254231889576056"
+    "participants": {
+      "733798791601455154": {
+        "username": "cal.rain",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "635547489730166784": {
+        "username": "f7shgang",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1150654237961895938": {
+        "username": "bigsmokez2989",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "770593236129284126": {
+        "username": "kou9266",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "483029278703878147": {
+        "username": "prime40z",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "784764536673796126": {
+        "username": "purplephoenix.",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "515646431059640330": {
+        "username": "freakensteins_monster",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "631092568246976513": {
+        "username": "raze_e",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "534057021524279297": {
+        "username": "jiawensx",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "829267404890439740": {
+        "username": "_jillianne",
+        "joinTime": 1744385860015,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      }
+    },
+    "statusMessageId": "1360277633237127529",
+    "startTime": 1744385860015
   }
 }
