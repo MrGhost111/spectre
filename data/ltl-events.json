@@ -78,7 +78,8 @@
         "joinTime": 1744385860015,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1744385998228
       },
       "829267404890439740": {
         "username": "_jillianne",
