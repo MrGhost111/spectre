@@ -52,7 +52,8 @@
         "joinTime": 1744385860015,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1744389038976
       },
       "515646431059640330": {
         "username": "freakensteins_monster",
