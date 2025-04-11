@@ -87,7 +87,8 @@
         "joinTime": 1744385860015,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1744386943043
       }
     },
     "statusMessageId": "1360277633237127529",
