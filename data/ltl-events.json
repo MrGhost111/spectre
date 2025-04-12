@@ -20,8 +20,8 @@
       "1150654237961895938": {
         "username": "bigsmokez2989",
         "joinTime": 1744385860015,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1744447206389,
+        "status": "left",
         "rank": null,
         "lastStateUpdate": 1744428599637
       },
@@ -51,8 +51,8 @@
       "621379895104372757": {
         "username": "m4ck3r3l",
         "joinTime": 1744385860015,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1744447235820,
+        "status": "left",
         "rank": null,
         "lastStateUpdate": 1744399554919
       },
@@ -96,6 +96,7 @@
       }
     },
     "statusMessageId": "1360277633237127529",
-    "startTime": 1744385860015
+    "startTime": 1744385860015,
+    "winnerMessageId": "1360534937631068211"
   }
 }
