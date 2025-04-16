@@ -196,7 +196,9 @@
     "blacklist": {
       "words": [
         "brain",
-        "refrain"
+        "refrain",
+        "train",
+        "grain"
       ],
       "users": [],
       "channels": []
