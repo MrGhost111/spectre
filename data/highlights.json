@@ -194,7 +194,10 @@
       "rain"
     ],
     "blacklist": {
-      "words": [],
+      "words": [
+        "brain",
+        "refrain"
+      ],
       "users": [],
       "channels": []
     }
