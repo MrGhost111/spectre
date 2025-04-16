@@ -269,7 +269,9 @@
       "653429796453351425"
     ],
     "blacklist": {
-      "words": [],
+      "words": [
+        "deathwalker"
+      ],
       "users": [],
       "channels": []
     }
