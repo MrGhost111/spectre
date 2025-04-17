@@ -539,5 +539,15 @@
       "users": [],
       "channels": []
     }
+  },
+  "737010955233394792": {
+    "words": [
+      "dice"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
   }
 }
