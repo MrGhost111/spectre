@@ -57,7 +57,9 @@
     ],
     "blacklist": {
       "words": [],
-      "users": [],
+      "users": [
+        "693463277442826240"
+      ],
       "channels": []
     }
   },
