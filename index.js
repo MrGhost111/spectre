@@ -92,25 +92,6 @@ client.once('ready', () => {
     });
 
     console.log('Weekly reset schedule set up successfully');
-
-    cron.schedule('0 1 * * 1', async () => {
-        console.log('Channel limit check triggered at:', new Date().toISOString());
-        try {
-            const success = await checkChannelLimits(client);
-            if (success) {
-                console.log('Channel limit check completed successfully');
-            } else {
-                console.log('Channel limit check completed with errors - check logs for details');
-            }
-        } catch (error) {
-            console.error('Unhandled error during channel limit check:', error);
-        }
-    }, {
-        timezone: "UTC",
-        scheduled: true,
-        runOnInit: false
-    });
-    console.log('Channel limit check schedule set up successfully');
 });
 
 // Setup button interaction handler for risk button
