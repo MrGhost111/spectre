@@ -7,12 +7,11 @@ const authorizedUserIds = ['730401940311244880', '753491023208120321'];
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('checklimits')
-        .setDescription('Check all channels for owners who left or exceed friend limits')
-        .setDefaultMemberPermissions(0x0000000000000008), // ADMINISTRATOR permission
+        .setDescription('Check all channels for owners who left or exceed friend limits'),
 
     async execute(interaction) {
         const userId = interaction.user.id;
-        const isAdmin = interaction.member.permissions.has(0x0000000000000008); // ADMINISTRATOR permission
+        const isAdmin = interaction.member.permissions.has('ADMINISTRATOR'); // Using string permission name
         const isAuthorized = authorizedUserIds.includes(userId);
 
         // Check if the user has permission to run this command
