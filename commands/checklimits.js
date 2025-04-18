@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { checkChannelLimits } = require('../utils/checkChannelLimits'); // Adjust the path as needed
 
-// Authorized user IDs that can run this command without admin permissions
+// Authorized user IDs that can run this command without admin permission
 const authorizedUserIds = ['730401940311244880', '753491023208120321'];
 
 module.exports = {
