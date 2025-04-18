@@ -37,7 +37,13 @@ async function checkChannelLimits(client) {
 
     // Channel ID to send reports to
     const reportChannelId = '843413781409169412';
+    // Archive category ID
+    const archiveCategoryId = '1273361676355244102';
+    // User IDs to mention in the report
+    const userIdsToMention = ['730401940311244880', '753491023208120321'];
+
     let reportChannel;
+    let archiveCategory;
 
     try {
         reportChannel = await client.channels.fetch(reportChannelId);
@@ -45,8 +51,14 @@ async function checkChannelLimits(client) {
             console.error('Report channel not found');
             return false;
         }
+
+        archiveCategory = await client.channels.fetch(archiveCategoryId);
+        if (!archiveCategory) {
+            console.error('Archive category not found');
+            return false;
+        }
     } catch (error) {
-        console.error('Error fetching report channel:', error);
+        console.error('Error fetching channels:', error);
         return false;
     }
 
@@ -74,7 +86,7 @@ async function checkChannelLimits(client) {
     }
 
     // Track changes for reporting
-    const removedChannels = [];
+    const archivedChannels = [];
     const channelFriendRemovals = {}; // Group removed friends by channel
 
     // Process each channel
@@ -83,19 +95,6 @@ async function checkChannelLimits(client) {
 
         const channelData = channels[userId];
         if (!channelData || !channelData.channelId || !Array.isArray(channelData.friends)) {
-            continue;
-        }
-
-        // Fetch the member to check their roles
-        let member;
-        try {
-            member = await guild.members.fetch(userId);
-            if (!member) {
-                console.log(`Member ${userId} not found in guild`);
-                continue;
-            }
-        } catch (error) {
-            console.log(`Error fetching member ${userId}:`, error);
             continue;
         }
 
@@ -112,11 +111,32 @@ async function checkChannelLimits(client) {
             continue;
         }
 
-        // Check if member still has one of the required roles
-        const hasRequiredRole = member.roles.cache.some(role => requiredRoles.includes(role.id));
+        // Try to fetch the member to check if they're still in the server and have required roles
+        let member;
+        let shouldArchive = false;
+        let archiveReason = '';
 
-        if (!hasRequiredRole) {
-            console.log(`User ${userId} no longer has any required roles for channel ownership`);
+        try {
+            member = await guild.members.fetch(userId);
+            if (!member) {
+                shouldArchive = true;
+                archiveReason = 'Owner left the server';
+            } else {
+                // Check if member still has one of the required roles
+                const hasRequiredRole = member.roles.cache.some(role => requiredRoles.includes(role.id));
+                if (!hasRequiredRole) {
+                    shouldArchive = true;
+                    archiveReason = 'Owner lacks required roles';
+                }
+            }
+        } catch (error) {
+            console.log(`Error fetching member ${userId}, likely left the server:`, error);
+            shouldArchive = true;
+            archiveReason = 'Owner left the server';
+        }
+
+        if (shouldArchive) {
+            console.log(`Channel ${channelData.channelId} will be archived - ${archiveReason}`);
 
             try {
                 // Remove all permission overwrites for friends
@@ -137,21 +157,35 @@ async function checkChannelLimits(client) {
                     console.error(`Error removing permission for owner ${userId}:`, error);
                 }
 
-                // Add to removed channels list
-                removedChannels.push({
-                    userId,
-                    channelId: channelData.channelId,
-                    friendCount: channelData.friends.length
+                // Move channel to archive category
+                await discordChannel.setParent(archiveCategoryId, {
+                    lockPermissions: false,
+                    reason: `Channel archived: ${archiveReason}`
                 });
 
-                // Remove this channel from the data
-                delete channels[userId];
+                console.log(`Moved channel ${channelData.channelId} to archive category`);
+
+                // Add to archived channels list for reporting
+                archivedChannels.push({
+                    userId,
+                    channelId: channelData.channelId,
+                    friendCount: channelData.friends.length,
+                    reason: archiveReason
+                });
+
+                // We don't delete the channel data anymore
+                // Instead, we just mark it as archived in the channels data if it doesn't have that flag yet
+                if (!channelData.archived) {
+                    channelData.archived = true;
+                    channelData.archiveReason = archiveReason;
+                    channelData.archivedAt = new Date().toISOString();
+                }
 
             } catch (error) {
-                console.error(`Error processing channel ${channelData.channelId} for role removal:`, error);
+                console.error(`Error archiving channel ${channelData.channelId}:`, error);
             }
         } else {
-            // User has required role, now check friend limits
+            // Owner is still eligible, now check friend limits
 
             // Calculate max allowed friends based on current roles
             let maxAllowedFriends = 0;
@@ -214,9 +248,12 @@ async function checkChannelLimits(client) {
         console.log('Channels data updated successfully');
     } catch (error) {
         console.error('Error writing updated channels data:', error);
-        await reportChannel.send('Error saving updated channels data during channel limit check.');
+        await reportChannel.send('There was an error saving updated channels data during channel limit check.');
         return false;
     }
+
+    // Create mentions string
+    const mentions = userIdsToMention.map(id => `<@${id}>`).join(' ');
 
     // Send a report to the designated channel
     const embed = new EmbedBuilder()
@@ -228,8 +265,8 @@ async function checkChannelLimits(client) {
     let description = [];
     const modifiedChannelsCount = Object.keys(channelFriendRemovals).length;
 
-    if (removedChannels.length > 0) {
-        description.push(`**${removedChannels.length} channels** were fully revoked due to owners lacking required roles.`);
+    if (archivedChannels.length > 0) {
+        description.push(`**${archivedChannels.length} channels** were archived and had all members removed.`);
     }
 
     if (modifiedChannelsCount > 0) {
@@ -238,31 +275,31 @@ async function checkChannelLimits(client) {
         description.push(`**${modifiedChannelsCount} channels** had a total of **${totalRemovedFriends} friends** removed due to exceeding allowed limits.`);
     }
 
-    if (removedChannels.length === 0 && modifiedChannelsCount === 0) {
+    if (archivedChannels.length === 0 && modifiedChannelsCount === 0) {
         description.push('No issues found. All channel owners have required roles and are within friend limits.');
     }
 
     embed.setDescription(description.join('\n'));
 
-    // Add fields for removed channels (up to 10 to avoid hitting embed limits)
-    if (removedChannels.length > 0) {
+    // Add fields for archived channels
+    if (archivedChannels.length > 0) {
         embed.addFields({
-            name: 'Fully Revoked Channels',
+            name: 'Archived Channels',
             value: '────────────────────'
         });
 
-        const displayedRemovals = removedChannels.slice(0, 10);
-        for (const removal of displayedRemovals) {
+        const displayedArchives = archivedChannels.slice(0, 10);
+        for (const archive of displayedArchives) {
             embed.addFields({
-                name: `Channel <#${removal.channelId}>`,
-                value: `Owner: <@${removal.userId}>\nFriends Removed: ${removal.friendCount}\nReason: Missing required roles`
+                name: `Channel <#${archive.channelId}>`,
+                value: `Owner: <@${archive.userId}>\nFriends Removed: ${archive.friendCount}\nReason: ${archive.reason}\nChannel was moved to archive category.`
             });
         }
 
-        if (removedChannels.length > 10) {
+        if (archivedChannels.length > 10) {
             embed.addFields({
-                name: 'Additional Revoked Channels',
-                value: `${removedChannels.length - 10} more channels not shown.`
+                name: 'Additional Archived Channels',
+                value: `${archivedChannels.length - 10} more channels not shown.`
             });
         }
     }
@@ -305,7 +342,8 @@ async function checkChannelLimits(client) {
         }
     }
 
-    await reportChannel.send({ embeds: [embed] });
+    // Send the report with mentions
+    await reportChannel.send({ content: `${mentions} Channel access check report:`, embeds: [embed] });
 
     console.log('Channel limit check completed at:', new Date().toISOString());
     return true;
