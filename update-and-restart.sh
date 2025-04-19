@@ -1,22 +1,41 @@
 #!/bin/bash
-# Add environment variables that might be missing in cron
-export HOME=/home/ubuntu
-export USER=ubuntu
-export PATH=/usr/local/bin:/usr/bin:/bin:$PATH
-# Navigate to project directory
-cd /home/ubuntu/spectre || exit 1
-# Get Discord token from .env file
-DISCORD_TOKEN=$(grep DISCORD_TOKEN .env | cut -d '=' -f2)
-# Error log file for rate limiting (10 hour cooldown)
+
+# Environment setup for cron
+export HOME=/home/opc
+export USER=opc
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/nodejs/bin:$PATH
+
+# Critical component checks
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found in PATH" >&2
+    exit 1
+fi
+
+if ! command -v git &> /dev/null; then
+    echo "❌ Git not found" >&2
+    exit 1
+fi
+
+# Project directory
+PROJECT_DIR="/home/opc/spectre"
+cd "$PROJECT_DIR" || { echo "❌ Failed to enter project directory" >&2; exit 1; }
+
+# Load .env
+if [ ! -f .env ]; then
+    echo "❌ .env file missing" >&2
+    exit 1
+fi
+source .env > /dev/null 2>&1
+
+# Discord error logging (10h cooldown)
 ERROR_LOG="/tmp/spectre_update_errors.log"
 touch "$ERROR_LOG"
-# Function to send Discord message only if not recently sent
+
 send_discord_message() {
     local message="$1"
     local error_type="$2"
-    local cooldown=36000 # 10 hour cooldown for errors
+    local cooldown=36000
     
-    # For errors, check if same error was recently sent
     if [[ -n "$error_type" ]]; then
         if grep -q "$error_type" "$ERROR_LOG" && \
            [[ $(($(date +%s) - $(stat -c %Y "$ERROR_LOG"))) -lt $cooldown ]]; then
@@ -29,39 +48,42 @@ send_discord_message() {
          "https://discord.com/api/channels/843413781409169412/messages" \
          -H "Authorization: Bot $DISCORD_TOKEN" > /dev/null 2>&1
 }
-# Set up git credentials quietly
+
+# Git setup
 git config --global credential.helper 'cache --timeout=3600' > /dev/null 2>&1
-# Silently handle local changes without notifications
+git config --global --add safe.directory "$PROJECT_DIR"
+
+# Handle local changes
 if [[ -n "$(git status --porcelain)" ]]; then
     git add . > /dev/null 2>&1
     git commit -m "Auto-commit: Server data update $(date)" > /dev/null 2>&1
     git push origin main > /dev/null 2>&1 || \
     send_discord_message "❌ [Rate Limited] Failed to push local changes" "git_push_failed"
 fi
-# Store the current commit hash before pulling
+
+# Pull updates
 BEFORE_PULL=$(git rev-parse HEAD)
-# Pull changes and implement if needed
 PULL_OUTPUT=$(git pull 2>&1)
 PULL_EXIT_CODE=$?
+
 if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
+    exit 1
 elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
-    # Get the incoming commit message (your Visual Studio commit)
-    # This gets all commits that weren't in the repo before the pull
+    # Get meaningful commit message
     commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Merge branch" | head -1)
-    
-    # If no non-merge commit was found, try to get the most recent commit message
-    if [[ -z "$commit_message" ]]; then
-        commit_message=$(git log -1 --pretty=format:"%s")
-    fi
-    
-    # Deploy and restart quietly
+    [[ -z "$commit_message" ]] && commit_message=$(git log -1 --pretty=format:"%s")
+
+    # Deployment
     node deploy.js > /dev/null 2>&1 || \
-    send_discord_message "❌ [Rate Limited] Failed to deploy slash commands" "deploy_failed"
-    
-    npx pm2 restart spectre --update-env > /dev/null 2>&1 || \
-    send_discord_message "❌ [Rate Limited] Failed to restart bot" "restart_failed"
-    
-    # Only send the success notification after everything is done
-    send_discord_message "<a:tickloop:926319357288648784> Implemented changes: ${commit_message:0:200}"
+    send_discord_message "❌ [Rate Limited] Failed to deploy commands" "deploy_failed"
+
+    # Restart with PM2 fallback
+    if ! pm2 restart spectre-bot --update-env > /dev/null 2>&1; then
+        pkill -f "node index.js"
+        node index.js > /dev/null 2>&1 &
+        send_discord_message "⚠️ Restarted via direct node" "pm2_fallback"
+    fi
+
+    send_discord_message "<a:tickloop:926319357288648784> Implemented: ${commit_message:0:200}"
 fi
