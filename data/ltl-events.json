@@ -1,8 +1,101 @@
 {
   "944924720158085190": {
-    "status": "waiting",
+    "status": "active",
     "logChannelId": "944924520647643156",
-    "participants": {},
-    "statusMessageId": "1363563228709261593"
+    "participants": {
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "918097380291772416": {
+        "username": "isaiahah",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "682122261758869504": {
+        "username": "skitty8428",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "534057021524279297": {
+        "username": "jiawensx",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "753091612300542014": {
+        "username": "satan9003",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "635547489730166784": {
+        "username": "f7shgang",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "396375243117166593": {
+        "username": "saradon03",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "854277273553076236": {
+        "username": "talk_sick",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "946265224250540054": {
+        "username": "nathing_0",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1150654237961895938": {
+        "username": "bigsmokez2989",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "1021537331129352213": {
+        "username": "moontiel_",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      },
+      "692365024336805888": {
+        "username": "gdlnoob",
+        "joinTime": 1745176682676,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null
+      }
+    },
+    "statusMessageId": "1363594583631593615",
+    "startTime": 1745176682675
   }
 }
