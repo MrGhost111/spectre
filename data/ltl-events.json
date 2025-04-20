@@ -86,7 +86,8 @@
         "joinTime": 1745176682676,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1745178570609
       },
       "692365024336805888": {
         "username": "gdlnoob",
