@@ -78,7 +78,8 @@
         "joinTime": 1745176682676,
         "leaveTime": null,
         "status": "active",
-        "rank": null
+        "rank": null,
+        "lastStateUpdate": 1745177418061
       },
       "1021537331129352213": {
         "username": "moontiel_",
