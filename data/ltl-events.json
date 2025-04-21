@@ -6,8 +6,8 @@
       "621379895104372757": {
         "username": "m4ck3r3l",
         "joinTime": 1745176682676,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1745232640799,
+        "status": "left",
         "rank": null
       },
       "918097380291772416": {
@@ -87,7 +87,7 @@
         "leaveTime": null,
         "status": "active",
         "rank": null,
-        "lastStateUpdate": 1745231855065
+        "lastStateUpdate": 1745232646669
       },
       "692365024336805888": {
         "username": "gdlnoob",
