@@ -20,8 +20,8 @@
       "682122261758869504": {
         "username": "skitty8428",
         "joinTime": 1745176682676,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1745197361912,
+        "status": "left",
         "rank": null
       },
       "932458730304442399": {
@@ -87,7 +87,7 @@
         "leaveTime": null,
         "status": "active",
         "rank": null,
-        "lastStateUpdate": 1745196717623
+        "lastStateUpdate": 1745197367573
       },
       "692365024336805888": {
         "username": "gdlnoob",
