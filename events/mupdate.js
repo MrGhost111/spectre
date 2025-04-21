@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = r
 const fs = require('fs');
 const path = require('path');
 
-// Constants
+// Constants here
 const ANNOUNCEMENT_CHANNEL_ID = '833241820959473724';
 const ACTIVITY_CHANNEL_ID = '1327928516662005770';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
