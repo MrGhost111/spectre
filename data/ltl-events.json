@@ -48,8 +48,8 @@
       "635547489730166784": {
         "username": "f7shgang",
         "joinTime": 1745176682676,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1745259708995,
+        "status": "left",
         "rank": null
       },
       "396375243117166593": {
@@ -98,6 +98,7 @@
       }
     },
     "statusMessageId": "1363594583631593615",
-    "startTime": 1745176682675
+    "startTime": 1745176682675,
+    "winnerMessageId": "1363942820670603517"
   }
 }
