@@ -14,7 +14,7 @@ module.exports = {
         .setDescription('Simulate weekly reset process without making actual changes'),
     async execute(interaction) {
         // Load real data
-        const usersData = require(usersFilePath);
+        const usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
         const statsData = require(statsFilePath);
 
         // Prepare summary and simulation data
