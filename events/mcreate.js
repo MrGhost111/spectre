@@ -290,6 +290,63 @@ module.exports = {
             }
             return;
         }
+        if (
+            message.channel?.id === '833246120389902356' && // TRANSACTION_CHANNEL_ID
+            message.author?.id === '270904126974590976' && // DANK_MEMER_BOT_ID
+            message.embeds?.[0]?.description?.includes('Successfully donated')
+        ) {
+            try {
+                const embed = message.embeds[0];
+                const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
+                if (!donationMatch) return;
+
+                const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
+                const donorId = await findCommandUser(message); // Your existing function
+
+                if (!donorId) return;
+
+                // Load your existing data files
+                const usersFilePath = path.join(__dirname, '../data/users.json');
+                const statsFilePath = path.join(__dirname, '../data/stats.json');
+                let usersData = require(usersFilePath);
+                let statsData = require(statsFilePath);
+
+                // Process donation (your existing logic)
+                const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+                const member = await guild.members.fetch(donorId);
+
+                if (!usersData[donorId]) {
+                    usersData[donorId] = {
+                        totalDonated: donationAmount,
+                        weeklyDonated: donationAmount,
+                        currentTier: member.roles.cache.has('1038888209440067604') ? 2 : 1, // TIER_2_ROLE_ID
+                        status: 'good',
+                        missedAmount: 0,
+                        lastDonation: new Date().toISOString()
+                    };
+                } else {
+                    usersData[donorId].totalDonated += donationAmount;
+                    usersData[donorId].weeklyDonated += donationAmount;
+                    usersData[donorId].lastDonation = new Date().toISOString();
+                }
+
+                // Update stats
+                statsData.totalDonations += donationAmount;
+                fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+                fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
+
+                // Send confirmation (optional)
+                const donationEmbed = new EmbedBuilder()
+                    .setTitle('<:prize:1000016483369369650> New Donation')
+                    .setColor('#4c00b0')
+                    .setDescription(`<@${donorId}> donated ⏣ ${donationAmount.toLocaleString()}`)
+                    .setTimestamp();
+
+                await message.channel.send({ embeds: [donationEmbed] });
+            } catch (error) {
+                console.error('Error processing donation:', error);
+            }
+        }
 
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
