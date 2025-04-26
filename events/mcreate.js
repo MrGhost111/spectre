@@ -2,35 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
-// Add to your existing messageCreate event
-const { Events } = require('discord.js');
-
-// 1. Enhanced donation check
-const isDonationConfirm = (message) => {
-    return message.channelId === '833246120389902356' &&
-        message.author.id === '270904126974590976' &&
-        message.embeds.some(e =>
-            e.description?.includes('Successfully donated') ||
-            e.fields?.some(f => f.value.includes('donated'))
-};
-
-// 2. Modified handler
-client.on(Events.MessageCreate, async (message) => {
-    if (isDonationConfirm(message)) {
-        const embed = message.embeds[0];
-        // ... rest of your donation processing logic ...
-    }
-    // ... your existing event code ...
-});
-
-// 3. Fallback collector
-const setupDonationCollector = (client) => {
-    const channel = client.channels.cache.get('833246120389902356');
-    return channel.createMessageCollector({
-        filter: m => m.author.id === '270904126974590976',
-        idle: 60_000
-    }).on('collect', handleDonation);
-};
 
 let lastStickyMessageId = null;
 
@@ -318,63 +289,6 @@ module.exports = {
                 }
             }
             return;
-        }
-        if (
-            message.channel?.id === '833246120389902356' && // TRANSACTION_CHANNEL_ID
-            message.author?.id === '270904126974590976' && // DANK_MEMER_BOT_ID
-            message.embeds?.[0]?.description?.includes('Successfully donated')
-        ) {
-            try {
-                const embed = message.embeds[0];
-                const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
-                if (!donationMatch) return;
-
-                const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
-                const donorId = await findCommandUser(message); // Your existing function
-
-                if (!donorId) return;
-
-                // Load your existing data files
-                const usersFilePath = path.join(__dirname, '../data/users.json');
-                const statsFilePath = path.join(__dirname, '../data/stats.json');
-                let usersData = require(usersFilePath);
-                let statsData = require(statsFilePath);
-
-                // Process donation (your existing logic)
-                const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-                const member = await guild.members.fetch(donorId);
-
-                if (!usersData[donorId]) {
-                    usersData[donorId] = {
-                        totalDonated: donationAmount,
-                        weeklyDonated: donationAmount,
-                        currentTier: member.roles.cache.has('1038888209440067604') ? 2 : 1, // TIER_2_ROLE_ID
-                        status: 'good',
-                        missedAmount: 0,
-                        lastDonation: new Date().toISOString()
-                    };
-                } else {
-                    usersData[donorId].totalDonated += donationAmount;
-                    usersData[donorId].weeklyDonated += donationAmount;
-                    usersData[donorId].lastDonation = new Date().toISOString();
-                }
-
-                // Update stats
-                statsData.totalDonations += donationAmount;
-                fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
-                fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
-
-                // Send confirmation (optional)
-                const donationEmbed = new EmbedBuilder()
-                    .setTitle('<:prize:1000016483369369650> New Donation')
-                    .setColor('#4c00b0')
-                    .setDescription(`<@${donorId}> donated ⏣ ${donationAmount.toLocaleString()}`)
-                    .setTimestamp();
-
-                await message.channel.send({ embeds: [donationEmbed] });
-            } catch (error) {
-                console.error('Error processing donation:', error);
-            }
         }
 
         if (message.content.startsWith('!muterole update')) {
