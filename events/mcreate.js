@@ -2,6 +2,35 @@ const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
+// Add to your existing messageCreate event
+const { Events } = require('discord.js');
+
+// 1. Enhanced donation check
+const isDonationConfirm = (message) => {
+    return message.channelId === '833246120389902356' &&
+        message.author.id === '270904126974590976' &&
+        message.embeds.some(e =>
+            e.description?.includes('Successfully donated') ||
+            e.fields?.some(f => f.value.includes('donated'))
+};
+
+// 2. Modified handler
+client.on(Events.MessageCreate, async (message) => {
+    if (isDonationConfirm(message)) {
+        const embed = message.embeds[0];
+        // ... rest of your donation processing logic ...
+    }
+    // ... your existing event code ...
+});
+
+// 3. Fallback collector
+const setupDonationCollector = (client) => {
+    const channel = client.channels.cache.get('833246120389902356');
+    return channel.createMessageCollector({
+        filter: m => m.author.id === '270904126974590976',
+        idle: 60_000
+    }).on('collect', handleDonation);
+};
 
 let lastStickyMessageId = null;
 
