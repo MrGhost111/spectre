@@ -27,6 +27,7 @@ client.donations = new Map();
 
 // Load commands
 const loadCommands = () => {
+    // Load text commands
     const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
     for (const file of textCommandFiles) {
         const command = require(`./text-commands/${file}`);
@@ -34,7 +35,7 @@ const loadCommands = () => {
             client.textCommands.set(command.name, command);
         }
     }
-
+    // Load slash commands
     const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
         const command = require(`./commands/${file}`);
@@ -57,48 +58,30 @@ const loadEvents = () => {
     }
 };
 
-// Initialize donation tracking
-const initializeDonationTracking = () => {
-    const DANK_MEMER_BOT_ID = '270904126974590976';
-    const TRANSACTION_CHANNEL_ID = '833246120389902356';
-
-    const channel = client.channels.cache.get(TRANSACTION_CHANNEL_ID);
-    if (!channel) {
-        console.error('Transaction channel not found!');
-        return null;
-    }
-
-    return channel.createMessageCollector({
-        filter: m => m.author.id === DANK_MEMER_BOT_ID,
-        idle: 60_000
-    }).on('collect', async message => {
-        await require('./events/mupdate.js').handleDonation(client, message);
-    });
-};
-
-// Load commands and events
+// Load commands and events before client is ready
 loadCommands();
 loadEvents();
 
-// Client ready handler
+// Set up client ready handler
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
-    // Initialize systems
+    // Initialize the MuteManager
     client.muteManager = new MuteManager(client);
-    client.donationCollector = initializeDonationTracking();
+    console.log('Mute Manager initialized successfully');
 
-    console.log('Systems initialized:');
-    console.log('- Mute Manager');
-    console.log('- Donation Tracking');
-
-    // Weekly reset schedule
     const { weeklyReset } = require('./events/mupdate.js');
+
+    // Schedule weekly reset for Sunday at 00:00 UTC
     cron.schedule('0 0 * * 0', async () => {
         console.log('Weekly reset triggered at:', new Date().toISOString());
         try {
             const success = await weeklyReset(client);
-            console.log(success ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+            if (success) {
+                console.log('Weekly reset completed successfully');
+            } else {
+                console.log('Weekly reset completed with errors - check logs for details');
+            }
         } catch (error) {
             console.error('Unhandled error during weekly reset:', error);
         }
@@ -107,19 +90,23 @@ client.once('ready', () => {
         scheduled: true,
         runOnInit: false
     });
+
     console.log('Weekly reset schedule set up successfully');
 });
 
-// Button interactions
+// Setup button interaction handler for risk button
 client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
 
-    if (interaction.customId === 'risk') {
+    const { customId } = interaction;
+
+    if (customId === 'risk') {
         await client.muteManager.handleRiskButton(interaction);
     }
+    // Handle other buttons here...
 });
 
-// Login
+// Login the client
 client.login(process.env.DISCORD_TOKEN);
 
 module.exports = client;
