@@ -25,7 +25,6 @@ function initializeClient(client) {
         client.statusMessageId = null;
     }
 }
-
 const client = new Client({
     intents: [
         GatewayIntentBits.DirectMessages,
@@ -87,6 +86,8 @@ loadEvents();
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     initializeClient(client);
+    const { updateStatusBoard } = require('./events/mupdate.js');
+    updateStatusBoard(client).catch(console.error);
 
     // Initialize the MuteManager
     client.muteManager = new MuteManager(client);
