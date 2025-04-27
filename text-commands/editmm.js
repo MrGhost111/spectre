@@ -184,6 +184,7 @@ async function updateStatusBoard(client) {
 module.exports = {
     name: 'editmm',
     description: 'Add or remove donation amount for a Money Maker',
+    updateStatusBoard,
     async execute(message, args) {
         // Updated permission check - specific role ID or user ID
         const targetRoleId = '746298070685188197';
