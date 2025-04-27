@@ -5,6 +5,27 @@ const cron = require('node-cron');
 const MuteManager = require('./utils/muteManager');
 require('dotenv').config();
 
+// Define file paths
+const usersFilePath = path.join(__dirname, './data/users.json');
+const itemsFilePath = path.join(__dirname, './data/items.json');
+const statsFilePath = path.join(__dirname, './data/stats.json');
+
+// Load data
+let usersData = require(usersFilePath);
+const itemsData = require(itemsFilePath);
+let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
+let lastMessageId = null;
+
+// Initialize client status message ID
+function initializeClient(client) {
+    // Set the status message ID if it exists in stats
+    if (statsData.statusMessageId) {
+        client.statusMessageId = statsData.statusMessageId;
+    } else {
+        client.statusMessageId = null;
+    }
+}
+
 const client = new Client({
     intents: [
         GatewayIntentBits.DirectMessages,
@@ -65,6 +86,7 @@ loadEvents();
 // Set up client ready handler
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    initializeClient(client);
 
     // Initialize the MuteManager
     client.muteManager = new MuteManager(client);
