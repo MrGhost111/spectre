@@ -8,7 +8,6 @@ const statsFilePath = path.join(__dirname, '../data/stats.json');
 
 // Constants for roles and requirements
 const ACTIVITY_CHANNEL_ID = '1327928516662005770';
-const STATUS_MESSAGE_ID = '1332155630798241822';
 const TIER_1_ROLE_ID = '783032959350734868';
 const TIER_2_ROLE_ID = '1038888209440067604';
 const TIER_1_REQUIREMENT = 35000000;
@@ -114,7 +113,7 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
-// Function to update status board
+// Function to update status board - Option 1: Search for the message
 async function updateStatusBoard(client) {
     try {
         // Load latest data to ensure we're working with current state
@@ -160,15 +159,17 @@ async function updateStatusBoard(client) {
             });
         }
 
-        // Direct approach - fetch the specific message by ID
-        try {
-            console.log('Attempting to fetch message with ID:', STATUS_MESSAGE_ID);
-            const statusMessage = await activityChannel.messages.fetch(STATUS_MESSAGE_ID);
-            console.log('Found message, attempting edit');
+        // Find the status message by searching recent messages
+        const messages = await activityChannel.messages.fetch({ limit: 10 });
+        const statusMessage = messages.find(m =>
+            m.author.id === client.user.id &&
+            m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+        );
+
+        if (statusMessage) {
             await statusMessage.edit({ embeds: [embed] });
             console.log('Status board updated successfully');
-        } catch (fetchError) {
-            console.error('Could not find or edit the status message:', fetchError);
+        } else {
             console.log('Creating a new status board message');
             const newMessage = await activityChannel.send({ embeds: [embed] });
             console.log('Created new status board message with ID:', newMessage.id);
