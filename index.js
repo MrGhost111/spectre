@@ -86,8 +86,16 @@ loadEvents();
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
     initializeClient(client);
-    const { updateStatusBoard } = require('./events/mupdate.js');
-    updateStatusBoard(client).catch(console.error);
+    const { updateStatusBoard, weeklyReset } = require('./events/mupdate.js');
+
+    // Create a new status board right away
+    try {
+        console.log('Creating initial status board...');
+        await updateStatusBoard(client, true);  // Force new message on startup
+        console.log('Initial status board created successfully');
+    } catch (error) {
+        console.error('Failed to create initial status board:', error);
+    }
 
     // Initialize the MuteManager
     client.muteManager = new MuteManager(client);
