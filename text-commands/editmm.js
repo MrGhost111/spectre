@@ -180,8 +180,9 @@ module.exports = {
 
             await message.reply({ embeds: [embed] });
 
-            // Update the status board
             const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
+
+            // Get fresh stats after modification
             const { tier1Users, tier2Users } = await getWeeklyStats(message.client);
 
             const statusEmbed = new EmbedBuilder()
@@ -208,16 +209,32 @@ module.exports = {
                 });
             }
 
-            // Find and update the status board message
-            const messages = await activityChannel.messages.fetch({ limit: 10 });
-            const statusMessage = messages.find(m =>
-                m.author.id === message.client.user.id &&
-                m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
-            );
+            // NEW IMPROVED STATUS BOARD HANDLING
+            try {
+                // First try to find the existing status board message
+                const messages = await activityChannel.messages.fetch({ limit: 20 });
+                const statusMessage = messages.find(m =>
+                    m.author.id === message.client.user.id &&
+                    m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+                );
 
-            if (statusMessage) {
-                await statusMessage.edit({ embeds: [statusEmbed] });
-            } else {
+                if (statusMessage) {
+                    // If found, edit it
+                    await statusMessage.edit({ embeds: [statusEmbed] });
+                } else {
+                    // If not found, create a new one
+                    const newMessage = await activityChannel.send({ embeds: [statusEmbed] });
+                    console.log('Created new status board message with ID:', newMessage.id);
+
+                    // If you're using the messageUpdate.js with statusBoardMessageId,
+                    // you might want to update it here (if it's accessible)
+                    if (message.client.statusBoardMessageId) {
+                        message.client.statusBoardMessageId = newMessage.id;
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating status board:', error);
+                // If something went wrong, try to create a new message anyway
                 await activityChannel.send({ embeds: [statusEmbed] });
             }
 
