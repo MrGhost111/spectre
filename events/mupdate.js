@@ -122,7 +122,7 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
-async function updateStatusBoard(client) {
+async function updateStatusBoard(client, forceNewMessage = false) {
     try {
         const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const { tier1Users, tier2Users } = await getWeeklyStats(client);
@@ -136,7 +136,7 @@ async function updateStatusBoard(client) {
         if (tier2Users.length > 0) {
             embed.addFields({
                 name: '<:streak:1064909945373458522>  Tier 2 Members',
-                value: tier2Users.map((user, index) => 
+                value: tier2Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
@@ -145,45 +145,64 @@ async function updateStatusBoard(client) {
         if (tier1Users.length > 0) {
             embed.addFields({
                 name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
-                value: tier1Users.map((user, index) => 
+                value: tier1Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
-        // For storing the status message ID
-        if (!client.statusMessageId) {
-            client.statusMessageId = null;
-        }
-
-        // If there's a previous status message, try to delete it
-        if (client.statusMessageId) {
-            try {
-                const oldMessage = await activityChannel.messages.fetch(client.statusMessageId);
-                if (oldMessage) {
-                    await oldMessage.delete();
+        // Always create a new message during weekly reset
+        if (forceNewMessage) {
+            // Try to delete the old message if it exists
+            if (statsData.statusMessageId) {
+                try {
+                    const oldMsg = await activityChannel.messages.fetch(statsData.statusMessageId).catch(() => null);
+                    if (oldMsg) await oldMsg.delete().catch(console.error);
+                } catch (err) {
+                    console.error("Failed to delete old status message:", err);
                 }
-            } catch (error) {
-                console.error('Error deleting old status message:', error);
-                // Continue even if deletion fails
             }
+
+            // Send new message
+            const newMsg = await activityChannel.send({ embeds: [embed] });
+            statsData.statusMessageId = newMsg.id;
+            saveStatsData();
+            console.log("Created new status board message:", newMsg.id);
+            return { tier1Users, tier2Users };
         }
 
-        // Send a new status message and store its ID
-        const newStatusMessage = await activityChannel.send({ embeds: [embed] });
-        client.statusMessageId = newStatusMessage.id;
+        // Otherwise try to update existing message, or create new if needed
+        try {
+            if (statsData.statusMessageId) {
+                const existingMsg = await activityChannel.messages.fetch(statsData.statusMessageId).catch(() => null);
+                if (existingMsg) {
+                    await existingMsg.edit({ embeds: [embed] });
+                    return { tier1Users, tier2Users };
+                }
+            }
 
-        // Save the status message ID to a file for persistence across bot restarts
-        const statsPath = path.join(__dirname, '../data/stats.json');
-        statsData.statusMessageId = client.statusMessageId;
-        fs.writeFileSync(statsPath, JSON.stringify(statsData, null, 2));
+            // If we get here, we need a new message
+            const newMsg = await activityChannel.send({ embeds: [embed] });
+            statsData.statusMessageId = newMsg.id;
+            saveStatsData();
+            console.log("Created new status board message (fallback):", newMsg.id);
+            return { tier1Users, tier2Users };
 
-        return { tier1Users, tier2Users };
+        } catch (error) {
+            console.error('Failed to update status board, creating new one:', error);
+            // Create new message as fallback
+            const newMsg = await activityChannel.send({ embeds: [embed] });
+            statsData.statusMessageId = newMsg.id;
+            saveStatsData();
+            console.log("Created new status board message (error fallback):", newMsg.id);
+            return { tier1Users, tier2Users };
+        }
     } catch (error) {
         console.error('Error updating status board:', error);
-        return { tier1Users: [], tier2Users: [] };
+        return { tier1Users, tier2Users: [] };
     }
 }
+
 async function weeklyReset(client) {
     try {
         console.log('[RESET] Starting weekly reset process');
@@ -481,6 +500,22 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         }
 
         // ISOLATED SECTION 4: Status Board Update
+
+
+        try {
+            console.log('[RESET] Creating new status board');
+            await updateStatusBoard(client, true);  // <-- Add true here to force a new message
+            console.log('[RESET] Status board created successfully');
+        } catch (statusError) {
+            console.error('[RESET] Error updating status board:', statusError);
+            try {
+                await adminChannel.send('<:xmark:934659388386451516> There was an error updating the status board during weekly reset.');
+            } catch (notifyError) {
+                console.error('[RESET] Could not send status board error notification:', notifyError);
+            }
+        }
+
+
         try {
             console.log('[RESET] Updating status board');
             await updateStatusBoard(client);
