@@ -2,18 +2,9 @@
 const fs = require('fs');
 const path = require('path');
 
-// Constants
+// File paths - make sure these match paths used in other scripts
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
-const auditLogPath = path.join(__dirname, '../data/audit.json');
-const ACTIVITY_CHANNEL_ID = '1327928516662005770';
-const ADMIN_CHANNEL_ID = '966598961353850910';
-const TIER_1_ROLE_ID = '783032959350734868';
-const TIER_2_ROLE_ID = '1038888209440067604';
-
-// Permission settings
-const ALLOWED_ROLE_ID = '746298070685188197';
-const ALLOWED_USER_ID = '753491023208120321';
 
 // Format number with commas
 const formatNumber = (num) => {
@@ -22,12 +13,15 @@ const formatNumber = (num) => {
 
 // Parse shorthand number formats (1k, 1m, 1b, etc.)
 const parseAmount = (amountStr) => {
+    // Remove commas and convert to lowercase
     amountStr = amountStr.replace(/,/g, '').toLowerCase();
 
+    // Check for scientific notation (1e6, etc.)
     if (amountStr.includes('e')) {
         return Math.floor(Number(amountStr));
     }
 
+    // Check for shorthand notations
     const multipliers = {
         'k': 1000,
         'm': 1000000,
@@ -35,6 +29,7 @@ const parseAmount = (amountStr) => {
         't': 1000000000000
     };
 
+    // Match number followed by letter
     const match = amountStr.match(/^(\d+\.?\d*)([kmbt])$/i);
 
     if (match) {
@@ -43,11 +38,23 @@ const parseAmount = (amountStr) => {
         return Math.floor(value * multiplier);
     }
 
+    // If no shorthand, try parsing as regular number
     return Math.floor(Number(amountStr));
 };
 
+// Function to update status board - duplicated from event handler to ensure we use the same logic
 async function updateStatusBoard(client) {
     try {
+        const ACTIVITY_CHANNEL_ID = '1327928516662005770';
+        const TIER_1_ROLE_ID = '783032959350734868';
+        const TIER_2_ROLE_ID = '1038888209440067604';
+        const TIER_1_REQUIREMENT = 35000000;
+        const TIER_2_REQUIREMENT = 70000000;
+
+        // Load latest data to ensure we're working with current state
+        const usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        const statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+
         const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const members = await guild.members.fetch();
@@ -75,13 +82,13 @@ async function updateStatusBoard(client) {
                 if (hasTier2) {
                     tier2Users.push({
                         id: memberId,
-                        weeklyDonated: userData.weeklyDonated,
+                        weeklyDonated: userData.weeklyDonated || 0,
                         requirement: requirement
                     });
-                } else {
+                } else if (hasTier1) {
                     tier1Users.push({
                         id: memberId,
-                        weeklyDonated: userData.weeklyDonated,
+                        weeklyDonated: userData.weeklyDonated || 0,
                         requirement: requirement
                     });
                 }
@@ -92,14 +99,14 @@ async function updateStatusBoard(client) {
         tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
 
         const embed = new EmbedBuilder()
-            .setTitle('<:lbtest:1064919048242090054> Weekly Donations Leaderboard')
+            .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
             .setColor('#4c00b0')
             .setTimestamp()
             .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
 
         if (tier2Users.length > 0) {
             embed.addFields({
-                name: '<:streak:1064909945373458522> Tier 2 Members',
+                name: '<:streak:1064909945373458522>  Tier 2 Members',
                 value: tier2Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
@@ -108,13 +115,14 @@ async function updateStatusBoard(client) {
 
         if (tier1Users.length > 0) {
             embed.addFields({
-                name: '<:YJ_streak:1259258046924853421> Tier 1 Members',
+                name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
                 value: tier1Users.map((user, index) =>
                     `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
                 ).join('\n') || 'None'
             });
         }
 
+        // Find and update the status board message
         const messages = await activityChannel.messages.fetch({ limit: 10 });
         const statusMessage = messages.find(m =>
             m.author.id === client.user.id &&
@@ -123,14 +131,16 @@ async function updateStatusBoard(client) {
 
         if (statusMessage) {
             await statusMessage.edit({ embeds: [embed] });
+            console.log('Status board updated successfully');
         } else {
             await activityChannel.send({ embeds: [embed] });
+            console.log('Created new status board message');
         }
 
-        return true;
+        return { tier1Users, tier2Users };
     } catch (error) {
         console.error('Error updating status board:', error);
-        return false;
+        return { tier1Users: [], tier2Users: [] };
     }
 }
 
@@ -138,10 +148,13 @@ module.exports = {
     name: 'editmm',
     description: 'Add or remove donation amount for a Money Maker',
     async execute(message, args) {
-        // Permission check
+        // Updated permission check - specific role ID or user ID
+        const targetRoleId = '746298070685188197';
+        const targetUserId = '753491023208120321';
+
         const hasPermission =
-            message.member.roles.cache.has(ALLOWED_ROLE_ID) ||
-            message.author.id === ALLOWED_USER_ID;
+            message.member.roles.cache.has(targetRoleId) ||
+            message.author.id === targetUserId;
 
         if (!hasPermission) {
             return message.reply('You do not have permission to use this command.');
@@ -164,7 +177,7 @@ module.exports = {
             return message.reply('Please mention a valid user.');
         }
 
-        // Parse amount
+        // Parse amount with flexible format support
         const amountStr = args[2];
         const amount = parseAmount(amountStr);
 
@@ -173,25 +186,33 @@ module.exports = {
         }
 
         try {
-            // Load data
+            // Load data files every time to ensure we're working with latest data
             let usersData = {};
             let statsData = { totalDonations: 0 };
 
-            if (fs.existsSync(usersFilePath)) {
-                usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+            try {
+                if (fs.existsSync(usersFilePath)) {
+                    usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+                }
+
+                if (fs.existsSync(statsFilePath)) {
+                    statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+                }
+            } catch (readError) {
+                console.error('Error reading data files:', readError);
+                return message.reply('Error reading data files. Please check the server logs.');
             }
 
-            if (fs.existsSync(statsFilePath)) {
-                statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
-            }
-
-            // Get member info
+            // Get member info to determine their tier
             const member = await message.guild.members.fetch(userId).catch(() => null);
             if (!member) {
                 return message.reply('Unable to find that user in the server.');
             }
 
-            // Check if user has Money Maker role
+            // Find user's current tier based on roles
+            const TIER_1_ROLE_ID = '783032959350734868';
+            const TIER_2_ROLE_ID = '1038888209440067604';
+
             const isTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
             const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
 
@@ -211,61 +232,41 @@ module.exports = {
                 };
             }
 
-            // Create audit log before changes
-            const auditLog = {
-                timestamp: new Date().toISOString(),
-                adminId: message.author.id,
-                userId,
-                action,
-                amount,
-                before: {
-                    weekly: usersData[userId].weeklyDonated,
-                    total: usersData[userId].totalDonated,
-                    serverTotal: statsData.totalDonations
-                }
-            };
-
             // Update user data
-            const oldWeeklyAmount = usersData[userId].weeklyDonated;
-            const oldTotalAmount = usersData[userId].totalDonated;
+            const oldWeeklyAmount = usersData[userId].weeklyDonated || 0;
+            const oldTotalAmount = usersData[userId].totalDonated || 0;
 
             if (action === 'add') {
-                usersData[userId].weeklyDonated += amount;
-                usersData[userId].totalDonated += amount;
+                usersData[userId].weeklyDonated = oldWeeklyAmount + amount;
+                usersData[userId].totalDonated = oldTotalAmount + amount;
                 statsData.totalDonations += amount;
-            } else {
+            } else { // remove
+                // Ensure we don't go below zero for any value
                 usersData[userId].weeklyDonated = Math.max(0, oldWeeklyAmount - amount);
                 usersData[userId].totalDonated = Math.max(0, oldTotalAmount - amount);
                 statsData.totalDonations = Math.max(0, statsData.totalDonations - amount);
             }
 
-            // Update last edited timestamp
+            // Update timestamp of the edit
             usersData[userId].lastEditedAt = new Date().toISOString();
 
-            // Save audit log after changes
-            auditLog.after = {
-                weekly: usersData[userId].weeklyDonated,
-                total: usersData[userId].totalDonated,
-                serverTotal: statsData.totalDonations
-            };
-
-            let auditLogs = [];
-            if (fs.existsSync(auditLogPath)) {
-                auditLogs = JSON.parse(fs.readFileSync(auditLogPath, 'utf8'));
-            }
-            auditLogs.push(auditLog);
-            fs.writeFileSync(auditLogPath, JSON.stringify(auditLogs, null, 2));
+            // Make sure we're saving the current tier from their roles
+            usersData[userId].currentTier = isTier2 ? 2 : 1;
 
             // Save data files
             fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
             fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
+            console.log(`Successfully ${action}ed ⏣${amount} ${action === 'add' ? 'to' : 'from'} user ${userId}`);
 
-            // Determine requirement for display
+            // Determine requirement based on user's tier and missed amount
+            const TIER_1_REQUIREMENT = 35000000;
+            const TIER_2_REQUIREMENT = 70000000;
+
             const requirement = isTier2 ?
                 TIER_2_REQUIREMENT :
                 TIER_1_REQUIREMENT + (usersData[userId].missedAmount || 0);
 
-            // Create response embed
+            // Create and send feedback embed
             const embed = new EmbedBuilder()
                 .setTitle(`<:prize:1000016483369369650> Money Maker ${action === 'add' ? 'Addition' : 'Reduction'}`)
                 .setColor('#4c00b0')
@@ -275,58 +276,13 @@ module.exports = {
                     `<:purpledot:860074414853586984> Total Donated: ⏣ ${formatNumber(usersData[userId].totalDonated)}\n` +
                     `<:purpledot:860074414853586984> Server Total: ⏣ ${formatNumber(statsData.totalDonations)}`
                 )
-                .setFooter({
-                    text: `Modified by ${message.author.tag}`,
-                    iconURL: message.author.displayAvatarURL()
-                })
+                .setFooter({ text: `Modified by ${message.author.tag}` })
                 .setTimestamp();
 
-            const reply = await message.reply({ embeds: [embed] });
+            await message.reply({ embeds: [embed] });
 
-            // Update status board
-            try {
-                const success = await updateStatusBoard(message.client);
-                if (success) {
-                    await reply.edit({
-                        embeds: [embed.setFooter({
-                            text: `${message.author.tag} | Status board updated successfully`,
-                            iconURL: message.author.displayAvatarURL()
-                        })]
-                    });
-                } else {
-                    await reply.edit({
-                        embeds: [embed.setFooter({
-                            text: `${message.author.tag} | Warning: Status board update failed`,
-                            iconURL: message.author.displayAvatarURL()
-                        })]
-                    });
-
-                    const adminChannel = await message.client.channels.fetch(ADMIN_CHANNEL_ID).catch(() => null);
-                    if (adminChannel) {
-                        await adminChannel.send({
-                            content: `<@${ALLOWED_USER_ID}>`,
-                            embeds: [new EmbedBuilder()
-                                .setTitle('Status Board Update Failed')
-                                .setDescription(`Manual edit was successful but status board failed to update for ${message.author.tag}'s editmm command`)
-                                .setColor('#ff0000')
-                                .addFields(
-                                    { name: 'User', value: `<@${userId}>`, inline: true },
-                                    { name: 'Action', value: action, inline: true },
-                                    { name: 'Amount', value: `⏣ ${formatNumber(amount)}`, inline: true }
-                                )
-                            ]
-                        });
-                    }
-                }
-            } catch (statusError) {
-                console.error('Failed to update status board:', statusError);
-                await reply.edit({
-                    embeds: [embed.setFooter({
-                        text: `${message.author.tag} | Error: Status board update failed`,
-                        iconURL: message.author.displayAvatarURL()
-                    })]
-                });
-            }
+            // Update the status board
+            await updateStatusBoard(message.client);
 
         } catch (error) {
             console.error('Error in editmm command:', error);
