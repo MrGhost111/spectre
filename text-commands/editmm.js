@@ -49,143 +49,9 @@ const parseAmount = (amountStr) => {
     return Math.floor(Number(amountStr));
 };
 
-// Function to get weekly stats for tier 1 and tier 2 users
-async function getWeeklyStats(client) {
-    // Load latest data
-    let usersData = {};
-    try {
-        if (fs.existsSync(usersFilePath)) {
-            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-        }
-    } catch (error) {
-        console.error('Error reading users data file:', error);
-    }
-
-    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-    const members = await guild.members.fetch();
-    const tier1Users = [];
-    const tier2Users = [];
-
-    for (const [memberId, member] of members) {
-        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
-        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
-
-        if (hasTier1 || hasTier2) {
-            if (!usersData[memberId]) {
-                usersData[memberId] = {
-                    weeklyDonated: 0,
-                    missedAmount: 0,
-                    status: 'good',
-                    totalDonated: 0,
-                    currentTier: hasTier2 ? 2 : 1
-                };
-            }
-        }
-
-        const userData = usersData[memberId] || {
-            weeklyDonated: 0,
-            missedAmount: 0,
-            status: 'good'
-        };
-
-        const requirement = hasTier2 ?
-            TIER_2_REQUIREMENT :
-            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
-
-        if (hasTier2) {
-            tier2Users.push({
-                id: memberId,
-                weeklyDonated: userData.weeklyDonated || 0,
-                requirement: requirement
-            });
-        } else if (hasTier1) {
-            tier1Users.push({
-                id: memberId,
-                weeklyDonated: userData.weeklyDonated || 0,
-                requirement: requirement
-            });
-        }
-    }
-
-    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-
-    return { tier1Users, tier2Users };
-}
-
-// Function to update status board - Option 1: Search for the message
-async function updateStatusBoard(client) {
-    try {
-        // Load latest data to ensure we're working with current state
-        let usersData = {};
-        let statsData = { totalDonations: 0 };
-
-        try {
-            if (fs.existsSync(usersFilePath)) {
-                usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-            }
-
-            if (fs.existsSync(statsFilePath)) {
-                statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
-            }
-        } catch (readError) {
-            console.error('Error reading data files:', readError);
-        }
-
-        const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
-        const { tier1Users, tier2Users } = await getWeeklyStats(client);
-
-        const embed = new EmbedBuilder()
-            .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
-            .setColor('#4c00b0')
-            .setTimestamp()
-            .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
-
-        if (tier2Users.length > 0) {
-            embed.addFields({
-                name: '<:streak:1064909945373458522>  Tier 2 Members',
-                value: tier2Users.map((user, index) =>
-                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
-                ).join('\n') || 'None'
-            });
-        }
-
-        if (tier1Users.length > 0) {
-            embed.addFields({
-                name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
-                value: tier1Users.map((user, index) =>
-                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
-                ).join('\n') || 'None'
-            });
-        }
-
-        // Find the status message by searching recent messages
-        const messages = await activityChannel.messages.fetch({ limit: 10 });
-        const statusMessage = messages.find(m =>
-            m.author.id === client.user.id &&
-            m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
-        );
-
-        if (statusMessage) {
-            await statusMessage.edit({ embeds: [embed] });
-            console.log('Status board updated successfully');
-        } else {
-            console.log('Creating a new status board message');
-            const newMessage = await activityChannel.send({ embeds: [embed] });
-            console.log('Created new status board message with ID:', newMessage.id);
-        }
-
-        return { tier1Users, tier2Users };
-    } catch (error) {
-        console.error('Error updating status board:', error);
-        return { tier1Users: [], tier2Users: [] };
-    }
-}
-
 module.exports = {
     name: 'editmm',
     description: 'Add or remove donation amount for a Money Maker',
-    updateStatusBoard,
     async execute(message, args) {
         // Updated permission check - specific role ID or user ID
         const targetRoleId = '746298070685188197';
@@ -315,7 +181,45 @@ module.exports = {
             await message.reply({ embeds: [embed] });
 
             // Update the status board
-            await updateStatusBoard(message.client);
+            const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
+            const { tier1Users, tier2Users } = await getWeeklyStats(message.client);
+
+            const statusEmbed = new EmbedBuilder()
+                .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
+                .setColor('#4c00b0')
+                .setTimestamp()
+                .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
+
+            if (tier2Users.length > 0) {
+                statusEmbed.addFields({
+                    name: '<:streak:1064909945373458522>  Tier 2 Members',
+                    value: tier2Users.map((user, index) =>
+                        `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                    ).join('\n') || 'None'
+                });
+            }
+
+            if (tier1Users.length > 0) {
+                statusEmbed.addFields({
+                    name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
+                    value: tier1Users.map((user, index) =>
+                        `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                    ).join('\n') || 'None'
+                });
+            }
+
+            // Find and update the status board message
+            const messages = await activityChannel.messages.fetch({ limit: 10 });
+            const statusMessage = messages.find(m =>
+                m.author.id === message.client.user.id &&
+                m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+            );
+
+            if (statusMessage) {
+                await statusMessage.edit({ embeds: [statusEmbed] });
+            } else {
+                await activityChannel.send({ embeds: [statusEmbed] });
+            }
 
         } catch (error) {
             console.error('Error in editmm command:', error);
@@ -323,3 +227,66 @@ module.exports = {
         }
     },
 };
+
+async function getWeeklyStats(client) {
+    // Load latest data
+    let usersData = {};
+    try {
+        if (fs.existsSync(usersFilePath)) {
+            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        }
+    } catch (error) {
+        console.error('Error reading users data file:', error);
+    }
+
+    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+    const members = await guild.members.fetch();
+    const tier1Users = [];
+    const tier2Users = [];
+
+    for (const [memberId, member] of members) {
+        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+
+        if (hasTier1 || hasTier2) {
+            if (!usersData[memberId]) {
+                usersData[memberId] = {
+                    weeklyDonated: 0,
+                    missedAmount: 0,
+                    status: 'good',
+                    totalDonated: 0,
+                    currentTier: hasTier2 ? 2 : 1
+                };
+            }
+        }
+
+        const userData = usersData[memberId] || {
+            weeklyDonated: 0,
+            missedAmount: 0,
+            status: 'good'
+        };
+
+        const requirement = hasTier2 ?
+            TIER_2_REQUIREMENT :
+            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+
+        if (hasTier2) {
+            tier2Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        } else if (hasTier1) {
+            tier1Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        }
+    }
+
+    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+
+    return { tier1Users, tier2Users };
+}

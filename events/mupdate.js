@@ -26,6 +26,7 @@ let usersData = require(usersFilePath);
 const itemsData = require(itemsFilePath);
 let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
 let lastMessageId = null;
+let statusBoardMessageId = null; // Track the current status board message ID
 
 // Utility functions
 const saveUsersData = () => {
@@ -122,7 +123,7 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
-async function updateStatusBoard(client, forceNewMessage = false) {
+async function updateStatusBoard(client) {
     try {
         const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const { tier1Users, tier2Users } = await getWeeklyStats(client);
@@ -151,55 +152,24 @@ async function updateStatusBoard(client, forceNewMessage = false) {
             });
         }
 
-        // Always create a new message during weekly reset
-        if (forceNewMessage) {
-            // Try to delete the old message if it exists
-            if (statsData.statusMessageId) {
-                try {
-                    const oldMsg = await activityChannel.messages.fetch(statsData.statusMessageId).catch(() => null);
-                    if (oldMsg) await oldMsg.delete().catch(console.error);
-                } catch (err) {
-                    console.error("Failed to delete old status message:", err);
-                }
+        // Delete the old status board message if it exists
+        if (statusBoardMessageId) {
+            try {
+                const oldMessage = await activityChannel.messages.fetch(statusBoardMessageId);
+                await oldMessage.delete();
+            } catch (error) {
+                console.log('Old status board message not found or already deleted');
             }
-
-            // Send new message
-            const newMsg = await activityChannel.send({ embeds: [embed] });
-            statsData.statusMessageId = newMsg.id;
-            saveStatsData();
-            console.log("Created new status board message:", newMsg.id);
-            return { tier1Users, tier2Users };
         }
 
-        // Otherwise try to update existing message, or create new if needed
-        try {
-            if (statsData.statusMessageId) {
-                const existingMsg = await activityChannel.messages.fetch(statsData.statusMessageId).catch(() => null);
-                if (existingMsg) {
-                    await existingMsg.edit({ embeds: [embed] });
-                    return { tier1Users, tier2Users };
-                }
-            }
+        // Send a new status board message and store its ID
+        const newMessage = await activityChannel.send({ embeds: [embed] });
+        statusBoardMessageId = newMessage.id;
 
-            // If we get here, we need a new message
-            const newMsg = await activityChannel.send({ embeds: [embed] });
-            statsData.statusMessageId = newMsg.id;
-            saveStatsData();
-            console.log("Created new status board message (fallback):", newMsg.id);
-            return { tier1Users, tier2Users };
-
-        } catch (error) {
-            console.error('Failed to update status board, creating new one:', error);
-            // Create new message as fallback
-            const newMsg = await activityChannel.send({ embeds: [embed] });
-            statsData.statusMessageId = newMsg.id;
-            saveStatsData();
-            console.log("Created new status board message (error fallback):", newMsg.id);
-            return { tier1Users, tier2Users };
-        }
+        return { tier1Users, tier2Users };
     } catch (error) {
         console.error('Error updating status board:', error);
-        return { tier1Users, tier2Users: [] };
+        return { tier1Users: [], tier2Users: [] };
     }
 }
 
@@ -500,22 +470,6 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         }
 
         // ISOLATED SECTION 4: Status Board Update
-
-
-        try {
-            console.log('[RESET] Creating new status board');
-            await updateStatusBoard(client, true);  // <-- Add true here to force a new message
-            console.log('[RESET] Status board created successfully');
-        } catch (statusError) {
-            console.error('[RESET] Error updating status board:', statusError);
-            try {
-                await adminChannel.send('<:xmark:934659388386451516> There was an error updating the status board during weekly reset.');
-            } catch (notifyError) {
-                console.error('[RESET] Could not send status board error notification:', notifyError);
-            }
-        }
-
-
         try {
             console.log('[RESET] Updating status board');
             await updateStatusBoard(client);
@@ -542,6 +496,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         return false;
     }
 }
+
 module.exports = {
     name: Events.MessageUpdate,
     weeklyReset,
