@@ -6,6 +6,14 @@ const path = require('path');
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
 
+// Constants for roles and requirements
+const ACTIVITY_CHANNEL_ID = '1327928516662005770';
+const STATUS_MESSAGE_ID = '1332155630798241822';
+const TIER_1_ROLE_ID = '783032959350734868';
+const TIER_2_ROLE_ID = '1038888209440067604';
+const TIER_1_REQUIREMENT = 35000000;
+const TIER_2_REQUIREMENT = 70000000;
+
 // Format number with commas
 const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -42,21 +50,20 @@ const parseAmount = (amountStr) => {
     return Math.floor(Number(amountStr));
 };
 
-// Constants
-const ACTIVITY_CHANNEL_ID = '1327928516662005770';
-const TIER_1_ROLE_ID = '783032959350734868';
-const TIER_2_ROLE_ID = '1038888209440067604';
-const TIER_1_REQUIREMENT = 35000000;
-const TIER_2_REQUIREMENT = 70000000;
-const STATUS_BOARD_MESSAGE_ID = '1332155630798241822'; // The specific message ID to update
-
+// Function to get weekly stats for tier 1 and tier 2 users
 async function getWeeklyStats(client) {
+    // Load latest data
+    let usersData = {};
+    try {
+        if (fs.existsSync(usersFilePath)) {
+            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        }
+    } catch (error) {
+        console.error('Error reading users data file:', error);
+    }
+
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const members = await guild.members.fetch();
-
-    // Load fresh data
-    const usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-
     const tier1Users = [];
     const tier2Users = [];
 
@@ -107,16 +114,27 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
+// Function to update status board
 async function updateStatusBoard(client) {
     try {
-        console.log('Starting status board update...');
-        const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
-        console.log('Fetched activity channel');
+        // Load latest data to ensure we're working with current state
+        let usersData = {};
+        let statsData = { totalDonations: 0 };
 
-        // Load the most recent data
-        const statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+        try {
+            if (fs.existsSync(usersFilePath)) {
+                usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+            }
+
+            if (fs.existsSync(statsFilePath)) {
+                statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+            }
+        } catch (readError) {
+            console.error('Error reading data files:', readError);
+        }
+
+        const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
         const { tier1Users, tier2Users } = await getWeeklyStats(client);
-        console.log(`Found ${tier1Users.length} tier 1 users and ${tier2Users.length} tier 2 users`);
 
         const embed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
@@ -142,44 +160,24 @@ async function updateStatusBoard(client) {
             });
         }
 
+        // Direct approach - fetch the specific message by ID
         try {
-            // First try to update the specific message by ID
-            console.log(`Attempting to fetch and update message ID: ${STATUS_BOARD_MESSAGE_ID}`);
-            const statusMessage = await activityChannel.messages.fetch(STATUS_BOARD_MESSAGE_ID);
-            if (statusMessage) {
-                await statusMessage.edit({ embeds: [embed] });
-                console.log('Successfully updated the status board message by ID');
-                return true;
-            }
-        } catch (specificError) {
-            console.error(`Error updating specific message ID ${STATUS_BOARD_MESSAGE_ID}:`, specificError);
-
-            // Fallback to the original method
-            console.log('Falling back to search method...');
-            try {
-                const messages = await activityChannel.messages.fetch({ limit: 10 });
-                const statusMessage = messages.find(m =>
-                    m.author.id === client.user.id &&
-                    m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
-                );
-
-                if (statusMessage) {
-                    await statusMessage.edit({ embeds: [embed] });
-                    console.log(`Successfully updated status message with ID: ${statusMessage.id}`);
-                    return true;
-                } else {
-                    const newMessage = await activityChannel.send({ embeds: [embed] });
-                    console.log(`Created new status board message with ID: ${newMessage.id}`);
-                    return true;
-                }
-            } catch (fallbackError) {
-                console.error('Error in fallback update method:', fallbackError);
-                return false;
-            }
+            console.log('Attempting to fetch message with ID:', STATUS_MESSAGE_ID);
+            const statusMessage = await activityChannel.messages.fetch(STATUS_MESSAGE_ID);
+            console.log('Found message, attempting edit');
+            await statusMessage.edit({ embeds: [embed] });
+            console.log('Status board updated successfully');
+        } catch (fetchError) {
+            console.error('Could not find or edit the status message:', fetchError);
+            console.log('Creating a new status board message');
+            const newMessage = await activityChannel.send({ embeds: [embed] });
+            console.log('Created new status board message with ID:', newMessage.id);
         }
+
+        return { tier1Users, tier2Users };
     } catch (error) {
         console.error('Error updating status board:', error);
-        return false;
+        return { tier1Users: [], tier2Users: [] };
     }
 }
 
@@ -225,7 +223,7 @@ module.exports = {
         }
 
         try {
-            // Load data
+            // Load data files every time to ensure we're working with latest data
             let usersData = {};
             let statsData = { totalDonations: 0 };
 
@@ -286,11 +284,13 @@ module.exports = {
             // Update timestamp of the edit
             usersData[userId].lastEditedAt = new Date().toISOString();
 
-            // Save data
+            // Make sure we're saving the current tier from their roles
+            usersData[userId].currentTier = isTier2 ? 2 : 1;
+
+            // Save data files
             fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
             fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
-
-            console.log(`Successfully ${action}ed ⏣${formatNumber(amount)} ${action === 'add' ? 'to' : 'from'} user ${userId}`);
+            console.log(`Successfully ${action}ed ⏣${amount} ${action === 'add' ? 'to' : 'from'} user ${userId}`);
 
             // Determine requirement based on user's tier and missed amount
             const requirement = isTier2 ?
@@ -310,18 +310,10 @@ module.exports = {
                 .setFooter({ text: `Modified by ${message.author.tag}` })
                 .setTimestamp();
 
-            // Send the update notification first
             await message.reply({ embeds: [embed] });
 
-            // Then update the status board
-            const updateSuccess = await updateStatusBoard(message.client);
-
-            // Notify about status board update
-            if (!updateSuccess) {
-                await message.channel.send('Note: The donations were updated in the database, but there was an issue updating the status board. Please check the logs.');
-            } else {
-                await message.channel.send('Status board has been updated successfully.');
-            }
+            // Update the status board
+            await updateStatusBoard(message.client);
 
         } catch (error) {
             console.error('Error in editmm command:', error);
