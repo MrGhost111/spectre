@@ -1,4 +1,4 @@
-﻿const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
+﻿const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -15,7 +15,6 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildVoiceStates,
     ],
-    partials: [Partials.Message, Partials.Channel, Partials.Reaction], // Add partials for message events
 });
 
 // Collections and Maps
@@ -28,121 +27,155 @@ client.donations = new Map();
 client.prefix = ','; // Define your command prefix here
 
 // Load commands
-const loadCommands = () => { /* (Existing Command Loading Logic - No Changes) */ };
-const loadEvents = () => { /* (Existing Event Loading Logic - No Changes) */ };
+const loadCommands = () => {
+    const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
+    for (const file of textCommandFiles) {
+        const command = require(`./text-commands/${file}`);
+        if (command.name) {
+            client.textCommands.set(command.name, command);
+            console.log(`Loaded text command: ${command.name}`);
+        }
+    }
 
-// Fix: Track Donations via Interaction Updates
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isMessageComponent()) return;
+    const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+    for (const file of commandFiles) {
+        const command = require(`./commands/${file}`);
+        if (command.data && command.data.name) {
+            client.commands.set(command.data.name, command);
+            console.log(`Loaded slash command: ${command.data.name}`);
+        }
+    }
+};
 
-    const message = interaction.message;
+// Load events
+const loadEvents = () => {
+    const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
+    for (const file of eventFiles) {
+        const event = require(`./events/${file}`);
+        if (event.once) {
+            client.once(event.name, (...args) => event.execute(client, ...args));
+        } else {
+            client.on(event.name, (...args) => event.execute(client, ...args));
+        }
+    }
+};
+
+// Initialize donation tracking
+const initializeDonationTracking = () => {
     const DANK_MEMER_BOT_ID = '270904126974590976';
     const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
-    if (message.channel.id !== TRANSACTION_CHANNEL_ID || message.author.id !== DANK_MEMER_BOT_ID) return;
-
-    // Extract donation data
-    let donationText = "";
-    if (message.embeds.length > 0) {
-        donationText = message.embeds[0].description || "";
-    } else if (message.components.length > 0) {
-        const textComponent = message.components.find(comp => comp.type === 4);
-        if (textComponent) donationText = textComponent.label || textComponent.value || "";
+    const channel = client.channels.cache.get(TRANSACTION_CHANNEL_ID);
+    if (!channel) {
+        console.error('Transaction channel not found!');
+        return null;
     }
 
-    if (!donationText.includes('Successfully donated')) return;
-
-    const donationMatch = donationText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
-    if (!donationMatch) return;
-
-    const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
-    const donorId = await findCommandUser(message);
-    if (!donorId) return;
-
-    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-    const member = await guild.members.fetch(donorId);
-
-    // Update user donation data
-    usersData[donorId] = usersData[donorId] || {};
-    usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
-    usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
-    usersData[donorId].lastDonation = new Date().toISOString();
-    usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 : (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
-
-    // Save data
-    statsData.totalDonations += donationAmount;
-    saveStatsData();
-    saveUsersData();
-
-    // Announce donation
-    const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
-
-    const donationEmbed = new EmbedBuilder()
-        .setTitle('<:prize:1000016483369369650>  New Donation')
-        .setColor('#4c00b0')
-        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
-        .setTimestamp();
-
-    await message.channel.send({ embeds: [donationEmbed] });
-
-    // Update status board
-    setImmediate(() => {
-        updateStatusBoard(client).catch(console.error);
+    return channel.createMessageCollector({
+        filter: m => m.author.id === DANK_MEMER_BOT_ID,
+        idle: 60_000
+    }).on('collect', async message => {
+        await require('./events/mupdate.js').handleDonation(client, message);
     });
-});
+};
 
-// Ensure data directory exists
-const ensureDataDirExists = () => { /* (Existing Logic - No Changes) */ };
-ensureDataDirExists();
+// Load commands and events
 loadCommands();
 loadEvents();
 
 // Client ready handler
 client.once('ready', () => {
-    console.log(`✅ Logged in as ${client.user.tag}!`);
+    console.log(`Logged in as ${client.user.tag}!`);
 
-    try {
-        client.muteManager = new MuteManager(client);
-        console.log('✅ Mute Manager initialized');
-    } catch (error) {
-        console.error('❌ Failed to initialize Mute Manager:', error);
-    }
+    // Initialize systems
+    client.muteManager = new MuteManager(client);
+    client.donationCollector = initializeDonationTracking();
 
-    try {
-        client.donationCollector = initializeDonationTracking();
-        console.log(client.donationCollector ? '✅ Donation Tracking initialized' : '❌ Donation Tracking failed to initialize');
-    } catch (error) {
-        console.error('❌ Error during donation collector setup:', error);
-    }
+    console.log('Systems initialized:');
+    console.log('- Mute Manager');
+    console.log('- Donation Tracking');
 
     // Weekly reset schedule
+    const { weeklyReset } = require('./events/mupdate.js');
+    cron.schedule('0 0 * * 0', async () => {
+        console.log('Weekly reset triggered at:', new Date().toISOString());
+        try {
+            const success = await weeklyReset(client);
+            console.log(success ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+        } catch (error) {
+            console.error('Unhandled error during weekly reset:', error);
+        }
+    }, {
+        timezone: "UTC",
+        scheduled: true,
+        runOnInit: false
+    });
+    console.log('Weekly reset schedule set up successfully');
+});
+
+// Handle text commands (Messages)
+client.on('messageCreate', async message => {
+    // Ignore bot messages and messages without prefix
+    if (message.author.bot || !message.content.startsWith(client.prefix)) return;
+
+    // Extract command name and arguments
+    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+
+    // Check if command exists
+    const command = client.textCommands.get(commandName) ||
+        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+    if (!command) return;
+
+    // Execute the command
     try {
-        const { weeklyReset } = require('./events/mupdate.js');
-        cron.schedule('0 0 * * 0', async () => {
-            console.log('⏰ Weekly reset triggered:', new Date().toISOString());
-            try {
-                const success = await weeklyReset(client);
-                console.log(success ? '✅ Weekly reset completed successfully' : '⚠️ Weekly reset completed with errors');
-            } catch (error) {
-                console.error('❌ Unhandled error during weekly reset:', error);
-            }
-        }, {
-            timezone: "UTC",
-            scheduled: true,
-            runOnInit: false
-        });
-        console.log('✅ Weekly reset schedule set up successfully');
+        await command.execute(message, args, client);
     } catch (error) {
-        console.error('❌ Failed to set up weekly reset schedule:', error);
+        console.error(`Error executing text command ${commandName}:`, error);
+        await message.reply('There was an error executing that command!').catch(console.error);
     }
 });
 
-client.login(process.env.DISCORD_TOKEN)
-    .then(() => console.log('✅ Bot login successful'))
-    .catch(error => console.error('❌ Bot login failed:', error));
+// Handle slash commands (Interactions)
+client.on('interactionCreate', async interaction => {
+    // Handle button interactions
+    if (interaction.isButton()) {
+        if (interaction.customId === 'risk') {
+            await client.muteManager.handleRiskButton(interaction);
+        }
+        return;
+    }
 
-process.on('unhandledRejection', error => {
-    console.error('❌ Unhandled promise rejection:', error);
+    // Handle slash command interactions
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+
+    if (!command) {
+        console.error(`No command matching ${interaction.commandName} was found.`);
+        return;
+    }
+
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(`Error executing slash command ${interaction.commandName}:`, error);
+
+        const errorReply = {
+            content: 'There was an error executing this command!',
+            ephemeral: true
+        };
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorReply);
+        } else {
+            await interaction.reply(errorReply);
+        }
+    }
 });
+
+// Login
+client.login(process.env.DISCORD_TOKEN);
 
 module.exports = client;
