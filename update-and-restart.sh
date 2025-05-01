@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Environment setup for cron
 export HOME=/home/opc
 export USER=opc
@@ -10,7 +9,6 @@ if ! command -v node &> /dev/null; then
     echo "❌ Node.js not found in PATH" >&2
     exit 1
 fi
-
 if ! command -v git &> /dev/null; then
     echo "❌ Git not found" >&2
     exit 1
@@ -30,7 +28,6 @@ source .env > /dev/null 2>&1
 # Discord error logging (10h cooldown)
 ERROR_LOG="/tmp/spectre_update_errors.log"
 touch "$ERROR_LOG"
-
 send_discord_message() {
     local message="$1"
     local error_type="$2"
@@ -65,7 +62,6 @@ fi
 BEFORE_PULL=$(git rev-parse HEAD)
 PULL_OUTPUT=$(git pull 2>&1)
 PULL_EXIT_CODE=$?
-
 if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
     exit 1
@@ -73,17 +69,27 @@ elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
     # Get meaningful commit message
     commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Merge branch" | head -1)
     [[ -z "$commit_message" ]] && commit_message=$(git log -1 --pretty=format:"%s")
-
+    
     # Deployment
     node deploy.js > /dev/null 2>&1 || \
     send_discord_message "❌ [Rate Limited] Failed to deploy commands" "deploy_failed"
-
-    # Restart with PM2 fallback
-    if ! pm2 restart spectre-bot --update-env > /dev/null 2>&1; then
-        pkill -f "node index.js"
-        node index.js > /dev/null 2>&1 &
-        send_discord_message "⚠️ Restarted via direct node" "pm2_fallback"
+    
+    # Restart with PM2
+    # First check if there are any direct node processes to kill
+    pkill -f "node index.js" > /dev/null 2>&1
+    
+    # Now restart using the correct PM2 process name
+    if ! pm2 restart spectre --update-env > /dev/null 2>&1; then
+        # If PM2 restart fails, try stopping any existing processes first
+        pm2 stop spectre > /dev/null 2>&1
+        # Then start a new one
+        if ! pm2 start index.js --name spectre > /dev/null 2>&1; then
+            # Last resort: direct node execution
+            pkill -f "node index.js" > /dev/null 2>&1
+            node index.js > /dev/null 2>&1 &
+            send_discord_message "⚠️ Restarted via direct node" "pm2_fallback"
+        fi
     fi
-
+    
     send_discord_message "<a:tickloop:926319357288648784> Implemented: ${commit_message:0:200}"
 fi
