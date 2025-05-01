@@ -1,61 +1,142 @@
 ﻿const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'embed',
+    name: 'embeddebug',
     aliases: ['edbg'],
-    description: 'Debug: Extract all raw message data to find hidden embed info.',
+    description: 'Debug: Extract raw message data to find hidden embed info.',
     async execute(message, args, client) {
         try {
-            const targetMessage = message.reference
-                ? await message.channel.messages.fetch(message.reference.messageId).catch(() => null)
-                : null;
-
-            const messageId = !targetMessage && args.length > 0 ? args[0] : null;
-            const messageWithId = messageId
-                ? await message.channel.messages.fetch(messageId).catch(() => null)
-                : null;
-
-            const embedMessage = targetMessage || messageWithId;
-
-            if (!embedMessage) {
-                return message.reply({
-                    content: '<:xmark:934659388386451516> Please reply to a message or provide a valid message ID.'
-                });
+            // Fetch target message (either replied or by ID)
+            const targetMessage = await fetchTargetMessage(message, args);
+            if (!targetMessage) {
+                return sendErrorMessage(message,
+                    'Please reply to a message or provide a valid message ID.'
+                );
             }
 
-            // Extract ALL possible data
-            const rawData = {
-                content: embedMessage.content || "No standard content",
-                embeds: embedMessage.embeds.length > 0 ? embedMessage.embeds : "No traditional embeds",
-                components: embedMessage.components.length > 0 ? embedMessage.components : "No components",
-                attachments: embedMessage.attachments.size > 0 ? [...embedMessage.attachments.values()] : "No attachments",
-                stickers: embedMessage.stickers.size > 0 ? [...embedMessage.stickers.values()] : "No stickers",
-                reactions: embedMessage.reactions.cache.size > 0 ? [...embedMessage.reactions.cache.values()] : "No reactions",
-                flags: embedMessage.flags.bitfield,
-                type: embedMessage.type,
-                interaction: embedMessage.interaction || "No interaction",
-                system_content: embedMessage.systemContent || "No system content",
-            };
+            // Extract all message data
+            const rawData = extractMessageData(targetMessage);
 
-            // Convert to readable JSON format
-            const jsonData = JSON.stringify(rawData, null, 2);
-            const truncatedJson = jsonData.length > 1000 ? jsonData.substring(0, 997) + "..." : jsonData;
-
-            // Build response embed
-            const responseEmbed = new EmbedBuilder()
-                .setTitle('<:lbtest:1064919048242090054> Debug: Extracted Raw Message Data')
-                .setColor('#ff4500')
-                .setDescription("Here’s everything extracted from the message.")
-                .setTimestamp()
-                .addFields({ name: 'Raw Data (JSON)', value: `\`\`\`json\n${truncatedJson}\n\`\`\`` });
-
+            // Build and send debug embed
+            const responseEmbed = buildDebugEmbed(rawData);
             return message.reply({ embeds: [responseEmbed] });
 
         } catch (error) {
             console.error('Error in embed debug extraction:', error);
-            return message.reply({
-                content: `<:xmark:934659388386451516> An error occurred while extracting message data: ${error.message}`
-            });
+            return sendErrorMessage(message,
+                `An error occurred while extracting message data: ${error.message}`
+            );
         }
     },
 };
+
+// Helper Functions
+
+async function fetchTargetMessage(message, args) {
+    try {
+        // Try to get message from reply reference
+        if (message.reference) {
+            return await message.channel.messages.fetch(message.reference.messageId);
+        }
+
+        // Try to get message from provided ID
+        if (args.length > 0) {
+            return await message.channel.messages.fetch(args[0]);
+        }
+
+        return null;
+    } catch (fetchError) {
+        console.error('Error fetching target message:', fetchError);
+        return null;
+    }
+}
+
+function extractMessageData(message) {
+    return {
+        // Basic message info
+        id: message.id,
+        createdTimestamp: message.createdTimestamp,
+        type: message.type,
+        flags: message.flags.bitfield,
+
+        // Content
+        content: message.content || "No standard content",
+
+        // Embeds
+        embeds: message.embeds.length > 0
+            ? message.embeds.map(embed => ({
+                title: embed.title,
+                description: embed.description,
+                fields: embed.fields,
+                footer: embed.footer,
+                color: embed.color
+            }))
+            : "No traditional embeds",
+
+        // Components
+        components: message.components.length > 0
+            ? message.components.map(comp => ({
+                type: comp.type,
+                components: comp.components.map(c => ({
+                    type: c.type,
+                    customId: c.customId,
+                    label: c.label,
+                    style: c.style
+                }))
+            }))
+            : "No components",
+
+        // Attachments
+        attachments: message.attachments.size > 0
+            ? [...message.attachments.values()].map(a => ({
+                name: a.name,
+                url: a.url,
+                contentType: a.contentType
+            }))
+            : "No attachments",
+
+        // Other metadata
+        stickers: message.stickers.size > 0
+            ? [...message.stickers.values()].map(s => s.name)
+            : "No stickers",
+
+        reactions: message.reactions.cache.size > 0
+            ? [...message.reactions.cache.values()].map(r => ({
+                emoji: r.emoji.toString(),
+                count: r.count
+            }))
+            : "No reactions",
+
+        interaction: message.interaction
+            ? {
+                id: message.interaction.id,
+                type: message.interaction.type,
+                commandName: message.interaction.commandName,
+                user: message.interaction.user.id
+            }
+            : "No interaction"
+    };
+}
+
+function buildDebugEmbed(rawData) {
+    const jsonData = JSON.stringify(rawData, null, 2);
+    const truncatedJson = jsonData.length > 1000
+        ? jsonData.substring(0, 997) + "..."
+        : jsonData;
+
+    return new EmbedBuilder()
+        .setTitle('<:lbtest:1064919048242090054> Debug: Extracted Raw Message Data')
+        .setColor('#ff4500')
+        .setDescription("Here's everything extracted from the message.")
+        .setTimestamp()
+        .addFields({
+            name: 'Raw Data (JSON)',
+            value: `\`\`\`json\n${truncatedJson}\n\`\`\``
+        });
+}
+
+function sendErrorMessage(message, text) {
+    return message.reply({
+        content: `<:xmark:934659388386451516> ${text}`
+    });
+}
