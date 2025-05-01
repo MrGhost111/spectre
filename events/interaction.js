@@ -76,7 +76,6 @@ module.exports = {
     }
 };
 
-
 async function handleChannelButtons(interaction) {
     try {
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));

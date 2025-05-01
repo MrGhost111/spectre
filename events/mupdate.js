@@ -525,20 +525,12 @@ module.exports = {
             if (newMessage.channel?.id === TRANSACTION_CHANNEL_ID &&
                 newMessage.author?.id === DANK_MEMER_BOT_ID) {
 
-                if (!newMessage.embeds?.length && !newMessage.components?.length) return;
+                if (!newMessage.embeds?.length) return;
 
-                let donationText = "";
+                const embed = newMessage.embeds[0];
+                if (!embed.description?.includes('Successfully donated')) return;
 
-                if (newMessage.embeds.length > 0) {
-                    donationText = newMessage.embeds[0].description || "";
-                } else if (newMessage.components.length > 0) {
-                    const textComponent = newMessage.components.find(comp => comp.type === 4); // Type 4 = Text Display
-                    if (textComponent) donationText = textComponent.label || textComponent.value || "";
-                }
-
-                if (!donationText.includes('Successfully donated')) return;
-
-                const donationMatch = donationText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
+                const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
                 if (!donationMatch) return;
 
                 const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
