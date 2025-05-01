@@ -186,6 +186,18 @@ module.exports = {
             }
         }
 
+        const DANK_MEMER_BOT_ID = '270904126974590976';
+        const TRANSACTION_CHANNEL_ID = '833246120389902356';
+
+        if (message.author.id === DANK_MEMER_BOT_ID && message.channel.id === TRANSACTION_CHANNEL_ID) {
+            if (message.embeds?.length && message.embeds[0]?.title?.includes('Pending Confirmation')) {
+                const confirmButton = message.components?.[0]?.components?.find(comp => comp.label === 'Confirm');
+                if (confirmButton) {
+                    client.trackedDonations.set(message.id, { originalMessage: message, user: message.interaction?.user?.id });
+                    console.log(`Tracking pending donation: Message ID ${message.id}`);
+                }
+            }
+        }
         // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {
             try {
