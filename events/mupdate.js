@@ -1,6 +1,8 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const { Events } = require('discord.js');
+const { weeklyReset } = require('./weeklyReset');
 
 // Constants
 const ANNOUNCEMENT_CHANNEL_ID = '833241820959473724';
@@ -492,11 +494,15 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         return false;
     }
 }
+
+let lastMessageId = null;
+
 module.exports = {
     name: Events.MessageUpdate,
     weeklyReset,
     async execute(client, oldMessage, newMessage) {
         try {
+            // Message edit tracking
             if (oldMessage.content && newMessage.content && oldMessage.content !== newMessage.content) {
                 const channelId = newMessage.channel.id;
                 const messageData = {
@@ -522,66 +528,7 @@ module.exports = {
                 channelMessages.push(messageData);
             }
 
-            if (newMessage.channel?.id === TRANSACTION_CHANNEL_ID &&
-                newMessage.author?.id === DANK_MEMER_BOT_ID) {
-
-                if (!newMessage.embeds?.length) return;
-
-                const embed = newMessage.embeds[0];
-                if (!embed.description?.includes('Successfully donated')) return;
-
-                const donationMatch = embed.description.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
-                if (!donationMatch) return;
-
-                const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
-                const donorId = await findCommandUser(newMessage);
-                if (!donorId) return;
-
-                const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-                const member = await guild.members.fetch(donorId);
-
-                // Immediately update user data and save
-                if (!usersData[donorId]) {
-                    usersData[donorId] = {
-                        totalDonated: donationAmount,
-                        weeklyDonated: donationAmount,
-                        currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                            (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0),
-                        status: 'good',
-                        missedAmount: 0,
-                        lastDonation: new Date().toISOString()
-                    };
-                } else {
-                    usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
-                    usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
-                    usersData[donorId].lastDonation = new Date().toISOString();
-                    usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                        (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
-                }
-
-                // Immediately save data
-                statsData.totalDonations += donationAmount;
-                saveStatsData();
-                saveUsersData();
-
-                // Send donation embed immediately
-                const requirement = usersData[donorId].currentTier === 2 ?
-                    TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
-
-                const donationEmbed = new EmbedBuilder()
-                    .setTitle('<:prize:1000016483369369650>  New Donation')
-                    .setColor('#4c00b0')
-                    .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
-                    .setTimestamp();
-
-                await newMessage.channel.send({ embeds: [donationEmbed] });
-
-                // Update status board in the background
-                setImmediate(() => {
-                    updateStatusBoard(client).catch(console.error);
-                });
-            }
-
+            // Count tracking
             if (newMessage.id === '1315178334325571635') {
                 const embed = newMessage.embeds[0];
                 if (!embed) return;

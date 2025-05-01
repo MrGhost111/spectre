@@ -8,11 +8,13 @@ const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
 
+const { checkComponentsForDonation, processDonation } = require('../utils/donationSystem');
+
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
         try {
-            // Handle slash commands
+            // Slash commands
             if (interaction.isCommand()) {
                 const command = client.commands.get(interaction.commandName);
                 if (!command) return;
@@ -20,41 +22,73 @@ module.exports = {
                 return;
             }
 
-            // The guess command handles its own modal submissions
-            if (interaction.isModalSubmit() && interaction.customId.startsWith('answer_modal_')) {
-                return; // Handled by the guess.js command
+            // Donation button handling
+            if (interaction.isButton() && interaction.customId === 'confirm_donation') {
+                const message = interaction.message;
+                const donationData = await checkComponentsForDonation(message);
+
+                if (donationData) {
+                    await processDonation(
+                        client,
+                        message,
+                        donationData.amount,
+                        interaction.user.id
+                    );
+                }
+                return;
             }
 
-            // Handle other modal submissions
+            // Modal submissions
             if (interaction.isModalSubmit()) {
+                if (interaction.customId.startsWith('answer_modal_')) {
+                    return; // Handled by guess.js
+                }
                 await handleModalSubmit(interaction);
                 return;
             }
 
-            // Handle button interactions
+            // Other button interactions
             if (interaction.isButton()) {
                 console.log(`Button Interaction Detected: ${interaction.customId}`);
 
-                // Skip the sound game buttons - they're handled in the guess.js
+                // Game buttons
                 if (['play_new', 'replay', 'answer', 'leaderboard'].includes(interaction.customId)) {
-                    return; // These are handled in guess.js
+                    return;
                 }
 
-                // Handle other buttons with your existing code
+                // Risk button
                 if (interaction.customId === 'risk') {
                     return await interaction.client.muteManager.handleRiskButton(interaction);
-                } else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+                }
+
+                // Snipe deletion
+                if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                     await handleDeleteSnipe(interaction);
-                } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
+                    return;
+                }
+
+                // Channel buttons
+                if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
                     await handleChannelButtons(interaction);
-                } else if (interaction.customId === 'lb') {
+                    return;
+                }
+
+                // Leaderboard button
+                if (interaction.customId === 'lb') {
                     await handleLeaderboardButton(interaction);
-                } else if (interaction.customId === 'info') {
+                    return;
+                }
+
+                // Info button
+                if (interaction.customId === 'info') {
                     await handleInfoButton(interaction);
-                } else if (interaction.customId === 'risk') {
-                    await handleRiskButton(interaction);
-                } else if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
+                    return;
+                }
+
+                // Activity buttons
+                if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
                     await handleActivityButtons(interaction);
+                    return;
                 }
             }
         } catch (error) {
