@@ -26,7 +26,6 @@ let usersData = require(usersFilePath);
 const itemsData = require(itemsFilePath);
 let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
 let lastMessageId = null;
-let statusBoardMessageId = null; // Track the current status board message ID
 
 // Utility functions
 const saveUsersData = () => {
@@ -152,19 +151,17 @@ async function updateStatusBoard(client) {
             });
         }
 
-        // Delete the old status board message if it exists
-        if (statusBoardMessageId) {
-            try {
-                const oldMessage = await activityChannel.messages.fetch(statusBoardMessageId);
-                await oldMessage.delete();
-            } catch (error) {
-                console.log('Old status board message not found or already deleted');
-            }
-        }
+        const messages = await activityChannel.messages.fetch({ limit: 10 });
+        const statusMessage = messages.find(m =>
+            m.author.id === client.user.id &&
+            m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+        );
 
-        // Send a new status board message and store its ID
-        const newMessage = await activityChannel.send({ embeds: [embed] });
-        statusBoardMessageId = newMessage.id;
+        if (statusMessage) {
+            await statusMessage.edit({ embeds: [embed] });
+        } else {
+            await activityChannel.send({ embeds: [embed] });
+        }
 
         return { tier1Users, tier2Users };
     } catch (error) {
@@ -172,7 +169,6 @@ async function updateStatusBoard(client) {
         return { tier1Users: [], tier2Users: [] };
     }
 }
-
 async function weeklyReset(client) {
     try {
         console.log('[RESET] Starting weekly reset process');
@@ -496,7 +492,6 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         return false;
     }
 }
-
 module.exports = {
     name: Events.MessageUpdate,
     weeklyReset,
