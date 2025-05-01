@@ -18,78 +18,140 @@ const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+// Ensure file exists
+const ensureFileExists = (filePath, defaultContent) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            // Ensure directory exists
+            const dir = path.dirname(filePath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            fs.writeFileSync(filePath, JSON.stringify(defaultContent), 'utf8');
+            console.log(`Created file: ${filePath}`);
+        }
+        return true;
+    } catch (error) {
+        console.error(`Error ensuring file ${filePath} exists:`, error);
+        return false;
+    }
+};
+
 async function getWeeklyStats(client) {
+    console.log('Getting weekly stats...');
+
+    // Ensure files exist
+    ensureFileExists(usersFilePath, {});
+    ensureFileExists(statsFilePath, { totalDonations: 0 });
+
     // Load latest data
     let usersData = {};
     let statsData = { totalDonations: 0 };
 
     try {
-        if (fs.existsSync(usersFilePath)) {
-            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-        }
-        if (fs.existsSync(statsFilePath)) {
-            statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
-        }
+        usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        console.log(`Loaded users data: ${Object.keys(usersData).length} users`);
+        statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+        console.log(`Loaded stats data, total donations: ${statsData.totalDonations}`);
     } catch (error) {
         console.error('Error reading data files:', error);
-        return { tier1Users: [], tier2Users: [] };
+        return { tier1Users: [], tier2Users: [], totalDonations: 0 };
     }
 
-    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-    const members = await guild.members.fetch();
-    const tier1Users = [];
-    const tier2Users = [];
+    try {
+        const guild = client.guilds.cache.first();
+        if (!guild) {
+            console.error('No guild found in cache');
+            return { tier1Users: [], tier2Users: [], totalDonations: statsData.totalDonations || 0 };
+        }
 
-    for (const [memberId, member] of members) {
-        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
-        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+        console.log(`Fetching members for guild: ${guild.name}`);
+        const members = await guild.members.fetch();
+        console.log(`Fetched ${members.size} members`);
 
-        if (hasTier1 || hasTier2) {
-            if (!usersData[memberId]) {
-                usersData[memberId] = {
-                    weeklyDonated: 0,
-                    missedAmount: 0,
-                    status: 'good',
-                    totalDonated: 0,
-                    currentTier: hasTier2 ? 2 : 1
-                };
-            }
+        const tier1Users = [];
+        const tier2Users = [];
 
-            const userData = usersData[memberId];
-            const requirement = hasTier2 ?
-                TIER_2_REQUIREMENT :
-                TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+        for (const [memberId, member] of members) {
+            const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+            const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
 
-            if (hasTier2) {
-                tier2Users.push({
-                    id: memberId,
-                    weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: requirement
-                });
-            } else if (hasTier1) {
-                tier1Users.push({
-                    id: memberId,
-                    weeklyDonated: userData.weeklyDonated || 0,
-                    requirement: requirement
-                });
+            if (hasTier1 || hasTier2) {
+                if (!usersData[memberId]) {
+                    usersData[memberId] = {
+                        weeklyDonated: 0,
+                        missedAmount: 0,
+                        status: 'good',
+                        totalDonated: 0,
+                        currentTier: hasTier2 ? 2 : 1
+                    };
+                }
+
+                const userData = usersData[memberId];
+                const requirement = hasTier2 ?
+                    TIER_2_REQUIREMENT :
+                    TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+
+                if (hasTier2) {
+                    tier2Users.push({
+                        id: memberId,
+                        weeklyDonated: userData.weeklyDonated || 0,
+                        requirement: requirement
+                    });
+                } else if (hasTier1) {
+                    tier1Users.push({
+                        id: memberId,
+                        weeklyDonated: userData.weeklyDonated || 0,
+                        requirement: requirement
+                    });
+                }
             }
         }
+
+        tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+        tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+
+        console.log(`Found ${tier1Users.length} tier 1 users and ${tier2Users.length} tier 2 users`);
+        return { tier1Users, tier2Users, totalDonations: statsData.totalDonations || 0 };
+    } catch (error) {
+        console.error('Error processing member data:', error);
+        return { tier1Users: [], tier2Users: [], totalDonations: statsData.totalDonations || 0 };
     }
-
-    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-
-    return { tier1Users, tier2Users, totalDonations: statsData.totalDonations || 0 };
 }
 
 module.exports = {
     name: 'board',
     description: 'Sends or updates the donations status board',
-    async execute(message) {
+    async execute(message, args, client) {
         try {
-            const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
-            const { tier1Users, tier2Users, totalDonations } = await getWeeklyStats(message.client);
+            console.log(`Board command executed by ${message.author.tag}`);
 
+            // Send initial response
+            const initialResponse = await message.channel.send('Creating the status board, please wait...');
+
+            // Get activity channel
+            let activityChannel;
+            try {
+                console.log(`Fetching activity channel: ${ACTIVITY_CHANNEL_ID}`);
+                activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
+
+                if (!activityChannel) {
+                    console.error(`Activity channel not found: ${ACTIVITY_CHANNEL_ID}`);
+                    return await initialResponse.edit(`Could not find the activity channel (ID: ${ACTIVITY_CHANNEL_ID})`);
+                }
+
+                console.log(`Found activity channel: ${activityChannel.name}`);
+            } catch (err) {
+                console.error('Error fetching activity channel:', err);
+                return await initialResponse.edit(`Error fetching activity channel: ${err.message}`);
+            }
+
+            // Get stats
+            console.log('Fetching weekly stats');
+            const { tier1Users, tier2Users, totalDonations } = await getWeeklyStats(client);
+
+            // Create embed
+            console.log('Creating status board embed');
             const embed = new EmbedBuilder()
                 .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
                 .setColor('#4c00b0')
@@ -114,15 +176,21 @@ module.exports = {
                 });
             }
 
-            // Send the embed to the activity channel
-            await activityChannel.send({ embeds: [embed] });
+            // Send the embed
+            try {
+                console.log('Sending status board to activity channel');
+                await activityChannel.send({ embeds: [embed] });
+                console.log('Status board sent successfully');
 
-            // Confirm to the user who triggered the command
-            await message.reply('Status board has been posted in the activity channel!');
-
+                // Update initial response
+                await initialResponse.edit('Status board has been posted in the activity channel!');
+            } catch (sendError) {
+                console.error('Error sending status board:', sendError);
+                await initialResponse.edit(`Error sending status board: ${sendError.message}`);
+            }
         } catch (error) {
             console.error('Error executing board command:', error);
-            await message.reply('There was an error creating the status board. Please check the logs.');
+            await message.channel.send(`There was an error creating the status board: ${error.message}`);
         }
     },
 };
