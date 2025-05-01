@@ -113,68 +113,6 @@ client.once('ready', () => {
     console.log('Weekly reset schedule set up successfully');
 });
 
-// Handle text commands (Messages)
-client.on('messageCreate', async message => {
-    // Ignore bot messages and messages without prefix
-    if (message.author.bot || !message.content.startsWith(client.prefix)) return;
-
-    // Extract command name and arguments
-    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
-
-    // Check if command exists
-    const command = client.textCommands.get(commandName) ||
-        client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
-
-    if (!command) return;
-
-    // Execute the command
-    try {
-        await command.execute(message, args, client);
-    } catch (error) {
-        console.error(`Error executing text command ${commandName}:`, error);
-        await message.reply('There was an error executing that command!').catch(console.error);
-    }
-});
-
-// Handle slash commands (Interactions)
-client.on('interactionCreate', async interaction => {
-    // Handle button interactions
-    if (interaction.isButton()) {
-        if (interaction.customId === 'risk') {
-            await client.muteManager.handleRiskButton(interaction);
-        }
-        return;
-    }
-
-    // Handle slash command interactions
-    if (!interaction.isChatInputCommand()) return;
-
-    const command = client.commands.get(interaction.commandName);
-
-    if (!command) {
-        console.error(`No command matching ${interaction.commandName} was found.`);
-        return;
-    }
-
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(`Error executing slash command ${interaction.commandName}:`, error);
-
-        const errorReply = {
-            content: 'There was an error executing this command!',
-            ephemeral: true
-        };
-
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorReply);
-        } else {
-            await interaction.reply(errorReply);
-        }
-    }
-});
-
 // Login
 client.login(process.env.DISCORD_TOKEN);
 
