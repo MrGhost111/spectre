@@ -1,12 +1,11 @@
 ﻿const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'embed',
-    aliases: ['ei', 'embed', 'extract'],
-    description: 'Extract information from an embed or component in the referenced message',
+    name: 'embeddebug',
+    aliases: ['edbg'],
+    description: 'Debug: Extract raw message data to find hidden embed info.',
     async execute(message, args, client) {
         try {
-            // Get the target message
             const targetMessage = message.reference
                 ? await message.channel.messages.fetch(message.reference.messageId).catch(() => null)
                 : null;
@@ -20,84 +19,41 @@ module.exports = {
 
             if (!embedMessage) {
                 return message.reply({
-                    content: '<:xmark:934659388386451516> Please reply to a message or provide a message ID.'
+                    content: '<:xmark:934659388386451516> Please reply to a message or provide a valid message ID.'
                 });
             }
 
-            // Extract embed or component data
-            const results = [];
+            // Extract ALL possible data
+            const rawData = {
+                content: embedMessage.content || "No standard content",
+                embeds: embedMessage.embeds.length > 0 ? embedMessage.embeds : "No traditional embeds",
+                components: embedMessage.components.length > 0 ? embedMessage.components : "No components",
+                attachments: embedMessage.attachments.size > 0 ? [...embedMessage.attachments.values()] : "No attachments",
+                stickers: embedMessage.stickers.size > 0 ? [...embedMessage.stickers.values()] : "No stickers",
+                reactions: embedMessage.reactions.cache.size > 0 ? [...embedMessage.reactions.cache.values()] : "No reactions",
+                flags: embedMessage.flags.bitfield,
+                type: embedMessage.type,
+                interaction: embedMessage.interaction || "No interaction",
+            };
 
-            /*** Handle Traditional Embeds ***/
-            if (embedMessage.embeds.length > 0) {
-                for (const embed of embedMessage.embeds) {
-                    results.push({
-                        type: 'Embed',
-                        title: embed.title || null,
-                        description: embed.description || null,
-                        color: embed.color ? embed.color.toString(16) : null,
-                        author: embed.author ? embed.author.name : null,
-                        fields: embed.fields.map(field => ({
-                            name: field.name,
-                            value: field.value,
-                            inline: field.inline,
-                        })),
-                    });
-                }
-            }
-
-            /*** Handle New Discord Components (Text Displays) ***/
-            if (embedMessage.components.length > 0) {
-                for (const component of embedMessage.components) {
-                    if (component.type === 1) { // Action Rows (contains buttons/selects)
-                        for (const subComponent of component.components) {
-                            if (subComponent.type === 4) { // Text Display
-                                results.push({
-                                    type: 'Component',
-                                    content: subComponent.label || subComponent.value || null,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            // If no data found, send an error
-            if (results.length === 0) {
-                return message.reply({
-                    content: '<:xmark:934659388386451516> No extractable embed or component data found.'
-                });
-            }
+            // Convert to readable JSON format
+            const jsonData = JSON.stringify(rawData, null, 2);
+            const truncatedJson = jsonData.length > 1000 ? jsonData.substring(0, 997) + "..." : jsonData;
 
             // Build response embed
             const responseEmbed = new EmbedBuilder()
-                .setTitle('<:lbtest:1064919048242090054> Extracted Information')
-                .setColor('#4c00b0')
-                .setDescription(`Extracted ${results.length} entries.`)
-                .setTimestamp();
-
-            results.forEach((data, i) => {
-                let infoText = `**Type:** ${data.type}\n`;
-
-                if (data.title) infoText += `**Title:** ${data.title}\n`;
-                if (data.description) {
-                    infoText += `**Description:** ${data.description.substring(0, 500)}\n`;
-                }
-                if (data.color) infoText += `**Color:** #${data.color}\n`;
-                if (data.author) infoText += `**Author:** ${data.author}\n`;
-                if (data.fields) {
-                    infoText += `**Fields:** ${data.fields.length}\n`;
-                }
-                if (data.content) infoText += `**Component Content:** ${data.content}\n`;
-
-                responseEmbed.addFields({ name: `Entry #${i + 1}`, value: infoText || 'No data' });
-            });
+                .setTitle('<:lbtest:1064919048242090054> Debug: Extracted Raw Message Data')
+                .setColor('#ff4500')
+                .setDescription("Here’s everything extracted from the message.")
+                .setTimestamp()
+                .addFields({ name: 'Raw Data (JSON)', value: `\`\`\`json\n${truncatedJson}\n\`\`\`` });
 
             return message.reply({ embeds: [responseEmbed] });
 
         } catch (error) {
-            console.error('Error in embed extraction:', error);
+            console.error('Error in embed debug extraction:', error);
             return message.reply({
-                content: `<:xmark:934659388386451516> An error occurred while extracting embed data: ${error.message}`
+                content: `<:xmark:934659388386451516> An error occurred while extracting message data: ${error.message}`
             });
         }
     },
