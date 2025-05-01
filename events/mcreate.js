@@ -2,11 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
-const { Events } = require('discord.js');
-const { checkComponentsForDonation, processDonation } = require('../utils/donationSystem');
-
-const blacklistPath = path.join(__dirname, '../data/blacklist.json');
-let lastStickyMessageId = null;
 
 let lastStickyMessageId = null;
 
@@ -20,46 +15,30 @@ if (!fs.existsSync(blacklistPath)) {
     }, null, 2), 'utf8');
 }
 
-
-
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle new component-based donations
-        try {
-            if (message.channel?.id === '833246120389902356' &&
-                message.author?.id === '270904126974590976') {
-
-                const donationData = await checkComponentsForDonation(message);
-                if (donationData) {
-                    await processDonation(
-                        client,
-                        message,
-                        donationData.amount,
-                        donationData.donorId
-                    );
-                }
-            }
-        } catch (error) {
-            console.error('Error in donation handling:', error);
-        }
-
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
                 const blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
                 const channelBlacklist = blacklistData[message.channelId] || [];
 
+                // Check if message contains more than one word with punctuation handling
                 const messageContent = message.content.trim();
                 const words = messageContent.split(/\s+/);
                 const wordCount = words.length;
 
+                // Simple check: if we have 2 words, check if one is pure punctuation
                 let isValidMessage = false;
 
                 if (wordCount === 1) {
+                    // Single word is always valid (subject to blacklist)
                     isValidMessage = true;
                 } else if (wordCount === 2) {
+                    // Check if either word is pure punctuation
                     const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
+
                     if (isPunctuation(words[0]) || isPunctuation(words[1])) {
                         isValidMessage = true;
                     }
@@ -71,6 +50,7 @@ module.exports = {
                         `<@${message.author.id}> Only one word is allowed in this channel! You can include standalone punctuation.`
                     );
 
+                    // Delete the warning after 5 seconds
                     setTimeout(async () => {
                         try {
                             await warningMsg.delete();
@@ -78,19 +58,25 @@ module.exports = {
                             console.error('Error deleting warning message:', err);
                         }
                     }, 5000);
+
                     return;
                 }
 
+                // Get the actual word (non-punctuation) for blacklist checking
                 let wordToCheck = messageContent;
                 if (wordCount === 2) {
+                    // Find which part is the actual word
                     const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
                     wordToCheck = isPunctuation(words[0]) ? words[1] : words[0];
                 }
 
+                // Enhanced blacklist check - check if any blacklisted word is contained within the message
                 const wordLower = wordToCheck.toLowerCase();
                 if (channelBlacklist.some(blacklistedWord => {
+                    // Check if the word contains any blacklisted word
                     const blacklistedWordLower = blacklistedWord.toLowerCase();
                     return wordLower.includes(blacklistedWordLower) ||
+                        // Or check if blacklisted word is a root of the current word
                         (blacklistedWordLower.length > 3 && wordLower.startsWith(blacklistedWordLower));
                 })) {
                     await message.delete();
@@ -98,6 +84,7 @@ module.exports = {
                         `<@${message.author.id}> That word is blacklisted in this channel.`
                     );
 
+                    // Delete the warning after 5 seconds
                     setTimeout(async () => {
                         try {
                             await warningMsg.delete();
@@ -105,6 +92,7 @@ module.exports = {
                             console.error('Error deleting warning message:', err);
                         }
                     }, 5000);
+
                     return;
                 }
             } catch (error) {
@@ -112,13 +100,14 @@ module.exports = {
             }
         }
 
-        // Blacklist management command
+        // Check for blacklist management command - Allow specific user ID in addition to manage messages perm
         if (message.content.startsWith(',blacklist') &&
             (message.member.permissions.has('ManageMessages') || message.author.id === '753491023208120321')) {
             const args = message.content.slice(',blacklist'.length).trim().split(/ +/);
             const action = args[0]?.toLowerCase();
-            const channelId = args[1] || '1346427004299378718';
+            const channelId = args[1] || '1346427004299378718'; // Default to one word story channel
 
+            // Load current blacklist
             let blacklistData = {};
             try {
                 blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
@@ -131,25 +120,32 @@ module.exports = {
             }
 
             if (action === 'add' && args.length > 2) {
+                // Add words to blacklist
                 const wordsToAdd = args.slice(2).join(' ').split(',').map(word => word.trim());
+
                 for (const word of wordsToAdd) {
                     if (word && !blacklistData[channelId].includes(word)) {
                         blacklistData[channelId].push(word);
                     }
                 }
+
                 fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
                 message.reply(`Added ${wordsToAdd.length} word(s) to the blacklist for channel <#${channelId}>.`);
                 return;
             } else if (action === 'remove' && args.length > 2) {
+                // Remove words from blacklist
                 const wordsToRemove = args.slice(2).join(' ').split(',').map(word => word.trim());
                 const initialCount = blacklistData[channelId].length;
+
                 blacklistData[channelId] = blacklistData[channelId].filter(
                     word => !wordsToRemove.includes(word)
                 );
+
                 fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
                 message.reply(`Removed ${initialCount - blacklistData[channelId].length} word(s) from the blacklist for channel <#${channelId}>.`);
                 return;
             } else if (action === 'list') {
+                // List blacklisted words
                 if (blacklistData[channelId].length === 0) {
                     message.reply(`No words are blacklisted in channel <#${channelId}>.`);
                 } else {
@@ -157,6 +153,7 @@ module.exports = {
                 }
                 return;
             } else if (action === 'clear') {
+                // Clear all blacklisted words
                 blacklistData[channelId] = [];
                 fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
                 message.reply(`Cleared the blacklist for channel <#${channelId}>.`);
@@ -167,13 +164,14 @@ module.exports = {
             }
         }
 
-        // Sticky message handling
         if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
             try {
                 if (lastStickyMessageId) {
                     try {
                         const oldMessage = await message.channel.messages.fetch(lastStickyMessageId);
-                        if (oldMessage) await oldMessage.delete();
+                        if (oldMessage) {
+                            await oldMessage.delete();
+                        }
                     } catch (error) {
                         console.error('Error deleting old sticky message:', error);
                     }
@@ -198,7 +196,6 @@ module.exports = {
             }
         }
 
-        // Image logging
         const logChannelId = '762404827698954260';
         const faceRevealChannelId = '721347947463180319';
         const blacklistedCategories = [
@@ -269,31 +266,31 @@ module.exports = {
             }
         }
 
-        // Item price tracking
-        if (message.author.bot && message.author.id === '270904126974590976' && message.embeds.length > 0) {
-            const embed = message.embeds[0];
-            const itemName = embed.title || 'Unknown Item';
-            const averageValueField = embed.fields.find(field => field.name === 'Market' && field.value.includes('Average Value'));
-            if (averageValueField) {
-                const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
-                if (averageValueMatch) {
-                    const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
-                    const itemsPath = path.join(__dirname, '../data/items.json');
-                    let items = JSON.parse(fs.readFileSync(itemsPath, 'utf8'));
-                    if (!(itemName in items)) {
-                        items[itemName] = averageValue;
-                        message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
-                    } else if (items[itemName] !== averageValue) {
-                        items[itemName] = averageValue;
-                        message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
+        if (message.author.bot) {
+            if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
+                const embed = message.embeds[0];
+                const itemName = embed.title || 'Unknown Item';
+                const averageValueField = embed.fields.find(field => field.name === 'Market' && field.value.includes('Average Value'));
+                if (averageValueField) {
+                    const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
+                    if (averageValueMatch) {
+                        const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
+                        const itemsPath = path.join(__dirname, '../data/items.json');
+                        let items = JSON.parse(fs.readFileSync(itemsPath, 'utf8'));
+                        if (!(itemName in items)) {
+                            items[itemName] = averageValue;
+                            message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
+                        } else if (items[itemName] !== averageValue) {
+                            items[itemName] = averageValue;
+                            message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
+                        }
+                        fs.writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf8');
                     }
-                    fs.writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf8');
                 }
             }
             return;
         }
 
-        // Mute role update
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -328,8 +325,8 @@ module.exports = {
             return;
         }
 
-        // Text commands
         const prefix = ',';
+
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
             try {
@@ -348,11 +345,11 @@ module.exports = {
 
         if (!command) return;
 
-        // Special command handling
         if (commandName === 'resetsns') {
             if (!message.member.permissions.has('Administrator')) {
                 return message.reply('You do not have permission to use this command.');
             }
+
             const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
             fs.writeFileSync(donoLogsPath, JSON.stringify({}, null, 2), 'utf8');
             return message.reply('Successfully reset the donation note tracking system!');
@@ -379,12 +376,11 @@ module.exports = {
             return message.reply(lbMessage);
         }
 
-        // Execute command
         try {
             await command.execute(message, args);
         } catch (error) {
             console.error(`Error executing command ${commandName}:`, error);
             await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
-    }
+    },
 };

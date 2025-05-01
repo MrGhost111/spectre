@@ -8,13 +8,11 @@ const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
 
-const { checkComponentsForDonation, processDonation } = require('../utils/donationSystem');
-
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
         try {
-            // Slash commands
+            // Handle slash commands
             if (interaction.isCommand()) {
                 const command = client.commands.get(interaction.commandName);
                 if (!command) return;
@@ -22,73 +20,41 @@ module.exports = {
                 return;
             }
 
-            // Donation button handling
-            if (interaction.isButton() && interaction.customId === 'confirm_donation') {
-                const message = interaction.message;
-                const donationData = await checkComponentsForDonation(message);
-
-                if (donationData) {
-                    await processDonation(
-                        client,
-                        message,
-                        donationData.amount,
-                        interaction.user.id
-                    );
-                }
-                return;
+            // The guess command handles its own modal submissions
+            if (interaction.isModalSubmit() && interaction.customId.startsWith('answer_modal_')) {
+                return; // Handled by the guess.js command
             }
 
-            // Modal submissions
+            // Handle other modal submissions
             if (interaction.isModalSubmit()) {
-                if (interaction.customId.startsWith('answer_modal_')) {
-                    return; // Handled by guess.js
-                }
                 await handleModalSubmit(interaction);
                 return;
             }
 
-            // Other button interactions
+            // Handle button interactions
             if (interaction.isButton()) {
                 console.log(`Button Interaction Detected: ${interaction.customId}`);
 
-                // Game buttons
+                // Skip the sound game buttons - they're handled in the guess.js
                 if (['play_new', 'replay', 'answer', 'leaderboard'].includes(interaction.customId)) {
-                    return;
+                    return; // These are handled in guess.js
                 }
 
-                // Risk button
+                // Handle other buttons with your existing code
                 if (interaction.customId === 'risk') {
                     return await interaction.client.muteManager.handleRiskButton(interaction);
-                }
-
-                // Snipe deletion
-                if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
+                } else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                     await handleDeleteSnipe(interaction);
-                    return;
-                }
-
-                // Channel buttons
-                if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
+                } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
                     await handleChannelButtons(interaction);
-                    return;
-                }
-
-                // Leaderboard button
-                if (interaction.customId === 'lb') {
+                } else if (interaction.customId === 'lb') {
                     await handleLeaderboardButton(interaction);
-                    return;
-                }
-
-                // Info button
-                if (interaction.customId === 'info') {
+                } else if (interaction.customId === 'info') {
                     await handleInfoButton(interaction);
-                    return;
-                }
-
-                // Activity buttons
-                if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
+                } else if (interaction.customId === 'risk') {
+                    await handleRiskButton(interaction);
+                } else if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
                     await handleActivityButtons(interaction);
-                    return;
                 }
             }
         } catch (error) {
@@ -109,6 +75,7 @@ module.exports = {
         }
     }
 };
+
 
 async function handleChannelButtons(interaction) {
     try {
