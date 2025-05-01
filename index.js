@@ -31,81 +31,64 @@ client.prefix = ','; // Define your command prefix here
 const loadCommands = () => { /* (Existing Command Loading Logic - No Changes) */ };
 const loadEvents = () => { /* (Existing Event Loading Logic - No Changes) */ };
 
+// Fix: Track Donations via Interaction Updates
 client.on('interactionCreate', async interaction => {
     if (!interaction.isMessageComponent()) return;
 
+    const message = interaction.message;
+    const DANK_MEMER_BOT_ID = '270904126974590976';
     const TRANSACTION_CHANNEL_ID = '833246120389902356';
-    const transactionChannel = await client.channels.fetch(TRANSACTION_CHANNEL_ID).catch(() => null);
 
-    try {
-        const message = interaction.message;
-        const DANK_MEMER_BOT_ID = '270904126974590976';
+    if (message.channel.id !== TRANSACTION_CHANNEL_ID || message.author.id !== DANK_MEMER_BOT_ID) return;
 
-        if (!transactionChannel) {
-            console.error('❌ Transaction channel not found!');
-            return;
-        }
-
-        if (message.channel.id !== TRANSACTION_CHANNEL_ID || message.author.id !== DANK_MEMER_BOT_ID) return;
-
-        let donationText = "";
-
-        if (message.embeds.length > 0) {
-            donationText = message.embeds[0].description || "";
-        } else if (message.components.length > 0) {
-            const textComponent = message.components.find(comp => comp.type === 4);
-            if (textComponent) donationText = textComponent.label || textComponent.value || "";
-        }
-
-        if (!donationText.includes('Successfully donated')) return;
-
-        const donationMatch = donationText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
-        if (!donationMatch) {
-            await transactionChannel.send('⚠️ Donation match not found in the message.');
-            return;
-        }
-
-        const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
-        const donorId = await findCommandUser(message);
-        if (!donorId) {
-            await transactionChannel.send('⚠️ Could not determine donor ID.');
-            return;
-        }
-
-        const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-        const member = await guild.members.fetch(donorId);
-
-        usersData[donorId] = usersData[donorId] || {};
-        usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
-        usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
-        usersData[donorId].lastDonation = new Date().toISOString();
-        usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-            (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
-
-        statsData.totalDonations += donationAmount;
-        saveStatsData();
-        saveUsersData();
-
-        const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
-
-        const donationEmbed = new EmbedBuilder()
-            .setTitle('<:prize:1000016483369369650> New Donation')
-            .setColor('#4c00b0')
-            .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984> Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
-            .setTimestamp();
-
-        await transactionChannel.send({ embeds: [donationEmbed] });
-
-        setImmediate(() => {
-            updateStatusBoard(client).catch(console.error);
-        });
-
-    } catch (error) {
-        console.error('❌ Error tracking donation:', error);
-        if (transactionChannel) {
-            await transactionChannel.send(`⚠️ Error occurred while tracking donation: \`\`\`${error.message}\`\`\``);
-        }
+    // Extract donation data
+    let donationText = "";
+    if (message.embeds.length > 0) {
+        donationText = message.embeds[0].description || "";
+    } else if (message.components.length > 0) {
+        const textComponent = message.components.find(comp => comp.type === 4);
+        if (textComponent) donationText = textComponent.label || textComponent.value || "";
     }
+
+    if (!donationText.includes('Successfully donated')) return;
+
+    const donationMatch = donationText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
+    if (!donationMatch) return;
+
+    const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
+    const donorId = await findCommandUser(message);
+    if (!donorId) return;
+
+    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+    const member = await guild.members.fetch(donorId);
+
+    // Update user donation data
+    usersData[donorId] = usersData[donorId] || {};
+    usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
+    usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
+    usersData[donorId].lastDonation = new Date().toISOString();
+    usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 : (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
+
+    // Save data
+    statsData.totalDonations += donationAmount;
+    saveStatsData();
+    saveUsersData();
+
+    // Announce donation
+    const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+
+    const donationEmbed = new EmbedBuilder()
+        .setTitle('<:prize:1000016483369369650>  New Donation')
+        .setColor('#4c00b0')
+        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
+        .setTimestamp();
+
+    await message.channel.send({ embeds: [donationEmbed] });
+
+    // Update status board
+    setImmediate(() => {
+        updateStatusBoard(client).catch(console.error);
+    });
 });
 
 // Ensure data directory exists
