@@ -1,5 +1,5 @@
-﻿
-const { inspect } = require('util');
+﻿const { inspect } = require('util');
+const { checkComponentsForDonation } = require('../utils/donationSystem');
 
 module.exports = {
     name: 'embed',
