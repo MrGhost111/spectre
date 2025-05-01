@@ -31,6 +31,7 @@ module.exports = {
             if (embedMessage.embeds.length > 0) {
                 for (const embed of embedMessage.embeds) {
                     results.push({
+                        type: 'Embed',
                         title: embed.title || null,
                         description: embed.description || null,
                         color: embed.color ? embed.color.toString(16) : null,
@@ -47,10 +48,11 @@ module.exports = {
             /*** Handle New Discord Components (Text Displays) ***/
             if (embedMessage.components.length > 0) {
                 for (const component of embedMessage.components) {
-                    if (component.type === 1) { // Type 1 = Action Rows (contains buttons/selects)
+                    if (component.type === 1) { // Action Rows (contains buttons/selects)
                         for (const subComponent of component.components) {
-                            if (subComponent.type === 4) { // Type 4 = Text Display
+                            if (subComponent.type === 4) { // Text Display
                                 results.push({
+                                    type: 'Component',
                                     content: subComponent.label || subComponent.value || null,
                                 });
                             }
@@ -70,14 +72,16 @@ module.exports = {
             const responseEmbed = new EmbedBuilder()
                 .setTitle('<:lbtest:1064919048242090054> Extracted Information')
                 .setColor('#4c00b0')
-                .setDescription(`Found ${results.length} extracted data entries.`)
+                .setDescription(`Extracted ${results.length} entries.`)
                 .setTimestamp();
 
             results.forEach((data, i) => {
-                let infoText = '';
+                let infoText = `**Type:** ${data.type}\n`;
 
                 if (data.title) infoText += `**Title:** ${data.title}\n`;
-                if (data.description) infoText += `**Description:** ${data.description.substring(0, 500)}\n`;
+                if (data.description) {
+                    infoText += `**Description:** ${data.description.substring(0, 500)}\n`;
+                }
                 if (data.color) infoText += `**Color:** #${data.color}\n`;
                 if (data.author) infoText += `**Author:** ${data.author}\n`;
                 if (data.fields) {
@@ -85,7 +89,7 @@ module.exports = {
                 }
                 if (data.content) infoText += `**Component Content:** ${data.content}\n`;
 
-                responseEmbed.addFields({ name: `Data #${i + 1}`, value: infoText || 'No data' });
+                responseEmbed.addFields({ name: `Entry #${i + 1}`, value: infoText || 'No data' });
             });
 
             return message.reply({ embeds: [responseEmbed] });
