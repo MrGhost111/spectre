@@ -2,7 +2,7 @@ const { weeklyChannelCheck } = require('../utils/autoch');
 const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'scanc',
+    name: 'touchc',
     async execute(message, args) {
         // Define the admin roles that can run this command
         const adminRoles = [
