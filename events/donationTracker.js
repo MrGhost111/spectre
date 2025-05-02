@@ -15,44 +15,55 @@ module.exports = {
             const donor = message.interaction?.user;
             if (!donor) return;
 
-            const initialDebug = await message.channel.send({
-                content: `**DONATION DETECTED**\nTracking message ${message.id}\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\n\nPolling for confirmation...`
+            // Extract initial message data
+            const extractMessageData = (msg) => ({
+                content: msg.content || "No standard content",
+                embeds: msg.embeds.length > 0 ? msg.embeds : "No traditional embeds",
+                components: msg.components.length > 0 ? msg.components : "No components",
+                attachments: msg.attachments.size > 0 ? [...msg.attachments.values()] : "No attachments",
+                stickers: msg.stickers.size > 0 ? [...msg.stickers.values()] : "No stickers",
+                reactions: msg.reactions.cache.size > 0 ? [...msg.reactions.values()] : "No reactions",
+                flags: msg.flags.bitfield,
+                type: msg.type,
+                interaction: msg.interaction || "No interaction",
             });
 
-            let confirmationDetected = false;
+            const rawDataInitial = extractMessageData(message);
+            const jsonDataInitial = JSON.stringify(rawDataInitial, null, 2);
+            const truncatedJsonInitial = jsonDataInitial.length > 1000 ? jsonDataInitial.substring(0, 997) + "..." : jsonDataInitial;
 
-            // Poll every second until confirmation is detected
-            const checkInterval = setInterval(async () => {
+            // Initial debug embed
+            const initialEmbed = new EmbedBuilder()
+                .setTitle('🔍 Donation Tracking Started')
+                .setColor('#ff4500')
+                .setDescription(`Tracking donation from **${donor.tag}**.\nAmount: **⏣ ${amountMatch[1]}**\n\n**Extracted Message Data:**`)
+                .setTimestamp()
+                .addFields({ name: 'Initial Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonInitial}\n\`\`\`` });
+
+            const sentMessage = await message.channel.send({ embeds: [initialEmbed] });
+
+            // Wait 5 seconds, then fetch and compare the same message
+            setTimeout(async () => {
                 try {
                     const freshMsg = await message.channel.messages.fetch(message.id);
+                    const rawDataUpdated = extractMessageData(freshMsg);
+                    const jsonDataUpdated = JSON.stringify(rawDataUpdated, null, 2);
+                    const truncatedJsonUpdated = jsonDataUpdated.length > 1000 ? jsonDataUpdated.substring(0, 997) + "..." : jsonDataUpdated;
 
-                    if (freshMsg.embeds === "No traditional embeds" &&
-                        freshMsg.components?.[0]?.components?.[0]?.type === 10 &&
-                        freshMsg.components[0].components[0].content.includes("Successfully donated")) {
+                    const updatedEmbed = new EmbedBuilder()
+                        .setTitle('🔄 Donation Data Update')
+                        .setColor('#3498db')
+                        .setDescription(`Checking donation status for **${donor.tag}**...\nAmount: **⏣ ${amountMatch[1]}**`)
+                        .setTimestamp()
+                        .addFields({ name: 'Updated Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonUpdated}\n\`\`\`` });
 
-                        confirmationDetected = true;
-                        clearInterval(checkInterval);
-
-                        await message.channel.send({
-                            content: `**DONATION CONFIRMED**\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\nMessage ID: ${message.id}`
-                        });
-
-                        await initialDebug.delete().catch(console.error);
-                    }
+                    await message.channel.send({ embeds: [updatedEmbed] });
                 } catch (error) {
-                    console.error('Polling error:', error);
-                    clearInterval(checkInterval);
-                }
-            }, 1000); // Poll every second
-
-            // Keep sending updates every 10 seconds if confirmation was detected
-            setInterval(async () => {
-                if (confirmationDetected) {
                     await message.channel.send({
-                        content: `**DONATION UPDATE**\nDonation by ${donor.tag} of ⏣ ${amountMatch[1]} was confirmed earlier.\nTracking message: ${message.id}`
+                        content: `<:xmark:934659388386451516> Error occurred while fetching updated message data:\n\`\`\`${error.stack}\`\`\``
                     });
                 }
-            }, 10000); // Send updates every 10 seconds
+            }, 5000);
         }
     }
 };
