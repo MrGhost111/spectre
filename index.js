@@ -1,4 +1,4 @@
-﻿const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -35,7 +35,6 @@ const loadCommands = () => {
             console.log(`Loaded text command: ${command.name}`);
         }
     }
-
     const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
         const command = require(`./commands/${file}`);
@@ -66,28 +65,30 @@ loadEvents();
 // Client ready handler
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
-
+    
     // Initialize systems
     client.muteManager = new MuteManager(client);
     console.log('Systems initialized:');
     console.log('- Mute Manager');
-
-    // Weekly reset schedule
+    
+    // Weekly reset and channel check schedule
     const { weeklyReset } = require('./events/mupdate.js');
+    const { weeklyChannelCheck } = require('./utils/autoch.js');
+
     cron.schedule('0 0 * * 0', async () => {
         console.log('Weekly reset triggered at:', new Date().toISOString());
         try {
             // Run the weekly reset
             const resetSuccess = await weeklyReset(client);
             console.log(resetSuccess ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
-
+            
             // Run the weekly channel eligibility check with logging to specified channel
             const logChannelId = '843413781409169412'; // Your specified log channel
             const checkResults = await weeklyChannelCheck(client, logChannelId);
             console.log(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
         } catch (error) {
             console.error('Unhandled error during weekly processes:', error);
-
+            
             // Try to log the error to the channel as well
             try {
                 const logChannel = await client.channels.fetch('843413781409169412');
@@ -103,8 +104,8 @@ client.once('ready', () => {
     });
 
     console.log('Weekly reset and channel check schedules set up successfully');
+});
 
 // Login
 client.login(process.env.DISCORD_TOKEN);
-
 module.exports = client;
