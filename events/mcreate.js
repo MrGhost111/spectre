@@ -1,20 +1,18 @@
+const fs = require('fs');
+const path = require('path');
+const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
-const {
-    parseDonationAmount,
-    updateDonationData,
-    createDonationEmbed,
-    updateStatusBoard
-} = require('../utils/donationUtils');
+const donationTracker = require('./donationTracker');
 
 let lastStickyMessageId = null;
+
+// Create a blacklist file path
 const blacklistPath = path.join(__dirname, '../data/word_blacklist.json');
-const DANK_MEMER_BOT_ID = '270904126974590976';
-const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
 // Initialize blacklist if it doesn't exist
 if (!fs.existsSync(blacklistPath)) {
     fs.writeFileSync(blacklistPath, JSON.stringify({
-        "1346427004299378718": []
+        "1346427004299378718": [] // One word story channel ID with empty blacklist initially
     }, null, 2), 'utf8');
 }
 
@@ -193,38 +191,8 @@ module.exports = {
         const DANK_MEMER_BOT_ID = '270904126974590976';
         const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
-        // New donation tracking system
-        if (message.author.id === DANK_MEMER_BOT_ID && message.channel.id === TRANSACTION_CHANNEL_ID) {
-            if (message.embeds?.length > 0) {
-                const embed = message.embeds[0];
-
-                // Check for donation confirmation embed
-                if (embed.description && embed.description.includes('Are you sure you want to donate your coins?')) {
-                    try {
-                        const amount = parseDonationAmount(embed.description);
-                        if (!amount) return;
-
-                        const donor = message.interaction?.user;
-                        if (!donor) return;
-
-                        // Update donation data
-                        const updatedData = await updateDonationData(donor.id, amount, message.guild);
-
-                        // Create and send donation embed
-                        const donationEmbed = createDonationEmbed(donor, amount, updatedData);
-                        await message.channel.send({ embeds: [donationEmbed] });
-
-                        // Update status board
-                        await updateStatusBoard(client);
-
-                        console.log(`Processed donation: ${donor.tag} donated ⏣${amount}`);
-                    } catch (error) {
-                        console.error('Error processing donation:', error);
-                    }
-                }
-            }
-        }
-
+        // Forward to donation tracker
+        await donationTracker.execute(client, message);
 
         // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {
