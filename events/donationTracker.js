@@ -27,7 +27,7 @@ module.exports = {
                         // Update JSON & send donation embed
                         await processDonation(client, message, donationData.amount, donorId);
 
-                        // Update status board
+                        // Update status board .
                         await updateStatusBoard(client);
                     }
                 } catch (error) {
