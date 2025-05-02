@@ -42,28 +42,39 @@ module.exports = {
 
             const sentMessage = await message.channel.send({ embeds: [initialEmbed] });
 
-            // Wait 5 seconds, then fetch and compare the same message
-            setTimeout(async () => {
+            // Poll every second to detect confirmation
+            const checkInterval = setInterval(async () => {
                 try {
                     const freshMsg = await message.channel.messages.fetch(message.id);
                     const rawDataUpdated = extractMessageData(freshMsg);
-                    const jsonDataUpdated = JSON.stringify(rawDataUpdated, null, 2);
-                    const truncatedJsonUpdated = jsonDataUpdated.length > 1000 ? jsonDataUpdated.substring(0, 997) + "..." : jsonDataUpdated;
 
-                    const updatedEmbed = new EmbedBuilder()
-                        .setTitle('🔄 Donation Data Update')
-                        .setColor('#3498db')
-                        .setDescription(`Checking donation status for **${donor.tag}**...\nAmount: **⏣ ${amountMatch[1]}**`)
-                        .setTimestamp()
-                        .addFields({ name: 'Updated Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonUpdated}\n\`\`\`` });
+                    const isConfirmed = rawDataUpdated.embeds === "No traditional embeds" &&
+                        rawDataUpdated.components.some(comp =>
+                            comp.components.some(sub => sub.content?.includes("Successfully donated"))
+                        );
 
-                    await message.channel.send({ embeds: [updatedEmbed] });
+                    if (isConfirmed) {
+                        clearInterval(checkInterval);
+
+                        const jsonDataUpdated = JSON.stringify(rawDataUpdated, null, 2);
+                        const truncatedJsonUpdated = jsonDataUpdated.length > 1000 ? jsonDataUpdated.substring(0, 997) + "..." : jsonDataUpdated;
+
+                        const confirmationEmbed = new EmbedBuilder()
+                            .setTitle('✅ Donation Confirmed')
+                            .setColor('#2ecc71')
+                            .setDescription(`Donation from **${donor.tag}** was successfully processed.\nAmount: **⏣ ${amountMatch[1]}**`)
+                            .setTimestamp()
+                            .addFields({ name: 'Final Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonUpdated}\n\`\`\`` });
+
+                        await message.channel.send({ embeds: [confirmationEmbed] });
+                    }
                 } catch (error) {
                     await message.channel.send({
-                        content: `<:xmark:934659388386451516> Error occurred while fetching updated message data:\n\`\`\`${error.stack}\`\`\``
+                        content: `<:xmark:934659388386451516> Error occurred while checking donation status:\n\`\`\`${error.stack}\`\`\``
                     });
+                    clearInterval(checkInterval);
                 }
-            }, 5000);
+            }, 1000); // Poll every second
         }
     }
 };
