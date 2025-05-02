@@ -5,14 +5,17 @@ const path = require('path');
 // Constants
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
 const DANK_MEMER_BOT_ID = '270904126974590976';
+const ACTIVITY_CHANNEL_ID = '1327928516662005770';
 const TIER_1_REQUIREMENT = 35000000;
 const TIER_2_REQUIREMENT = 70000000;
+const TIER_1_ROLE_ID = '783032959350734868';
+const TIER_2_ROLE_ID = '1038888209440067604';
 
 // File paths
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
 
-let usersData = require(usersFilePath);
+let usersData = fs.existsSync(usersFilePath) ? require(usersFilePath) : {};
 let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
 
 // Utility functions
@@ -41,7 +44,7 @@ async function trackDonation(client, message, donorId, donationAmount) {
             const freshMsg = await message.channel.messages.fetch(message.id);
             console.log("📥 Fetched updated message components:", JSON.stringify(freshMsg.components, null, 2));
 
-            // **Fix: Search anywhere in components for the confirmation text**
+            // Search anywhere in components for the confirmation text
             const hasDonationConfirmation = JSON.stringify(freshMsg.components).includes("Successfully donated");
 
             if (hasDonationConfirmation) {
@@ -58,38 +61,88 @@ async function trackDonation(client, message, donorId, donationAmount) {
     }, 5000);
 }
 
-// **Handles donation confirmation, updates stats, sends embed**
+// **Handles donation confirmation, updates stats, sends embed, updates status board**
 async function confirmDonation(client, message, donorId, donationAmount) {
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const member = await guild.members.fetch(donorId);
 
-    usersData[donorId] = usersData[donorId] || {
-        totalDonated: 0,
-        weeklyDonated: 0,
-        missedAmount: 0,
-        lastDonation: new Date().toISOString(),
-        currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                     member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
-    };
+    // Ensure user exists in users.json
+    if (!usersData[donorId]) {
+        usersData[donorId] = {
+            totalDonated: 0,
+            weeklyDonated: 0,
+            missedAmount: 0,
+            status: 'good',
+            lastDonation: new Date().toISOString(),
+            currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
+                         member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
+        };
+    }
 
+    // Update user donation values
     usersData[donorId].totalDonated += donationAmount;
     usersData[donorId].weeklyDonated += donationAmount;
     usersData[donorId].lastDonation = new Date().toISOString();
-
     statsData.totalDonations += donationAmount;
     saveStatsData();
     saveUsersData();
 
+    // Determine their weekly progress after donation
     const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+    const weeklyProgress = `${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + usersData[donorId].missedAmount)}`;
+
+    // Send confirmation embed
     const donationEmbed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650>  New Donation')
         .setColor('#4c00b0')
-        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + usersData[donorId].missedAmount)}`)
+        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${weeklyProgress}`)
         .setTimestamp();
 
     await message.channel.send({ embeds: [donationEmbed] });
 
-    setImmediate(() => updateStatusBoard(client).catch(console.error));
+    // **NEW IMPROVED STATUS BOARD HANDLING**
+    try {
+        const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
+        const { tier1Users, tier2Users } = await getWeeklyStats(client);
+
+        const statusEmbed = new EmbedBuilder()
+            .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
+            .setColor('#4c00b0')
+            .setTimestamp()
+            .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
+
+        if (tier2Users.length > 0) {
+            statusEmbed.addFields({
+                name: '<:streak:1064909945373458522>  Tier 2 Members',
+                value: tier2Users.map((user, index) =>
+                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                ).join('\n') || 'None'
+            });
+        }
+
+        if (tier1Users.length > 0) {
+            statusEmbed.addFields({
+                name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
+                value: tier1Users.map((user, index) =>
+                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                ).join('\n') || 'None'
+            });
+        }
+
+        const messages = await activityChannel.messages.fetch({ limit: 20 });
+        const statusMessage = messages.find(m =>
+            m.author.id === client.user.id &&
+            m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+        );
+
+        if (statusMessage) {
+            await statusMessage.edit({ embeds: [statusEmbed] });
+        } else {
+            await activityChannel.send({ embeds: [statusEmbed] });
+        }
+    } catch (error) {
+        console.error('Error updating status board:', error);
+    }
 }
 
 // **Tracks donation upon message creation**
