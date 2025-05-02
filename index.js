@@ -60,26 +60,7 @@ const loadEvents = () => {
     }
 };
 
-// Initialize donation tracking
-const initializeDonationTracking = () => {
-    const DANK_MEMER_BOT_ID = '270904126974590976';
-    const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
-    const channel = client.channels.cache.get(TRANSACTION_CHANNEL_ID);
-    if (!channel) {
-        console.error('Transaction channel not found!');
-        return null;
-    }
-
-    return channel.createMessageCollector({
-        filter: m => m.author.id === DANK_MEMER_BOT_ID,
-        idle: 60_000
-    }).on('collect', async message => {
-        await require('./events/mupdate.js').handleDonation(client, message);
-    });
-};
-
-// Load commands and events
 loadCommands();
 loadEvents();
 
