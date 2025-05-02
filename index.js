@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+﻿const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -77,10 +77,24 @@ client.once('ready', () => {
     cron.schedule('0 0 * * 0', async () => {
         console.log('Weekly reset triggered at:', new Date().toISOString());
         try {
-            const success = await weeklyReset(client);
-            console.log(success ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+            // Run the weekly reset
+            const resetSuccess = await weeklyReset(client);
+            console.log(resetSuccess ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+
+            // Run the weekly channel eligibility check with logging to specified channel
+            const logChannelId = '843413781409169412'; // Your specified log channel
+            const checkResults = await weeklyChannelCheck(client, logChannelId);
+            console.log(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
         } catch (error) {
-            console.error('Unhandled error during weekly reset:', error);
+            console.error('Unhandled error during weekly processes:', error);
+
+            // Try to log the error to the channel as well
+            try {
+                const logChannel = await client.channels.fetch('843413781409169412');
+                await logChannel.send(`❌ **Error during weekly processes:** ${error.message}`);
+            } catch (channelError) {
+                console.error('Failed to log error to channel:', channelError);
+            }
         }
     }, {
         timezone: "UTC",
@@ -88,8 +102,7 @@ client.once('ready', () => {
         runOnInit: false
     });
 
-    console.log('Weekly reset schedule set up successfully');
-});
+    console.log('Weekly reset and channel check schedules set up successfully');
 
 // Login
 client.login(process.env.DISCORD_TOKEN);
