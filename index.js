@@ -1,4 +1,4 @@
-﻿const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -23,7 +23,6 @@ client.textCommands = new Collection();
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 client.itemPrices = new Map();
-client.donations = new Map();
 client.prefix = ','; // Define your command prefix here
 
 // Load commands
@@ -60,7 +59,7 @@ const loadEvents = () => {
     }
 };
 
-
+// Load commands and events
 loadCommands();
 loadEvents();
 
@@ -70,11 +69,8 @@ client.once('ready', () => {
 
     // Initialize systems
     client.muteManager = new MuteManager(client);
-    client.donationCollector = initializeDonationTracking();
-    client.trackedDonations = new Map();
     console.log('Systems initialized:');
     console.log('- Mute Manager');
-    console.log('- Donation Tracking');
 
     // Weekly reset schedule
     const { weeklyReset } = require('./events/mupdate.js');
@@ -91,6 +87,7 @@ client.once('ready', () => {
         scheduled: true,
         runOnInit: false
     });
+
     console.log('Weekly reset schedule set up successfully');
 });
 
