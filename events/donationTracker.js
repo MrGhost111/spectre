@@ -1,77 +1,115 @@
-﻿const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
+// Constants
+const TRANSACTION_CHANNEL_ID = '833246120389902356';
+const DANK_MEMER_BOT_ID = '270904126974590976';
+const TIER_1_REQUIREMENT = 35000000;
+const TIER_2_REQUIREMENT = 70000000;
+
+// File paths
+const usersFilePath = path.join(__dirname, '../data/users.json');
+const statsFilePath = path.join(__dirname, '../data/stats.json');
+
+let usersData = require(usersFilePath);
+let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
+
+// Utility functions
+const saveUsersData = () => fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+const saveStatsData = () => fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
+const formatNumber = (num) => num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+// Find the donor of the transaction
+async function findCommandUser(message) {
+    return message.interaction?.user?.id || null;
+}
+
+// **Tracking donation message edits every 5 seconds for 30 seconds**
+async function trackDonation(client, message, donorId, donationAmount) {
+    let attempts = 0;
+    const checkInterval = setInterval(async () => {
+        if (attempts >= 6) {
+            clearInterval(checkInterval);
+            return;
+        }
+
+        try {
+            const freshMsg = await message.channel.messages.fetch(message.id);
+            const hasDonationConfirmation = freshMsg.components?.some(comp => 
+                comp.type === 10 && comp.components.some(subComp => 
+                    subComp.content?.includes("Successfully donated")
+                )
+            );
+
+            if (hasDonationConfirmation) {
+                clearInterval(checkInterval);
+                await confirmDonation(client, freshMsg, donorId, donationAmount);
+            }
+        } catch (error) {
+            console.error("Error fetching updated message:", error);
+        }
+
+        attempts++;
+    }, 5000);
+}
+
+// **Handles donation confirmation, updates stats, sends embed**
+async function confirmDonation(client, message, donorId, donationAmount) {
+    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+    const member = await guild.members.fetch(donorId);
+
+    usersData[donorId] = usersData[donorId] || {
+        totalDonated: 0,
+        weeklyDonated: 0,
+        missedAmount: 0,
+        lastDonation: new Date().toISOString(),
+        currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
+                     member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
+    };
+
+    usersData[donorId].totalDonated += donationAmount;
+    usersData[donorId].weeklyDonated += donationAmount;
+    usersData[donorId].lastDonation = new Date().toISOString();
+
+    statsData.totalDonations += donationAmount;
+    saveStatsData();
+    saveUsersData();
+
+    const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+    const donationEmbed = new EmbedBuilder()
+        .setTitle('<:prize:1000016483369369650>  New Donation')
+        .setColor('#4c00b0')
+        .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + usersData[donorId].missedAmount)}`)
+        .setTimestamp();
+
+    await message.channel.send({ embeds: [donationEmbed] });
+
+    setImmediate(() => updateStatusBoard(client).catch(console.error));
+}
+
+// **Tracks donation upon message creation**
 module.exports = {
     name: 'donationTracker',
     async execute(client, message) {
-        const DANK_MEMER_BOT_ID = '270904126974590976';
-        const TRANSACTION_CHANNEL_ID = '833246120389902356';
-
         if (message.author.id !== DANK_MEMER_BOT_ID || message.channel.id !== TRANSACTION_CHANNEL_ID) return;
 
         if (message.embeds?.[0]?.description?.includes('Are you sure you want to donate your coins?')) {
             const amountMatch = message.embeds[0].description.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
             if (!amountMatch) return;
 
-            const donor = message.interaction?.user;
-            if (!donor) return;
+            const donorId = await findCommandUser(message);
+            if (!donorId) return;
 
-            // Extract initial message data
-            const extractMessageData = (msg) => ({
-                content: msg.content || "No standard content",
-                embeds: msg.embeds.length > 0 ? msg.embeds : "No traditional embeds",
-                components: msg.components.length > 0 ? msg.components : "No components",
-                attachments: msg.attachments.size > 0 ? [...msg.attachments.values()] : "No attachments",
-                stickers: msg.stickers.size > 0 ? [...msg.stickers.values()] : "No stickers",
-                reactions: msg.reactions.cache.size > 0 ? [...msg.reactions.values()] : "No reactions",
-                flags: msg.flags.bitfield,
-                type: msg.type,
-                interaction: msg.interaction || "No interaction",
-            });
-
-            const rawDataInitial = extractMessageData(message);
-            const jsonDataInitial = JSON.stringify(rawDataInitial, null, 2);
-            const truncatedJsonInitial = jsonDataInitial.length > 1000 ? jsonDataInitial.substring(0, 997) + "..." : jsonDataInitial;
-
-            // Initial debug embed
             const initialEmbed = new EmbedBuilder()
                 .setTitle('🔍 Donation Tracking Started')
                 .setColor('#ff4500')
-                .setDescription(`Tracking donation from **${donor.tag}**.\nAmount: **⏣ ${amountMatch[1]}**\n\n**Extracted Message Data:**`)
-                .setTimestamp()
-                .addFields({ name: 'Initial Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonInitial}\n\`\`\`` });
+                .setDescription(`Tracking donation from **<@${donorId}>**.\nAmount: **⏣ ${amountMatch[1]}**`)
+                .setTimestamp();
 
-            const sentMessage = await message.channel.send({ embeds: [initialEmbed] });
+            await message.channel.send({ embeds: [initialEmbed] });
 
-            setTimeout(async () => {
-                let attempts = 0;
-                const checkInterval = setInterval(async () => {
-                    if (attempts >= 6) {
-                        clearInterval(checkInterval);
-                        return;
-                    }
-
-                    try {
-                        const freshMsg = await message.channel.messages.fetch(message.id);
-                        const rawDataUpdated = extractMessageData(freshMsg);
-
-                        // Check if the new data includes the component type 10 with the success message
-                        const hasDonationConfirmation = rawDataUpdated.components.some(comp =>
-                            comp.type === 10 && comp.components.some(subComp =>
-                                subComp.content?.includes("Successfully donated")
-                            )
-                        );
-
-                        if (hasDonationConfirmation) {
-                            clearInterval(checkInterval);
-                            await message.channel.send({ content: `✅ Donation confirmed! ${donor.tag} successfully donated **⏣ ${amountMatch[1]}**.` });
-                        }
-                    } catch (error) {
-                        console.error("Error while fetching updated message:", error);
-                    }
-
-                    attempts++;
-                }, 5000);
-            }, 5000);
+            trackDonation(client, message, donorId, parseInt(amountMatch[1].replace(/,/g, ''), 10));
         }
     }
 };
