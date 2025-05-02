@@ -42,6 +42,48 @@ function calculateMaxFriends(member) {
 }
 
 /**
+ * Checks if a channel is already archived (in the archive category)
+ * @param {Object} channel - Discord channel object
+ * @returns {Boolean} Whether the channel is already archived
+ */
+async function isChannelArchived(channel) {
+    if (!channel || !channel.parentId) return false;
+    
+    // Archive category ID
+    const archiveCategoryId = '1273361676355244102';
+    
+    return channel.parentId === archiveCategoryId;
+}
+
+/**
+ * Removes all user permissions from a channel except for the owner
+ * @param {Object} channel - Discord channel object
+ * @param {String} ownerId - ID of the channel owner
+ */
+async function removeAllUsersFromChannel(channel, ownerId) {
+    try {
+        // Get all permission overwrites
+        const permissions = channel.permissionOverwrites.cache;
+        
+        // Loop through all permission overwrites
+        for (const [id, overwrite] of permissions) {
+            // Skip the owner, @everyone role, and non-user overwrites
+            if (id === ownerId || id === channel.guild.id) continue;
+            
+            // Get the overwrite type (role or member)
+            const type = overwrite.type;
+            
+            // Only remove user permissions, not role permissions
+            if (type === 1) { // 1 is for member overwrites
+                await channel.permissionOverwrites.delete(id).catch(() => {});
+            }
+        }
+    } catch (error) {
+        console.error(`Error removing users from channel ${channel.id}:`, error);
+    }
+}
+
+/**
  * Performs weekly channel eligibility checks and adjustments
  * @param {Client} client - Discord client instance
  * @param {string|null} logChannelId - Channel ID to log results (optional)
@@ -58,6 +100,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
         channelsWithExcessFriends: 0,
         channelsArchived: 0,
         friendsRemoved: 0,
+        channelsAlreadyArchived: 0,
         errors: [],
         removedFriendsDetails: [], // Store detailed information about removed friends
         ownersWithoutRolesDetails: [], // Store details about owners without roles
@@ -118,9 +161,27 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                 continue;
             }
 
-            results.channelsChecked++;
-
             try {
+                // Fetch the channel first to check if it's already archived
+                const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
+                
+                // If channel doesn't exist, skip it
+                if (!channel) {
+                    console.log(`Channel ${channelData.channelId} doesn't exist, skipping`);
+                    continue;
+                }
+                
+                // Check if channel is already in archive category
+                const archived = await isChannelArchived(channel);
+                if (archived) {
+                    console.log(`Channel ${channelData.channelId} is already archived, skipping`);
+                    results.channelsAlreadyArchived++;
+                    continue;
+                }
+                
+                // Now we count the channel as checked since we're processing it
+                results.channelsChecked++;
+
                 // Fetch the channel owner
                 const member = await mainGuild.members.fetch(userId).catch(() => null);
 
@@ -133,22 +194,17 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                         channelId: channelData.channelId
                     });
 
-                    // Archive the channel - first check if channel exists
-                    const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
+                    // Archive the channel
                     if (channel) {
                         try {
                             // Get the archive category
                             const archiveCategory = await client.channels.fetch('1273361676355244102').catch(() => null);
                             if (archiveCategory) {
+                                // Remove all user permissions from the channel first
+                                await removeAllUsersFromChannel(channel, userId);
+                                
                                 // Archive the channel by moving to archive category
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
-
-                                // Remove all friend permissions
-                                if (channelData.friends && Array.isArray(channelData.friends)) {
-                                    for (const friendId of channelData.friends) {
-                                        await channel.permissionOverwrites.delete(friendId).catch(() => { });
-                                    }
-                                }
 
                                 // Add a message in the channel
                                 await channel.send(`This channel has been archived because the owner has left the server.`);
@@ -182,21 +238,16 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                     });
 
                     // Archive the channel
-                    const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
                     if (channel) {
                         try {
                             // Get the archive category
                             const archiveCategory = await client.channels.fetch('1273361676355244102').catch(() => null);
                             if (archiveCategory) {
+                                // Remove all user permissions from the channel first
+                                await removeAllUsersFromChannel(channel, userId);
+                                
                                 // Archive the channel by moving to archive category
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
-
-                                // Remove all friend permissions
-                                if (channelData.friends && Array.isArray(channelData.friends)) {
-                                    for (const friendId of channelData.friends) {
-                                        await channel.permissionOverwrites.delete(friendId).catch(() => { });
-                                    }
-                                }
 
                                 // Add a message in the channel
                                 await channel.send(`This channel has been archived because the owner no longer has the required roles.`);
@@ -247,9 +298,14 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                         removedMentions: removedFriends.map(id => `<@${id}>`)
                     });
 
-                    // Try to fetch the channel to send a notification
-                    const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
+                    // Try to update permissions in the channel
                     if (channel) {
+                        // Remove permissions for each removed friend
+                        for (const friendId of removedFriends) {
+                            await channel.permissionOverwrites.delete(friendId).catch(() => {});
+                        }
+                        
+                        // Send notification
                         const removedMentions = removedFriends.map(id => `<@${id}>`).join(', ');
                         await channel.send(`Due to weekly role adjustments, the following friends have been removed from this channel: ${removedMentions}`).catch(err => {
                             console.error(`Failed to send notification in channel ${channelData.channelId}:`, err);
@@ -291,6 +347,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                 .addFields(
                     { name: 'Channels Checked', value: results.channelsChecked.toString(), inline: true },
                     { name: 'Channels Archived', value: results.channelsArchived.toString(), inline: true },
+                    { name: 'Already Archived', value: results.channelsAlreadyArchived.toString(), inline: true },
                     { name: 'Owners Without Roles', value: results.ownersWithoutRoles.toString(), inline: true },
                     { name: 'Owners Left Server', value: results.ownersLeftServer.toString(), inline: true },
                     { name: 'Channels With Excess Friends', value: results.channelsWithExcessFriends.toString(), inline: true },
