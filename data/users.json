@@ -117,11 +117,11 @@
     "lastEditedAt": "2025-05-02T17:27:12.968Z"
   },
   "1345364873051242496": {
-    "totalDonated": 140778711,
+    "totalDonated": 175778711,
     "weeklyDonated": 0,
     "currentTier": 1,
-    "status": "warned",
-    "missedAmount": 35000000,
+    "status": "good",
+    "missedAmount": 0,
     "lastDonation": "2025-04-18T10:26:15.267Z"
   },
   "827983414308241448": {
@@ -177,9 +177,9 @@
   },
   "754876824902959144": {
     "weeklyDonated": 0,
-    "missedAmount": 35000000,
-    "status": "warned",
-    "totalDonated": 0,
+    "missedAmount": 0,
+    "status": "good",
+    "totalDonated": 35000000,
     "currentTier": 1
   },
   "984760933614247946": {
