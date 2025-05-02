@@ -41,12 +41,8 @@ async function trackDonation(client, message, donorId, donationAmount) {
             const freshMsg = await message.channel.messages.fetch(message.id);
             console.log("📥 Fetched updated message components:", JSON.stringify(freshMsg.components, null, 2));
 
-            // **Fix: Search inside type 17 for type 10**
-            const hasDonationConfirmation = freshMsg.components?.some(comp =>
-                comp.type === 17 && comp.components?.some(subComp =>
-                    subComp.type === 10 && subComp.content?.includes("Successfully donated")
-                )
-            );
+            // **Fix: Search anywhere in components for the confirmation text**
+            const hasDonationConfirmation = JSON.stringify(freshMsg.components).includes("Successfully donated");
 
             if (hasDonationConfirmation) {
                 console.log("✅ Donation confirmation detected!");
