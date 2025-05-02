@@ -42,27 +42,35 @@ module.exports = {
 
             const sentMessage = await message.channel.send({ embeds: [initialEmbed] });
 
-            // Wait 5 seconds, then fetch and compare the same message
             setTimeout(async () => {
-                try {
-                    const freshMsg = await message.channel.messages.fetch(message.id);
-                    const rawDataUpdated = extractMessageData(freshMsg);
-                    const jsonDataUpdated = JSON.stringify(rawDataUpdated, null, 2);
-                    const truncatedJsonUpdated = jsonDataUpdated.length > 1000 ? jsonDataUpdated.substring(0, 997) + "..." : jsonDataUpdated;
+                let attempts = 0;
+                const checkInterval = setInterval(async () => {
+                    if (attempts >= 6) {
+                        clearInterval(checkInterval);
+                        return;
+                    }
 
-                    const updatedEmbed = new EmbedBuilder()
-                        .setTitle('🔄 Donation Data Update')
-                        .setColor('#3498db')
-                        .setDescription(`Checking donation status for **${donor.tag}**...\nAmount: **⏣ ${amountMatch[1]}**`)
-                        .setTimestamp()
-                        .addFields({ name: 'Updated Raw Data (JSON)', value: `\`\`\`json\n${truncatedJsonUpdated}\n\`\`\`` });
+                    try {
+                        const freshMsg = await message.channel.messages.fetch(message.id);
+                        const rawDataUpdated = extractMessageData(freshMsg);
 
-                    await message.channel.send({ embeds: [updatedEmbed] });
-                } catch (error) {
-                    await message.channel.send({
-                        content: `<:xmark:934659388386451516> Error occurred while fetching updated message data:\n\`\`\`${error.stack}\`\`\``
-                    });
-                }
+                        // Check if the new data includes the component type 10 with the success message
+                        const hasDonationConfirmation = rawDataUpdated.components.some(comp =>
+                            comp.type === 10 && comp.components.some(subComp =>
+                                subComp.content?.includes("Successfully donated")
+                            )
+                        );
+
+                        if (hasDonationConfirmation) {
+                            clearInterval(checkInterval);
+                            await message.channel.send({ content: `✅ Donation confirmed! ${donor.tag} successfully donated **⏣ ${amountMatch[1]}**.` });
+                        }
+                    } catch (error) {
+                        console.error("Error while fetching updated message:", error);
+                    }
+
+                    attempts++;
+                }, 5000);
             }, 5000);
         }
     }
