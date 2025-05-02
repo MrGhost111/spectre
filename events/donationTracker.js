@@ -15,17 +15,76 @@ const TIER_2_ROLE_ID = '1038888209440067604';
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
 
-let usersData = fs.existsSync(usersFilePath) ? require(usersFilePath) : {};
-let statsData = fs.existsSync(statsFilePath) ? require(statsFilePath) : { totalDonations: 590000000 };
-
 // Utility functions
-const saveUsersData = () => fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
-const saveStatsData = () => fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
 const formatNumber = (num) => num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // Find donor ID
 async function findCommandUser(message) {
     return message.interaction?.user?.id || null;
+}
+
+// Get weekly statistics for status board
+async function getWeeklyStats(client) {
+    // Load latest data
+    let usersData = {};
+    try {
+        if (fs.existsSync(usersFilePath)) {
+            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        }
+    } catch (error) {
+        console.error('Error reading users data file:', error);
+    }
+
+    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+    const members = await guild.members.fetch();
+    const tier1Users = [];
+    const tier2Users = [];
+
+    for (const [memberId, member] of members) {
+        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+
+        if (hasTier1 || hasTier2) {
+            if (!usersData[memberId]) {
+                usersData[memberId] = {
+                    weeklyDonated: 0,
+                    missedAmount: 0,
+                    status: 'good',
+                    totalDonated: 0,
+                    currentTier: hasTier2 ? 2 : 1
+                };
+            }
+        }
+
+        const userData = usersData[memberId] || {
+            weeklyDonated: 0,
+            missedAmount: 0,
+            status: 'good'
+        };
+
+        const requirement = hasTier2 ?
+            TIER_2_REQUIREMENT :
+            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+
+        if (hasTier2) {
+            tier2Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        } else if (hasTier1) {
+            tier1Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        }
+    }
+
+    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+
+    return { tier1Users, tier2Users };
 }
 
 // **Tracks donation message edits every 5 seconds for 30 seconds**
@@ -63,6 +122,21 @@ async function trackDonation(client, message, donorId, donationAmount) {
 
 // **Handles donation confirmation, updates stats, sends embed, updates status board**
 async function confirmDonation(client, message, donorId, donationAmount) {
+    // Load the latest data to ensure we have current values
+    let usersData = {};
+    let statsData = { totalDonations: 590000000 };
+    
+    try {
+        if (fs.existsSync(usersFilePath)) {
+            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        }
+        if (fs.existsSync(statsFilePath)) {
+            statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+        }
+    } catch (error) {
+        console.error('Error reading data files:', error);
+    }
+    
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const member = await guild.members.fetch(donorId);
 
@@ -84,8 +158,10 @@ async function confirmDonation(client, message, donorId, donationAmount) {
     usersData[donorId].weeklyDonated += donationAmount;
     usersData[donorId].lastDonation = new Date().toISOString();
     statsData.totalDonations += donationAmount;
-    saveStatsData();
-    saveUsersData();
+    
+    // Save updated data
+    fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+    fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
 
     // Determine their weekly progress after donation
     const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;

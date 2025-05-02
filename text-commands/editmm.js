@@ -1,4 +1,4 @@
-﻿const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -48,6 +48,70 @@ const parseAmount = (amountStr) => {
     // If no shorthand, try parsing as regular number
     return Math.floor(Number(amountStr));
 };
+
+// Get weekly statistics for status board
+async function getWeeklyStats(client) {
+    // Load latest data
+    let usersData = {};
+    try {
+        if (fs.existsSync(usersFilePath)) {
+            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+        }
+    } catch (error) {
+        console.error('Error reading users data file:', error);
+    }
+
+    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+    const members = await guild.members.fetch();
+    const tier1Users = [];
+    const tier2Users = [];
+
+    for (const [memberId, member] of members) {
+        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+
+        if (hasTier1 || hasTier2) {
+            if (!usersData[memberId]) {
+                usersData[memberId] = {
+                    weeklyDonated: 0,
+                    missedAmount: 0,
+                    status: 'good',
+                    totalDonated: 0,
+                    currentTier: hasTier2 ? 2 : 1
+                };
+            }
+        }
+
+        const userData = usersData[memberId] || {
+            weeklyDonated: 0,
+            missedAmount: 0,
+            status: 'good'
+        };
+
+        const requirement = hasTier2 ?
+            TIER_2_REQUIREMENT :
+            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+
+        if (hasTier2) {
+            tier2Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        } else if (hasTier1) {
+            tier1Users.push({
+                id: memberId,
+                weeklyDonated: userData.weeklyDonated || 0,
+                requirement: requirement
+            });
+        }
+    }
+
+    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
+
+    return { tier1Users, tier2Users };
+}
 
 module.exports = {
     name: 'editmm',
@@ -180,37 +244,37 @@ module.exports = {
 
             await message.reply({ embeds: [embed] });
 
-            const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
-
-            // Get fresh stats after modification
-            const { tier1Users, tier2Users } = await getWeeklyStats(message.client);
-
-            const statusEmbed = new EmbedBuilder()
-                .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
-                .setColor('#4c00b0')
-                .setTimestamp()
-                .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
-
-            if (tier2Users.length > 0) {
-                statusEmbed.addFields({
-                    name: '<:streak:1064909945373458522>  Tier 2 Members',
-                    value: tier2Users.map((user, index) =>
-                        `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
-                    ).join('\n') || 'None'
-                });
-            }
-
-            if (tier1Users.length > 0) {
-                statusEmbed.addFields({
-                    name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
-                    value: tier1Users.map((user, index) =>
-                        `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
-                    ).join('\n') || 'None'
-                });
-            }
-
-            // NEW IMPROVED STATUS BOARD HANDLING
+            // Update the status board
             try {
+                const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
+
+                // Get fresh stats after modification
+                const { tier1Users, tier2Users } = await getWeeklyStats(message.client);
+
+                const statusEmbed = new EmbedBuilder()
+                    .setTitle('<:lbtest:1064919048242090054>  Weekly Donations Leaderboard')
+                    .setColor('#4c00b0')
+                    .setTimestamp()
+                    .setFooter({ text: `Total Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}` });
+
+                if (tier2Users.length > 0) {
+                    statusEmbed.addFields({
+                        name: '<:streak:1064909945373458522>  Tier 2 Members',
+                        value: tier2Users.map((user, index) =>
+                            `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                        ).join('\n') || 'None'
+                    });
+                }
+
+                if (tier1Users.length > 0) {
+                    statusEmbed.addFields({
+                        name: '<:YJ_streak:1259258046924853421>  Tier 1 Members',
+                        value: tier1Users.map((user, index) =>
+                            `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                        ).join('\n') || 'None'
+                    });
+                }
+
                 // First try to find the existing status board message
                 const messages = await activityChannel.messages.fetch({ limit: 20 });
                 const statusMessage = messages.find(m =>
@@ -235,6 +299,7 @@ module.exports = {
             } catch (error) {
                 console.error('Error updating status board:', error);
                 // If something went wrong, try to create a new message anyway
+                const activityChannel = await message.client.channels.fetch(ACTIVITY_CHANNEL_ID);
                 await activityChannel.send({ embeds: [statusEmbed] });
             }
 
@@ -244,66 +309,3 @@ module.exports = {
         }
     },
 };
-
-async function getWeeklyStats(client) {
-    // Load latest data
-    let usersData = {};
-    try {
-        if (fs.existsSync(usersFilePath)) {
-            usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-        }
-    } catch (error) {
-        console.error('Error reading users data file:', error);
-    }
-
-    const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-    const members = await guild.members.fetch();
-    const tier1Users = [];
-    const tier2Users = [];
-
-    for (const [memberId, member] of members) {
-        const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
-        const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
-
-        if (hasTier1 || hasTier2) {
-            if (!usersData[memberId]) {
-                usersData[memberId] = {
-                    weeklyDonated: 0,
-                    missedAmount: 0,
-                    status: 'good',
-                    totalDonated: 0,
-                    currentTier: hasTier2 ? 2 : 1
-                };
-            }
-        }
-
-        const userData = usersData[memberId] || {
-            weeklyDonated: 0,
-            missedAmount: 0,
-            status: 'good'
-        };
-
-        const requirement = hasTier2 ?
-            TIER_2_REQUIREMENT :
-            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
-
-        if (hasTier2) {
-            tier2Users.push({
-                id: memberId,
-                weeklyDonated: userData.weeklyDonated || 0,
-                requirement: requirement
-            });
-        } else if (hasTier1) {
-            tier1Users.push({
-                id: memberId,
-                weeklyDonated: userData.weeklyDonated || 0,
-                requirement: requirement
-            });
-        }
-    }
-
-    tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-    tier1Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
-
-    return { tier1Users, tier2Users };
-}
