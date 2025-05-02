@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const dataPath = './data/channels.json';
@@ -70,7 +70,6 @@ async function weeklyChannelCheck(client, logChannelId = null) {
     if (logChannelId) {
         try {
             logChannel = await client.channels.fetch(logChannelId);
-            // Initial message will be an embed now
         } catch (error) {
             console.error(`Failed to fetch log channel ${logChannelId}:`, error);
         }
@@ -78,12 +77,19 @@ async function weeklyChannelCheck(client, logChannelId = null) {
 
     try {
         // Read channels data
-        const data = fs.readFileSync(dataPath, 'utf8');
-        const channels = JSON.parse(data);
-
-        // Skip the empty channels array if it exists
-        if (channels.channels && Array.isArray(channels.channels)) {
-            delete channels.channels;
+        let channels = {};
+        try {
+            const data = fs.readFileSync(dataPath, 'utf8');
+            channels = JSON.parse(data);
+            
+            // Skip the empty channels array if it exists
+            if (channels.channels && Array.isArray(channels.channels)) {
+                delete channels.channels;
+            }
+        } catch (error) {
+            console.error('Error reading channels data:', error);
+            results.errors.push(`Failed to read channels data: ${error.message}`);
+            return results;
         }
 
         // Get the main guild
@@ -138,8 +144,10 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
 
                                 // Remove all friend permissions
-                                for (const friendId of channelData.friends) {
-                                    await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                if (channelData.friends && Array.isArray(channelData.friends)) {
+                                    for (const friendId of channelData.friends) {
+                                        await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                    }
                                 }
 
                                 // Add a message in the channel
@@ -184,8 +192,10 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
 
                                 // Remove all friend permissions
-                                for (const friendId of channelData.friends) {
-                                    await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                if (channelData.friends && Array.isArray(channelData.friends)) {
+                                    for (const friendId of channelData.friends) {
+                                        await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                    }
                                 }
 
                                 // Add a message in the channel
@@ -212,7 +222,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                 const maxFriends = calculateMaxFriends(member);
 
                 // Check if there are too many friends
-                if (channelData.friends && channelData.friends.length > maxFriends) {
+                if (channelData.friends && Array.isArray(channelData.friends) && channelData.friends.length > maxFriends) {
                     results.channelsWithExcessFriends++;
                     console.log(`Channel ${channelData.channelId} has ${channelData.friends.length} friends but max is ${maxFriends}`);
 
@@ -253,8 +263,13 @@ async function weeklyChannelCheck(client, logChannelId = null) {
         }
 
         // Save updated channels data
-        fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2), 'utf8');
-        console.log('Channels data updated successfully');
+        try {
+            fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2), 'utf8');
+            console.log('Channels data updated successfully');
+        } catch (error) {
+            console.error('Error saving channels data:', error);
+            results.errors.push(`Failed to save channels data: ${error.message}`);
+        }
 
     } catch (error) {
         console.error('Error during weekly channel check:', error);
@@ -266,7 +281,6 @@ async function weeklyChannelCheck(client, logChannelId = null) {
     // Log results to the channel if provided
     if (logChannel) {
         try {
-            const { EmbedBuilder } = require('discord.js');
             const timestamp = new Date().toISOString();
 
             // Main results embed
