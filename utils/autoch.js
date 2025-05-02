@@ -1,5 +1,6 @@
 ﻿const fs = require('fs');
 const path = require('path');
+const { EmbedBuilder } = require('discord.js');
 const dataPath = './data/channels.json';
 
 /**
@@ -53,10 +54,15 @@ async function weeklyChannelCheck(client, logChannelId = null) {
     const results = {
         channelsChecked: 0,
         ownersWithoutRoles: 0,
+        ownersLeftServer: 0,
         channelsWithExcessFriends: 0,
+        channelsArchived: 0,
         friendsRemoved: 0,
         errors: [],
-        removedFriendsDetails: [] // Store detailed information about removed friends
+        removedFriendsDetails: [], // Store detailed information about removed friends
+        ownersWithoutRolesDetails: [], // Store details about owners without roles
+        ownersLeftServerDetails: [], // Store details about owners who left
+        archivedChannelsDetails: [] // Store details about archived channels
     };
 
     // Get logging channel if provided
@@ -64,7 +70,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
     if (logChannelId) {
         try {
             logChannel = await client.channels.fetch(logChannelId);
-            await logChannel.send('🔍 Starting weekly channel eligibility check...');
+            // Initial message will be an embed now
         } catch (error) {
             console.error(`Failed to fetch log channel ${logChannelId}:`, error);
         }
@@ -112,11 +118,94 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                 // Fetch the channel owner
                 const member = await mainGuild.members.fetch(userId).catch(() => null);
 
-                // If member not found or has no required roles, log but don't take action yet
-                if (!member || !hasRequiredRole(member, requiredRoles)) {
+                // Check if member left the server or lost required roles
+                if (!member) {
+                    console.log(`Owner ${userId} for channel ${channelData.channelId} has left the server`);
+                    results.ownersLeftServer++;
+                    results.ownersLeftServerDetails.push({
+                        userId: userId,
+                        channelId: channelData.channelId
+                    });
+
+                    // Archive the channel - first check if channel exists
+                    const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
+                    if (channel) {
+                        try {
+                            // Get the archive category
+                            const archiveCategory = await client.channels.fetch('1273361676355244102').catch(() => null);
+                            if (archiveCategory) {
+                                // Archive the channel by moving to archive category
+                                await channel.setParent(archiveCategory.id, { lockPermissions: false });
+
+                                // Remove all friend permissions
+                                for (const friendId of channelData.friends) {
+                                    await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                }
+
+                                // Add a message in the channel
+                                await channel.send(`This channel has been archived because the owner has left the server.`);
+
+                                // Track archived channel
+                                results.channelsArchived++;
+                                results.archivedChannelsDetails.push({
+                                    channelId: channelData.channelId,
+                                    reason: "Owner left server",
+                                    ownerId: userId
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`Error archiving channel ${channelData.channelId}:`, error);
+                            results.errors.push(`Failed to archive channel ${channelData.channelId}: ${error.message}`);
+                        }
+                    }
+
+                    continue;
+                }
+
+                // Check if member has required roles
+                if (!hasRequiredRole(member, requiredRoles)) {
                     console.log(`Owner ${userId} for channel ${channelData.channelId} doesn't have required roles`);
                     results.ownersWithoutRoles++;
-                    continue; // Future implementation could remove or reassign the channel
+                    results.ownersWithoutRolesDetails.push({
+                        userId: userId,
+                        channelId: channelData.channelId,
+                        mention: `<@${userId}>`,
+                        channelMention: `<#${channelData.channelId}>`
+                    });
+
+                    // Archive the channel
+                    const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
+                    if (channel) {
+                        try {
+                            // Get the archive category
+                            const archiveCategory = await client.channels.fetch('1273361676355244102').catch(() => null);
+                            if (archiveCategory) {
+                                // Archive the channel by moving to archive category
+                                await channel.setParent(archiveCategory.id, { lockPermissions: false });
+
+                                // Remove all friend permissions
+                                for (const friendId of channelData.friends) {
+                                    await channel.permissionOverwrites.delete(friendId).catch(() => { });
+                                }
+
+                                // Add a message in the channel
+                                await channel.send(`This channel has been archived because the owner no longer has the required roles.`);
+
+                                // Track archived channel
+                                results.channelsArchived++;
+                                results.archivedChannelsDetails.push({
+                                    channelId: channelData.channelId,
+                                    reason: "Owner lost required roles",
+                                    ownerId: userId
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`Error archiving channel ${channelData.channelId}:`, error);
+                            results.errors.push(`Failed to archive channel ${channelData.channelId}: ${error.message}`);
+                        }
+                    }
+
+                    continue;
                 }
 
                 // Calculate max friends allowed
@@ -140,9 +229,12 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                     // Store details for later reporting
                     results.removedFriendsDetails.push({
                         channelId: channelData.channelId,
+                        channelMention: `<#${channelData.channelId}>`,
                         ownerId: userId,
+                        ownerMention: `<@${userId}>`,
                         removedCount: removedFriends.length,
-                        removedFriends: removedFriends
+                        removedFriends: removedFriends,
+                        removedMentions: removedFriends.map(id => `<@${id}>`)
                     });
 
                     // Try to fetch the channel to send a notification
@@ -174,35 +266,115 @@ async function weeklyChannelCheck(client, logChannelId = null) {
     // Log results to the channel if provided
     if (logChannel) {
         try {
-            // Format the results for Discord
+            const { EmbedBuilder } = require('discord.js');
             const timestamp = new Date().toISOString();
-            let resultMessage = `## Channel Eligibility Check Results (${timestamp})\n`;
-            resultMessage += `- **Channels Checked:** ${results.channelsChecked}\n`;
-            resultMessage += `- **Owners Without Required Roles:** ${results.ownersWithoutRoles}\n`;
-            resultMessage += `- **Channels With Excess Friends:** ${results.channelsWithExcessFriends}\n`;
-            resultMessage += `- **Total Friends Removed:** ${results.friendsRemoved}\n`;
 
-            // Add details about removed friends if any
+            // Main results embed
+            const resultsEmbed = new EmbedBuilder()
+                .setTitle('Channel Eligibility Check Results')
+                .setDescription(`Check completed at <t:${Math.floor(Date.now() / 1000)}:F>`)
+                .setColor(0x6666ff)
+                .addFields(
+                    { name: 'Channels Checked', value: results.channelsChecked.toString(), inline: true },
+                    { name: 'Channels Archived', value: results.channelsArchived.toString(), inline: true },
+                    { name: 'Owners Without Roles', value: results.ownersWithoutRoles.toString(), inline: true },
+                    { name: 'Owners Left Server', value: results.ownersLeftServer.toString(), inline: true },
+                    { name: 'Channels With Excess Friends', value: results.channelsWithExcessFriends.toString(), inline: true },
+                    { name: 'Total Friends Removed', value: results.friendsRemoved.toString(), inline: true }
+                )
+                .setFooter({ text: 'Weekly Channel Check' })
+                .setTimestamp();
+
+            // Send the main results
+            await logChannel.send({ embeds: [resultsEmbed] });
+
+            // If owners left server, create an embed for them
+            if (results.ownersLeftServerDetails.length > 0) {
+                const leftServerEmbed = new EmbedBuilder()
+                    .setTitle('Owners Who Left Server')
+                    .setColor(0xff5555)
+                    .setDescription(
+                        results.ownersLeftServerDetails.map(detail =>
+                            `• Owner ID: \`${detail.userId}\` - Channel: <#${detail.channelId}>`
+                        ).join('\n').substring(0, 4000)
+                    );
+
+                await logChannel.send({ embeds: [leftServerEmbed] });
+            }
+
+            // If owners without roles, create an embed for them
+            if (results.ownersWithoutRolesDetails.length > 0) {
+                const withoutRolesEmbed = new EmbedBuilder()
+                    .setTitle('Owners Without Required Roles')
+                    .setColor(0xffaa55)
+                    .setDescription(
+                        results.ownersWithoutRolesDetails.map(detail =>
+                            `• Owner: ${detail.mention} - Channel: ${detail.channelMention}`
+                        ).join('\n').substring(0, 4000)
+                    );
+
+                await logChannel.send({ embeds: [withoutRolesEmbed] });
+            }
+
+            // If channels archived, create an embed for them
+            if (results.archivedChannelsDetails.length > 0) {
+                const archivedEmbed = new EmbedBuilder()
+                    .setTitle('Channels Archived')
+                    .setColor(0xaa55aa)
+                    .setDescription(
+                        results.archivedChannelsDetails.map(detail =>
+                            `• Channel: <#${detail.channelId}> - Reason: ${detail.reason} - Owner: <@${detail.ownerId}>`
+                        ).join('\n').substring(0, 4000)
+                    );
+
+                await logChannel.send({ embeds: [archivedEmbed] });
+            }
+
+            // If friends removed, create embeds (potentially multiple due to length)
             if (results.removedFriendsDetails.length > 0) {
-                resultMessage += `\n### Details of Removed Friends:\n`;
+                const removedFriendsEmbed = new EmbedBuilder()
+                    .setTitle('Friends Removed from Channels')
+                    .setColor(0x55aaff);
+
+                // Build description with mentions
+                let description = '';
                 for (const detail of results.removedFriendsDetails) {
-                    resultMessage += `- Channel <#${detail.channelId}> (Owner: <@${detail.ownerId}>): Removed ${detail.removedCount} friends\n`;
-                    // List the removed friends if there aren't too many
-                    if (detail.removedFriends.length <= 10) {
-                        const removedMentions = detail.removedFriends.map(id => `<@${id}>`).join(', ');
-                        resultMessage += `  - Removed: ${removedMentions}\n`;
+                    const channelEntry = `• Channel: ${detail.channelMention} - Owner: ${detail.ownerMention}\n`;
+                    const friendsList = detail.removedMentions.length <= 10
+                        ? `  Removed: ${detail.removedMentions.join(', ')}\n\n`
+                        : `  Removed: ${detail.removedCount} friends\n\n`;
+
+                    // Check if adding this entry would exceed Discord's limit
+                    if ((description + channelEntry + friendsList).length > 4000) {
+                        // If so, send current embed and start a new one
+                        removedFriendsEmbed.setDescription(description);
+                        await logChannel.send({ embeds: [removedFriendsEmbed] });
+
+                        // Reset for next embed
+                        description = channelEntry + friendsList;
+                    } else {
+                        description += channelEntry + friendsList;
                     }
+                }
+
+                // Send final embed if there's any description left
+                if (description) {
+                    removedFriendsEmbed.setDescription(description);
+                    await logChannel.send({ embeds: [removedFriendsEmbed] });
                 }
             }
 
-            // Add errors if any
+            // If errors, create an embed for them
             if (results.errors.length > 0) {
-                resultMessage += `\n### Errors:\n`;
-                resultMessage += results.errors.map(err => `- ${err}`).join('\n');
-            }
+                const errorsEmbed = new EmbedBuilder()
+                    .setTitle('Errors During Check')
+                    .setColor(0xff0000)
+                    .setDescription(
+                        results.errors.map(err => `• ${err}`).join('\n').substring(0, 4000)
+                    );
 
-            // Send the results
-            await logChannel.send(resultMessage);
+                await logChannel.send({ embeds: [errorsEmbed] });
+            }
         } catch (error) {
             console.error('Failed to send results to log channel:', error);
         }

@@ -2,7 +2,7 @@ const { weeklyChannelCheck } = require('../utils/autoch');
 const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'touchchannels',
+    name: 'scanc',
     async execute(message, args) {
         // Define the admin roles that can run this command
         const adminRoles = [
@@ -47,14 +47,15 @@ module.exports = {
             // Create a summary embed
             const summaryEmbed = new EmbedBuilder()
                 .setTitle('Channel Eligibility Scan Complete')
-                .setDescription(`
-                    **Scan Results Summary:**
-                    - Channels Checked: ${results.channelsChecked}
-                    - Owners Without Required Roles: ${results.ownersWithoutRoles}
-                    - Channels With Excess Friends: ${results.channelsWithExcessFriends}
-                    - Total Friends Removed: ${results.friendsRemoved}
-                    - Errors: ${results.errors.length}
-                `)
+                .setDescription(`Channel eligibility scan completed.`)
+                .addFields(
+                    { name: 'Channels Checked', value: results.channelsChecked.toString(), inline: true },
+                    { name: 'Channels Archived', value: results.channelsArchived.toString(), inline: true },
+                    { name: 'Owners Without Roles', value: results.ownersWithoutRoles.toString(), inline: true },
+                    { name: 'Owners Left Server', value: results.ownersLeftServer.toString(), inline: true },
+                    { name: 'Channels With Excess Friends', value: results.channelsWithExcessFriends.toString(), inline: true },
+                    { name: 'Total Friends Removed', value: results.friendsRemoved.toString(), inline: true }
+                )
                 .setColor(0x2ecc71)
                 .setFooter({ text: `Scan completed • Initiated by ${message.author.tag}` })
                 .setTimestamp();
