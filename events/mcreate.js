@@ -15,10 +15,128 @@ if (!fs.existsSync(blacklistPath)) {
     }, null, 2), 'utf8');
 }
 
+// Utility function to check donation status after delay
+async function checkDonationStatus(client, messageId, channelId) {
+    try {
+        const channel = await client.channels.fetch(channelId);
+        if (!channel) return;
+
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        if (!message) return;
+
+        const trackedDonation = client.trackedDonations.get(messageId);
+        if (!trackedDonation) return;
+
+        // Check if the message has been updated to a donation confirmation
+        let donationConfirmed = false;
+        let amount = trackedDonation.amount;
+
+        if (message.components?.length) {
+            const textComponents = message.components.filter(comp => comp.type === 17);
+            if (textComponents.length > 0) {
+                for (const component of textComponents) {
+                    if (component.components?.length && component.components[0]?.type === 10) {
+                        const content = component.components[0].content;
+                        if (content?.includes('Successfully donated')) {
+                            const amountMatch = content.match(/Successfully donated ⏣\s*([\d,]+)/);
+                            if (amountMatch) {
+                                amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
+                                donationConfirmed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (donationConfirmed) {
+            processDonation(client, message, amount, trackedDonation.user);
+            client.trackedDonations.delete(messageId);
+        } else if (Date.now() - trackedDonation.timestamp < 60000) {
+            // Check again in 10 seconds if less than 1 minute has passed
+            setTimeout(() => {
+                checkDonationStatus(client, messageId, channelId);
+            }, 10000);
+        } else {
+            // After 1 minute, stop tracking this donation
+            client.trackedDonations.delete(messageId);
+            console.log(`Donation tracking expired for message ID ${messageId}`);
+        }
+    } catch (error) {
+        console.error('Error checking donation status:', error);
+    }
+}
+
+// Process a confirmed donation
+async function processDonation(client, message, amount, userId = null) {
+    try {
+        const donorId = userId || await findCommandUser(message);
+        if (!donorId) {
+            console.log('Could not determine donation user ID');
+            return;
+        }
+
+        const guild = await client.guilds.fetch(client.guilds.cache.first().id);
+        const member = await guild.members.fetch(donorId).catch(() => null);
+        if (!member) {
+            console.log(`Could not find member with ID ${donorId}`);
+            return;
+        }
+
+        // Update user data
+        if (!usersData[donorId]) {
+            usersData[donorId] = {
+                totalDonated: amount,
+                weeklyDonated: amount,
+                currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
+                    (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0),
+                status: 'good',
+                missedAmount: 0,
+                lastDonation: new Date().toISOString()
+            };
+        } else {
+            usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + amount;
+            usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + amount;
+            usersData[donorId].lastDonation = new Date().toISOString();
+            usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
+                (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
+        }
+
+        // Update stats
+        statsData.totalDonations += amount;
+        saveStatsData();
+        saveUsersData();
+
+        // Send donation embed
+        const requirement = usersData[donorId].currentTier === 2 ?
+            TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+
+        const donationEmbed = new EmbedBuilder()
+            .setTitle('<:prize:1000016483369369650>  New Donation')
+            .setColor('#4c00b0')
+            .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(amount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
+            .setTimestamp();
+
+        await message.channel.send({ embeds: [donationEmbed] });
+
+        // Update status board
+        setImmediate(() => {
+            updateStatusBoard(client).catch(console.error);
+        });
+
+        console.log(`Processed donation of ${amount} from user ${donorId}`);
+    } catch (error) {
+        console.error('Error processing donation:', error);
+    }
+}
+
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
         // One Word Story moderation
+        if (!client.trackedDonations) {
+            client.trackedDonations = new Map();
+        }
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
                 const blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
@@ -190,11 +308,43 @@ module.exports = {
         const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
         if (message.author.id === DANK_MEMER_BOT_ID && message.channel.id === TRANSACTION_CHANNEL_ID) {
+            // Case 1: Initial donation message with "Pending Confirmation"
             if (message.embeds?.length && message.embeds[0]?.title?.includes('Pending Confirmation')) {
-                const confirmButton = message.components?.[0]?.components?.find(comp => comp.label === 'Confirm');
-                if (confirmButton) {
-                    client.trackedDonations.set(message.id, { originalMessage: message, user: message.interaction?.user?.id });
-                    console.log(`Tracking pending donation: Message ID ${message.id}`);
+                const description = message.embeds[0]?.description;
+                const amountMatch = description?.match(/You will donate ⏣\s*([\d,]+)/);
+                const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : null;
+
+                client.trackedDonations.set(message.id, {
+                    originalMessage: message,
+                    user: message.interaction?.user?.id,
+                    amount: amount,
+                    timestamp: Date.now(),
+                    status: 'pending'
+                });
+                console.log(`Tracking pending donation: Message ID ${message.id}, Amount: ${amount}`);
+
+                // Set up a check after a short delay
+                setTimeout(() => {
+                    checkDonationStatus(client, message.id, message.channel.id);
+                }, 10000); // Check after 10 seconds
+            }
+
+            // Case 2: Directly detect donation confirmation message via components
+            if (message.components?.length) {
+                const textComponents = message.components.filter(comp => comp.type === 17);
+                if (textComponents.length > 0) {
+                    for (const component of textComponents) {
+                        if (component.components?.length && component.components[0]?.type === 10) {
+                            const content = component.components[0].content;
+                            if (content?.includes('Successfully donated')) {
+                                const amountMatch = content.match(/Successfully donated ⏣\s*([\d,]+)/);
+                                if (amountMatch) {
+                                    const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
+                                    processDonation(client, message, amount);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
