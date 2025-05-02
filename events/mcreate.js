@@ -15,128 +15,10 @@ if (!fs.existsSync(blacklistPath)) {
     }, null, 2), 'utf8');
 }
 
-// Utility function to check donation status after delay
-async function checkDonationStatus(client, messageId, channelId) {
-    try {
-        const channel = await client.channels.fetch(channelId);
-        if (!channel) return;
-
-        const message = await channel.messages.fetch(messageId).catch(() => null);
-        if (!message) return;
-
-        const trackedDonation = client.trackedDonations.get(messageId);
-        if (!trackedDonation) return;
-
-        // Check if the message has been updated to a donation confirmation
-        let donationConfirmed = false;
-        let amount = trackedDonation.amount;
-
-        if (message.components?.length) {
-            const textComponents = message.components.filter(comp => comp.type === 17);
-            if (textComponents.length > 0) {
-                for (const component of textComponents) {
-                    if (component.components?.length && component.components[0]?.type === 10) {
-                        const content = component.components[0].content;
-                        if (content?.includes('Successfully donated')) {
-                            const amountMatch = content.match(/Successfully donated ⏣\s*([\d,]+)/);
-                            if (amountMatch) {
-                                amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
-                                donationConfirmed = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (donationConfirmed) {
-            processDonation(client, message, amount, trackedDonation.user);
-            client.trackedDonations.delete(messageId);
-        } else if (Date.now() - trackedDonation.timestamp < 60000) {
-            // Check again in 10 seconds if less than 1 minute has passed
-            setTimeout(() => {
-                checkDonationStatus(client, messageId, channelId);
-            }, 10000);
-        } else {
-            // After 1 minute, stop tracking this donation
-            client.trackedDonations.delete(messageId);
-            console.log(`Donation tracking expired for message ID ${messageId}`);
-        }
-    } catch (error) {
-        console.error('Error checking donation status:', error);
-    }
-}
-
-// Process a confirmed donation
-async function processDonation(client, message, amount, userId = null) {
-    try {
-        const donorId = userId || await findCommandUser(message);
-        if (!donorId) {
-            console.log('Could not determine donation user ID');
-            return;
-        }
-
-        const guild = await client.guilds.fetch(client.guilds.cache.first().id);
-        const member = await guild.members.fetch(donorId).catch(() => null);
-        if (!member) {
-            console.log(`Could not find member with ID ${donorId}`);
-            return;
-        }
-
-        // Update user data
-        if (!usersData[donorId]) {
-            usersData[donorId] = {
-                totalDonated: amount,
-                weeklyDonated: amount,
-                currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                    (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0),
-                status: 'good',
-                missedAmount: 0,
-                lastDonation: new Date().toISOString()
-            };
-        } else {
-            usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + amount;
-            usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + amount;
-            usersData[donorId].lastDonation = new Date().toISOString();
-            usersData[donorId].currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                (member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
-        }
-
-        // Update stats
-        statsData.totalDonations += amount;
-        saveStatsData();
-        saveUsersData();
-
-        // Send donation embed
-        const requirement = usersData[donorId].currentTier === 2 ?
-            TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
-
-        const donationEmbed = new EmbedBuilder()
-            .setTitle('<:prize:1000016483369369650>  New Donation')
-            .setColor('#4c00b0')
-            .setDescription(`<@${donorId}> donated ⏣ ${formatNumber(amount)}\n\n<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + (usersData[donorId].missedAmount || 0))}`)
-            .setTimestamp();
-
-        await message.channel.send({ embeds: [donationEmbed] });
-
-        // Update status board
-        setImmediate(() => {
-            updateStatusBoard(client).catch(console.error);
-        });
-
-        console.log(`Processed donation of ${amount} from user ${donorId}`);
-    } catch (error) {
-        console.error('Error processing donation:', error);
-    }
-}
-
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
         // One Word Story moderation
-        if (!client.trackedDonations) {
-            client.trackedDonations = new Map();
-        }
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
                 const blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
@@ -304,50 +186,59 @@ module.exports = {
             }
         }
 
+        // Track donation messages from Dank Memer bot
         const DANK_MEMER_BOT_ID = '270904126974590976';
         const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
+        // New donation tracking system
         if (message.author.id === DANK_MEMER_BOT_ID && message.channel.id === TRANSACTION_CHANNEL_ID) {
-            // Case 1: Initial donation message with "Pending Confirmation"
-            if (message.embeds?.length && message.embeds[0]?.title?.includes('Pending Confirmation')) {
-                const description = message.embeds[0]?.description;
-                const amountMatch = description?.match(/You will donate ⏣\s*([\d,]+)/);
-                const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : null;
+            if (message.embeds?.length > 0) {
+                const embed = message.embeds[0];
 
-                client.trackedDonations.set(message.id, {
-                    originalMessage: message,
-                    user: message.interaction?.user?.id,
-                    amount: amount,
-                    timestamp: Date.now(),
-                    status: 'pending'
-                });
-                console.log(`Tracking pending donation: Message ID ${message.id}, Amount: ${amount}`);
+                // Check if this is a donation confirmation embed
+                if (embed.description && embed.description.includes('Are you sure you want to donate your coins?')) {
+                    try {
+                        // Extract the donation amount from the embed description
+                        const amountMatch = embed.description.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
+                        if (amountMatch) {
+                            const donationAmount = amountMatch[1]; // This will keep the commas for readability
 
-                // Set up a check after a short delay
-                setTimeout(() => {
-                    checkDonationStatus(client, message.id, message.channel.id);
-                }, 10000); // Check after 10 seconds
-            }
+                            // Get the user who initiated the interaction (the donor)
+                            const donorId = message.interaction?.user?.id;
+                            const donorTag = message.interaction?.user?.tag || 'Unknown User';
 
-            // Case 2: Directly detect donation confirmation message via components
-            if (message.components?.length) {
-                const textComponents = message.components.filter(comp => comp.type === 17);
-                if (textComponents.length > 0) {
-                    for (const component of textComponents) {
-                        if (component.components?.length && component.components[0]?.type === 10) {
-                            const content = component.components[0].content;
-                            if (content?.includes('Successfully donated')) {
-                                const amountMatch = content.match(/Successfully donated ⏣\s*([\d,]+)/);
-                                if (amountMatch) {
-                                    const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
-                                    processDonation(client, message, amount);
-                                }
+                            if (donorId) {
+                                // Create a response embed
+                                const donationEmbed = new EmbedBuilder()
+                                    .setColor('#2ecc71')
+                                    .setTitle('Donation Detected')
+                                    .setDescription(`<@${donorId}> is donating **⏣ ${donationAmount}** coins!`)
+                                    .setFooter({
+                                        text: `Donor: ${donorTag} | ID: ${donorId}`
+                                    })
+                                    .setTimestamp();
+
+                                // Send the donation notification
+                                await message.channel.send({ embeds: [donationEmbed] });
+
+                                // Also track this donation for confirmation later
+                                client.trackedDonations = client.trackedDonations || new Map();
+                                client.trackedDonations.set(message.id, {
+                                    originalMessage: message,
+                                    user: donorId,
+                                    amount: donationAmount
+                                });
+
+                                console.log(`Tracking pending donation: Message ID ${message.id}, User ${donorId}, Amount ${donationAmount}`);
                             }
                         }
+                    } catch (error) {
+                        console.error('Error processing donation embed:', error);
                     }
                 }
             }
         }
+
         // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {
             try {
@@ -428,30 +319,7 @@ module.exports = {
             }
         }
 
-        if (message.author.bot) {
-            if (message.author.id === '270904126974590976' && message.embeds.length > 0) {
-                const embed = message.embeds[0];
-                const itemName = embed.title || 'Unknown Item';
-                const averageValueField = embed.fields.find(field => field.name === 'Market' && field.value.includes('Average Value'));
-                if (averageValueField) {
-                    const averageValueMatch = averageValueField.value.match(/Average Value:\s*⏣\s*([0-9,]+)/);
-                    if (averageValueMatch) {
-                        const averageValue = parseInt(averageValueMatch[1].replace(/,/g, ''), 10);
-                        const itemsPath = path.join(__dirname, '../data/items.json');
-                        let items = JSON.parse(fs.readFileSync(itemsPath, 'utf8'));
-                        if (!(itemName in items)) {
-                            items[itemName] = averageValue;
-                            message.channel.send(`Added item **${itemName}** with price **${averageValue}** coins.`);
-                        } else if (items[itemName] !== averageValue) {
-                            items[itemName] = averageValue;
-                            message.channel.send(`Updated item **${itemName}**'s price to **${averageValue}** coins.`);
-                        }
-                        fs.writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf8');
-                    }
-                }
-            }
-            return;
-        }
+        // Removed item tracking code that we're replacing with donation tracking
 
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
