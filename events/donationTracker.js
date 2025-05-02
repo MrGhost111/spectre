@@ -36,14 +36,57 @@ module.exports = {
                                 .setTimestamp();
 
                             // Send the donation notification
-                            await message.channel.send({ embeds: [donationEmbed] });
+                            const notificationMsg = await message.channel.send({ embeds: [donationEmbed] });
 
-                            // Track this donation for confirmation later
+                            // Start polling for confirmation
+                            const pollInterval = setInterval(async () => {
+                                try {
+                                    // Fetch the latest version of the message
+                                    const updatedMessage = await message.channel.messages.fetch(message.id);
+
+                                    // Check if the message has been updated to show confirmation
+                                    if (updatedMessage.components?.length > 0 &&
+                                        updatedMessage.components[0].components?.some(c =>
+                                            c.type === 10 && c.content.includes('Successfully donated')
+                                        )) {
+
+                                        // Clear the polling interval
+                                        clearInterval(pollInterval);
+
+                                        // Update our notification embed
+                                        const successEmbed = new EmbedBuilder()
+                                            .setColor('#00ff00')
+                                            .setTitle('Donation Confirmed!')
+                                            .setDescription(`<@${donorId}> has successfully donated **⏣ ${donationAmount}** coins!`)
+                                            .setFooter({
+                                                text: `Donor: ${donorTag} | ID: ${donorId}`
+                                            })
+                                            .setTimestamp();
+
+                                        await notificationMsg.edit({ embeds: [successEmbed] });
+
+                                        // Here you can add any additional processing for confirmed donations
+                                        console.log(`Donation confirmed: ${donationAmount} by ${donorId}`);
+                                    }
+                                } catch (error) {
+                                    console.error('Error polling for donation confirmation:', error);
+                                    clearInterval(pollInterval);
+                                }
+                            }, 1000); // Check every second
+
+                            // Stop polling after 30 seconds
+                            setTimeout(() => {
+                                clearInterval(pollInterval);
+                            }, 30000);
+
+                            // Track this donation
                             client.trackedDonations = client.trackedDonations || new Map();
                             client.trackedDonations.set(message.id, {
                                 originalMessage: message,
                                 user: donorId,
-                                amount: donationAmount
+                                amount: donationAmount,
+                                pollInterval: pollInterval,
+                                notificationMsg: notificationMsg
                             });
 
                             console.log(`Tracking pending donation: Message ID ${message.id}, User ${donorId}, Amount ${donationAmount}`);
@@ -51,6 +94,42 @@ module.exports = {
                     }
                 } catch (error) {
                     console.error('Error processing donation embed:', error);
+                }
+            }
+        }
+
+        // Also check if this is a confirmed donation (in case bot restarted during polling)
+        if (message.author.id === DANK_MEMER_BOT_ID &&
+            message.channel.id === TRANSACTION_CHANNEL_ID &&
+            message.components?.length > 0 &&
+            message.components[0].components?.some(c =>
+                c.type === 10 && c.content.includes('Successfully donated')
+            )) {
+
+            // This is a confirmed donation message
+            const interaction = message.interaction;
+            if (interaction?.user) {
+                const donorId = interaction.user.id;
+                const donorTag = interaction.user.tag;
+
+                // Extract amount from the success message
+                const amountMatch = message.components[0].components[0].content.match(/Successfully donated \*\*⏣ ([0-9,]+)\*\*/);
+                if (amountMatch) {
+                    const donationAmount = amountMatch[1];
+
+                    // Create confirmation embed
+                    const successEmbed = new EmbedBuilder()
+                        .setColor('#00ff00')
+                        .setTitle('Donation Confirmed!')
+                        .setDescription(`<@${donorId}> has successfully donated **⏣ ${donationAmount}** coins!`)
+                        .setFooter({
+                            text: `Donor: ${donorTag} | ID: ${donorId}`
+                        })
+                        .setTimestamp();
+
+                    await message.channel.send({ embeds: [successEmbed] });
+
+                    console.log(`Detected confirmed donation: ${donationAmount} by ${donorId}`);
                 }
             }
         }
