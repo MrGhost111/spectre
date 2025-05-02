@@ -50,7 +50,7 @@ send_discord_message() {
 git config --global credential.helper 'cache --timeout=3600' > /dev/null 2>&1
 git config --global --add safe.directory "$PROJECT_DIR"
 
-# Handle local changes
+# Handle local changes (Auto-commit, but NO Discord notification)
 if [[ -n "$(git status --porcelain)" ]]; then
     git add . > /dev/null 2>&1
     git commit -m "Auto-commit: Server data update $(date)" > /dev/null 2>&1
@@ -58,7 +58,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
     send_discord_message "❌ [Rate Limited] Failed to push local changes" "git_push_failed"
 fi
 
-# Pull updates
+# Pull updates from Git
 BEFORE_PULL=$(git rev-parse HEAD)
 PULL_OUTPUT=$(git pull 2>&1)
 PULL_EXIT_CODE=$?
@@ -66,30 +66,27 @@ if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
     exit 1
 elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
-    # Get meaningful commit message
-    commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Merge branch" | head -1)
+    # Extract commit message (excluding auto-commits)
+    commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Auto-commit" | head -1)
     [[ -z "$commit_message" ]] && commit_message=$(git log -1 --pretty=format:"%s")
-    
-    # Deployment
+
+    # Deploy updates
     node deploy.js > /dev/null 2>&1 || \
     send_discord_message "❌ [Rate Limited] Failed to deploy commands" "deploy_failed"
-    
-    # Restart with PM2
-    # First check if there are any direct node processes to kill
+
+    # Restart process
     pkill -f "node index.js" > /dev/null 2>&1
-    
-    # Now restart using the correct PM2 process name
     if ! pm2 restart spectre --update-env > /dev/null 2>&1; then
-        # If PM2 restart fails, try stopping any existing processes first
         pm2 stop spectre > /dev/null 2>&1
-        # Then start a new one
         if ! pm2 start index.js --name spectre > /dev/null 2>&1; then
-            # Last resort: direct node execution
             pkill -f "node index.js" > /dev/null 2>&1
             node index.js > /dev/null 2>&1 &
             send_discord_message "⚠️ Restarted via direct node" "pm2_fallback"
         fi
     fi
-    
-    send_discord_message "<a:tickloop:926319357288648784> Implemented: ${commit_message:0:200}"
+
+    # Send Discord notification ONLY for meaningful updates
+    if [[ "$commit_message" != "Auto-commit"* ]]; then
+        send_discord_message "<a:tickloop:926319357288648784> Implemented: ${commit_message:0:200}"
+    fi
 fi
