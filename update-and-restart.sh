@@ -66,8 +66,8 @@ if [ $PULL_EXIT_CODE -ne 0 ]; then
     send_discord_message "❌ [Rate Limited] Git pull failed: ${PULL_OUTPUT:0:100}..." "git_pull_failed"
     exit 1
 elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
-    # Extract commit message (excluding auto-commits)
-    commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -v "^Auto-commit" | head -1)
+    # Extract commit message (excluding auto-commits and merge commits)
+    commit_message=$(git log $BEFORE_PULL..HEAD --pretty=format:"%s" | grep -Ev "^(Merge branch|Auto-commit)" | head -1)
     [[ -z "$commit_message" ]] && commit_message=$(git log -1 --pretty=format:"%s")
 
     # Deploy updates
@@ -86,7 +86,7 @@ elif [[ "$PULL_OUTPUT" != *"Already up to date."* ]]; then
     fi
 
     # Send Discord notification ONLY for meaningful updates
-    if [[ "$commit_message" != "Auto-commit"* ]]; then
+    if [[ "$commit_message" != "" ]]; then
         send_discord_message "<a:tickloop:926319357288648784> Implemented: ${commit_message:0:200}"
     fi
 fi
