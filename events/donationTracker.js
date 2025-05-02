@@ -21,35 +21,39 @@ module.exports = {
 
             let confirmationDetected = false;
 
-            // Poll every second until confirmation is detected
             const checkInterval = setInterval(async () => {
                 try {
                     const freshMsg = await message.channel.messages.fetch(message.id);
 
-                    if (freshMsg.embeds === "No traditional embeds" &&
-                        freshMsg.components?.[0]?.components?.[0]?.type === 10 &&
-                        freshMsg.components[0].components[0].content.includes("Successfully donated")) {
+                    // Check if the message has no traditional embeds and contains the confirmation text in components
+                    const donationConfirmed = freshMsg.components?.some(comp =>
+                        comp.components?.some(sub => sub.content?.includes("Successfully donated"))
+                    );
 
+                    if (donationConfirmed) {
                         confirmationDetected = true;
                         clearInterval(checkInterval);
 
                         await message.channel.send({
-                            content: `**DONATION CONFIRMED**\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\nMessage ID: ${message.id}`
+                            content: `✅ **DONATION CONFIRMED**\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\nMessage ID: ${message.id}`
                         });
 
-                        await initialDebug.delete().catch(console.error);
+                        await initialDebug.delete().catch(() => {
+                            message.channel.send({ content: "⚠ Failed to delete debug message." });
+                        });
                     }
                 } catch (error) {
-                    console.error('Polling error:', error);
+                    await message.channel.send({
+                        content: `⚠ **ERROR DETECTED**\n\`\`\`${error.stack}\`\`\``
+                    });
                     clearInterval(checkInterval);
                 }
             }, 1000); // Poll every second
 
-            // Keep sending updates every 10 seconds if confirmation was detected
             setInterval(async () => {
                 if (confirmationDetected) {
                     await message.channel.send({
-                        content: `**DONATION UPDATE**\nDonation by ${donor.tag} of ⏣ ${amountMatch[1]} was confirmed earlier.\nTracking message: ${message.id}`
+                        content: `🔄 **DONATION UPDATE**\nDonation by ${donor.tag} of ⏣ ${amountMatch[1]} was confirmed earlier.\nTracking message: ${message.id}`
                     });
                 }
             }, 10000); // Send updates every 10 seconds
