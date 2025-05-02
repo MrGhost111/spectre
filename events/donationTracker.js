@@ -1,4 +1,4 @@
-﻿const { processDonation, checkComponentsForDonation, updateStatusBoard } = require('../utils/donationSystem');
+﻿const { processDonation, updateStatusBoard } = require('../utils/donationSystem');
 
 module.exports = {
     name: 'donationTracker',
@@ -19,19 +19,23 @@ module.exports = {
             const checkInterval = setInterval(async () => {
                 try {
                     const freshMsg = await message.channel.messages.fetch(message.id);
-                    const donationData = checkComponentsForDonation(freshMsg);
 
-                    if (donationData) {
+                    // Directly check the components for the confirmation message
+                    const confirmed = freshMsg.components?.some(comp =>
+                        comp.components?.some(sub => sub.content?.includes("Successfully donated"))
+                    );
+
+                    if (confirmed) {
                         clearInterval(checkInterval);
 
-                        // Update JSON & send donation embed
-                        await processDonation(client, message, donationData.amount, donorId);
+                        const donationAmount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
 
-                        // Update status board
+                        // Update JSON & status board
+                        await processDonation(client, message, donationAmount, donorId);
                         await updateStatusBoard(client);
 
                         // Send simple confirmation message
-                        await message.channel.send(`✅ **Donation Confirmed!** User: <@${donorId}> | Amount: ⏣ ${donationData.amount}`);
+                        await message.channel.send(`✅ **Donation Confirmed!** User: <@${donorId}> | Amount: ⏣ ${donationAmount}`);
                     }
                 } catch (error) {
                     clearInterval(checkInterval);
