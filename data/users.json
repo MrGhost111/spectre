@@ -1,11 +1,11 @@
 {
   "753491023208120321": {
-    "totalDonated": 2540000172,
-    "weeklyDonated": 0,
+    "totalDonated": null,
+    "weeklyDonated": null,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
-    "lastDonation": "2025-04-20T04:19:42.117Z",
+    "lastDonation": "2025-05-02T08:04:35.257Z",
     "lastEditedAt": "2025-05-01T23:39:30.570Z"
   },
   "770593236129284126": {
