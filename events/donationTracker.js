@@ -1,41 +1,58 @@
 ﻿const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'countdownEmbed',
+    name: 'donationTracker',
     async execute(client, message) {
-        const user = message.author;
-        const amount = Math.floor(Math.random() * 10000); // Just a sample number for display
+        const DANK_MEMER_BOT_ID = '270904126974590976';
+        const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
-        // Initial embed message
-        let countdown = 0;
-        const embed = new EmbedBuilder()
-            .setTitle('⏳ Countdown Tracker')
-            .setDescription(`User: ${user.tag}\nAmount: ⏣ ${amount}\n\n**Tracking Countdown...**`)
-            .setColor(0x3498db);
+        if (message.author.id !== DANK_MEMER_BOT_ID || message.channel.id !== TRANSACTION_CHANNEL_ID) return;
 
-        const sentMessage = await message.channel.send({ embeds: [embed] });
+        if (message.embeds?.[0]?.description?.includes('Are you sure you want to donate your coins?')) {
+            const amountMatch = message.embeds[0].description.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
+            if (!amountMatch) return;
 
-        const interval = setInterval(async () => {
-            countdown += 5;
+            const donor = message.interaction?.user;
+            if (!donor) return;
 
-            // Generate a random number for display
-            const randomNum = Math.floor(Math.random() * 100);
-            const updateEmbed = new EmbedBuilder()
-                .setTitle('⏳ Countdown Tracker')
-                .setDescription(`User: ${user.tag}\nAmount: ⏣ ${amount}\n\nCurrent Status: **${randomNum}**`)
-                .setColor(0x3498db);
+            const initialDebug = await message.channel.send({
+                content: `**DONATION DETECTED**\nTracking message ${message.id}\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\n\nPolling for confirmation...`
+            });
 
-            await sentMessage.edit({ embeds: [updateEmbed] });
+            let confirmationDetected = false;
 
-            if (countdown >= 25) {
-                clearInterval(interval);
-                const finalEmbed = new EmbedBuilder()
-                    .setTitle('✅ Countdown Complete')
-                    .setDescription(`User: ${user.tag}\nAmount: ⏣ ${amount}\n\n**Tracking Complete!**`)
-                    .setColor(0x2ecc71);
+            // Poll every second until confirmation is detected
+            const checkInterval = setInterval(async () => {
+                try {
+                    const freshMsg = await message.channel.messages.fetch(message.id);
 
-                await sentMessage.edit({ embeds: [finalEmbed] });
-            }
-        }, 5000); // Update every 5 seconds
+                    if (freshMsg.embeds === "No traditional embeds" &&
+                        freshMsg.components?.[0]?.components?.[0]?.type === 10 &&
+                        freshMsg.components[0].components[0].content.includes("Successfully donated")) {
+
+                        confirmationDetected = true;
+                        clearInterval(checkInterval);
+
+                        await message.channel.send({
+                            content: `**DONATION CONFIRMED**\nDonor: ${donor.tag}\nAmount: ${amountMatch[1]}\nMessage ID: ${message.id}`
+                        });
+
+                        await initialDebug.delete().catch(console.error);
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    clearInterval(checkInterval);
+                }
+            }, 1000); // Poll every second
+
+            // Keep sending updates every 10 seconds if confirmation was detected
+            setInterval(async () => {
+                if (confirmationDetected) {
+                    await message.channel.send({
+                        content: `**DONATION UPDATE**\nDonation by ${donor.tag} of ⏣ ${amountMatch[1]} was confirmed earlier.\nTracking message: ${message.id}`
+                    });
+                }
+            }, 10000); // Send updates every 10 seconds
+        }
     }
 };
