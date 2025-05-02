@@ -234,14 +234,6 @@ module.exports = {
             const donorId = await findCommandUser(message);
             if (!donorId) return;
 
-            const initialEmbed = new EmbedBuilder()
-                .setTitle('🔍 Donation Tracking Started')
-                .setColor('#ff4500')
-                .setDescription(`Tracking donation from **<@${donorId}>**.\nAmount: **⏣ ${amountMatch[1]}**`)
-                .setTimestamp();
-
-            await message.channel.send({ embeds: [initialEmbed] });
-
             trackDonation(client, message, donorId, parseInt(amountMatch[1].replace(/,/g, ''), 10));
         }
     }
