@@ -157,5 +157,13 @@
     "status": "warned",
     "totalDonated": 35000000,
     "currentTier": 1
+  },
+  "635547489730166784": {
+    "totalDonated": 1,
+    "weeklyDonated": 1,
+    "missedAmount": 0,
+    "status": "good",
+    "lastDonation": "2025-05-04T01:18:58.600Z",
+    "currentTier": 1
   }
 }
