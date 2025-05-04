@@ -34,6 +34,11 @@ const loadCommands = () => {
             client.textCommands.set(command.name, command);
             console.log(`Loaded text command: ${command.name}`);
         }
+        if (command.aliases?.length) {
+            command.aliases.forEach(alias => {
+                client.textCommands.set(alias, command);
+            });
+        }
     }
     const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
