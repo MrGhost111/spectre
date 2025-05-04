@@ -315,7 +315,10 @@ module.exports = {
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
             try {
-                await checkMessageForHighlights(client, message);
+                // Skip highlight checking if the message author is a bot
+                if (!message.author.bot) {
+                    await checkMessageForHighlights(client, message);
+                }
             } catch (error) {
                 console.error('Error checking highlights:', error);
             }
