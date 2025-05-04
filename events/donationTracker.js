@@ -117,7 +117,7 @@ async function trackDonation(client, message, donorId, donationAmount) {
         }
 
         attempts++;
-    }, 5000);
+    }, 500);
 }
 
 // **Handles donation confirmation, updates stats, sends embed, updates status board**
