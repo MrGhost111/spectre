@@ -87,60 +87,6 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
-// Parse components to extract donation amount
-function extractDonationAmount(components) {
-    if (!components || !Array.isArray(components)) return null;
-
-    // Recursively search through components structure
-    for (const comp of components) {
-        // Check if this component contains content with donation info
-        if (comp.content && typeof comp.content === 'string') {
-            const amountMatch = comp.content.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
-            if (amountMatch) {
-                return parseInt(amountMatch[1].replace(/,/g, ''), 10);
-            }
-        }
-
-        // Check nested components
-        if (comp.components && Array.isArray(comp.components)) {
-            const result = extractDonationAmount(comp.components);
-            if (result) return result;
-        }
-    }
-
-    return null;
-}
-
-// Check if components contain confirmation message
-function hasDonationConfirmation(components) {
-    if (!components || !Array.isArray(components)) return false;
-
-    // Convert to string and check for success message
-    const componentsStr = JSON.stringify(components);
-    return componentsStr.includes('Successfully donated');
-}
-
-// Check if components contain pending confirmation message
-function hasPendingConfirmation(components) {
-    if (!components || !Array.isArray(components)) return false;
-
-    // Recursively search through components structure
-    for (const comp of components) {
-        // Check if this component contains the pending confirmation header
-        if (comp.content && typeof comp.content === 'string' &&
-            comp.content.includes('Pending Confirmation')) {
-            return true;
-        }
-
-        // Check nested components
-        if (comp.components && Array.isArray(comp.components)) {
-            if (hasPendingConfirmation(comp.components)) return true;
-        }
-    }
-
-    return false;
-}
-
 // **Tracks donation message edits every 5 seconds for 30 seconds**
 async function trackDonation(client, message, donorId, donationAmount) {
     let attempts = 0;
@@ -157,8 +103,10 @@ async function trackDonation(client, message, donorId, donationAmount) {
             const freshMsg = await message.channel.messages.fetch(message.id);
             console.log("📥 Fetched updated message components:", JSON.stringify(freshMsg.components, null, 2));
 
-            // Check if the message has confirmation in components
-            if (hasDonationConfirmation(freshMsg.components)) {
+            // Search anywhere in components for the confirmation text
+            const hasDonationConfirmation = JSON.stringify(freshMsg.components).includes("Successfully donated");
+
+            if (hasDonationConfirmation) {
                 console.log("✅ Donation confirmation detected!");
                 clearInterval(checkInterval);
                 await confirmDonation(client, freshMsg, donorId, donationAmount);
@@ -169,14 +117,28 @@ async function trackDonation(client, message, donorId, donationAmount) {
         }
 
         attempts++;
-    }, 5000);
+    }, 500);
+}
+
+// Extract donation amount from message components
+function extractDonationAmount(message) {
+    // Convert components to string for easier searching
+    const componentsStr = JSON.stringify(message.components);
+
+    // Look for the donation amount pattern
+    const amountMatch = componentsStr.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
+    if (amountMatch && amountMatch[1]) {
+        return parseInt(amountMatch[1].replace(/,/g, ''), 10);
+    }
+
+    return null;
 }
 
 // **Handles donation confirmation, updates stats, sends embed, updates status board**
 async function confirmDonation(client, message, donorId, donationAmount) {
     // Load the latest data to ensure we have current values
     let usersData = {};
-    let statsData = { totalDonations: 0 };
+    let statsData = { totalDonations: 590000000 };
 
     try {
         if (fs.existsSync(usersFilePath)) {
@@ -279,22 +241,32 @@ module.exports = {
     async execute(client, message) {
         if (message.author.id !== DANK_MEMER_BOT_ID || message.channel.id !== TRANSACTION_CHANNEL_ID) return;
 
-        // Check for pending confirmation in components
-        if (hasPendingConfirmation(message.components)) {
-            // Extract donation amount from components
-            const donationAmount = extractDonationAmount(message.components);
+        // Use the same approach as for confirmation detection - check stringified components
+        const componentsStr = JSON.stringify(message.components);
+
+        // Check if this is a donation prompt message
+        if (componentsStr.includes("Are you sure you want to donate your coins?")) {
+            console.log("🔵 Detected donation prompt message");
+
+            // Extract the donation amount
+            const donationAmount = extractDonationAmount(message);
             if (!donationAmount) {
-                console.log("⚠️ Could not extract donation amount from message components");
+                console.log("⚠️ Couldn't extract donation amount from message");
                 return;
             }
 
+            console.log(`💰 Detected donation amount: ${donationAmount}`);
+
+            // Get the donor ID
             const donorId = await findCommandUser(message);
             if (!donorId) {
-                console.log("⚠️ Could not identify donor from message");
+                console.log("⚠️ Couldn't identify donor");
                 return;
             }
 
-            console.log(`📝 Detected donation attempt: ${donorId} is donating ⏣ ${donationAmount}`);
+            console.log(`👤 Detected donor: ${donorId}`);
+
+            // Start tracking the donation
             trackDonation(client, message, donorId, donationAmount);
         }
     }
