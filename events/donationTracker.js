@@ -87,6 +87,60 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
+// Parse components to extract donation amount
+function extractDonationAmount(components) {
+    if (!components || !Array.isArray(components)) return null;
+
+    // Recursively search through components structure
+    for (const comp of components) {
+        // Check if this component contains content with donation info
+        if (comp.content && typeof comp.content === 'string') {
+            const amountMatch = comp.content.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
+            if (amountMatch) {
+                return parseInt(amountMatch[1].replace(/,/g, ''), 10);
+            }
+        }
+
+        // Check nested components
+        if (comp.components && Array.isArray(comp.components)) {
+            const result = extractDonationAmount(comp.components);
+            if (result) return result;
+        }
+    }
+
+    return null;
+}
+
+// Check if components contain confirmation message
+function hasDonationConfirmation(components) {
+    if (!components || !Array.isArray(components)) return false;
+
+    // Convert to string and check for success message
+    const componentsStr = JSON.stringify(components);
+    return componentsStr.includes('Successfully donated');
+}
+
+// Check if components contain pending confirmation message
+function hasPendingConfirmation(components) {
+    if (!components || !Array.isArray(components)) return false;
+
+    // Recursively search through components structure
+    for (const comp of components) {
+        // Check if this component contains the pending confirmation header
+        if (comp.content && typeof comp.content === 'string' &&
+            comp.content.includes('Pending Confirmation')) {
+            return true;
+        }
+
+        // Check nested components
+        if (comp.components && Array.isArray(comp.components)) {
+            if (hasPendingConfirmation(comp.components)) return true;
+        }
+    }
+
+    return false;
+}
+
 // **Tracks donation message edits every 5 seconds for 30 seconds**
 async function trackDonation(client, message, donorId, donationAmount) {
     let attempts = 0;
@@ -103,10 +157,8 @@ async function trackDonation(client, message, donorId, donationAmount) {
             const freshMsg = await message.channel.messages.fetch(message.id);
             console.log("📥 Fetched updated message components:", JSON.stringify(freshMsg.components, null, 2));
 
-            // Search anywhere in components for the confirmation text
-            const hasDonationConfirmation = JSON.stringify(freshMsg.components).includes("Successfully donated");
-
-            if (hasDonationConfirmation) {
+            // Check if the message has confirmation in components
+            if (hasDonationConfirmation(freshMsg.components)) {
                 console.log("✅ Donation confirmation detected!");
                 clearInterval(checkInterval);
                 await confirmDonation(client, freshMsg, donorId, donationAmount);
@@ -117,15 +169,15 @@ async function trackDonation(client, message, donorId, donationAmount) {
         }
 
         attempts++;
-    }, 500);
+    }, 5000);
 }
 
 // **Handles donation confirmation, updates stats, sends embed, updates status board**
 async function confirmDonation(client, message, donorId, donationAmount) {
     // Load the latest data to ensure we have current values
     let usersData = {};
-    let statsData = { totalDonations: 590000000 };
-    
+    let statsData = { totalDonations: 0 };
+
     try {
         if (fs.existsSync(usersFilePath)) {
             usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
@@ -136,7 +188,7 @@ async function confirmDonation(client, message, donorId, donationAmount) {
     } catch (error) {
         console.error('Error reading data files:', error);
     }
-    
+
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const member = await guild.members.fetch(donorId);
 
@@ -149,7 +201,7 @@ async function confirmDonation(client, message, donorId, donationAmount) {
             status: 'good',
             lastDonation: new Date().toISOString(),
             currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                         member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
+                member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
         };
     }
 
@@ -158,7 +210,7 @@ async function confirmDonation(client, message, donorId, donationAmount) {
     usersData[donorId].weeklyDonated += donationAmount;
     usersData[donorId].lastDonation = new Date().toISOString();
     statsData.totalDonations += donationAmount;
-    
+
     // Save updated data
     fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
     fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
@@ -227,14 +279,23 @@ module.exports = {
     async execute(client, message) {
         if (message.author.id !== DANK_MEMER_BOT_ID || message.channel.id !== TRANSACTION_CHANNEL_ID) return;
 
-        if (message.embeds?.[0]?.description?.includes('Are you sure you want to donate your coins?')) {
-            const amountMatch = message.embeds[0].description.match(/donate \*\*⏣ ([0-9,]+)\*\*/);
-            if (!amountMatch) return;
+        // Check for pending confirmation in components
+        if (hasPendingConfirmation(message.components)) {
+            // Extract donation amount from components
+            const donationAmount = extractDonationAmount(message.components);
+            if (!donationAmount) {
+                console.log("⚠️ Could not extract donation amount from message components");
+                return;
+            }
 
             const donorId = await findCommandUser(message);
-            if (!donorId) return;
+            if (!donorId) {
+                console.log("⚠️ Could not identify donor from message");
+                return;
+            }
 
-            trackDonation(client, message, donorId, parseInt(amountMatch[1].replace(/,/g, ''), 10));
+            console.log(`📝 Detected donation attempt: ${donorId} is donating ⏣ ${donationAmount}`);
+            trackDonation(client, message, donorId, donationAmount);
         }
     }
 };
