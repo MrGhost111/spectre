@@ -178,7 +178,6 @@ async function weeklyReset(client) {
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
 
         const summary = {
-            warnings: [],
             demotions: [],
             promotions: []
         };
@@ -197,8 +196,6 @@ async function weeklyReset(client) {
                 if (!usersData[memberId]) {
                     usersData[memberId] = {
                         weeklyDonated: 0,
-                        missedAmount: 0,
-                        status: 'good',
                         totalDonated: 0,
                         currentTier: hasTier2 ? 2 : 1
                     };
@@ -314,7 +311,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             const isTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
             const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
 
-            if (isTier1 && !isTier2 && userData.weeklyDonated >= (TIER_2_REQUIREMENT + (userData.missedAmount || 0))) {
+            // Promotion logic - Tier 1 to Tier 2
+            if (isTier1 && !isTier2 && userData.weeklyDonated >= TIER_2_REQUIREMENT) {
                 await member.roles.add(TIER_2_ROLE_ID);
                 promotionUserIds.push(userId);
                 summary.promotions.push({
@@ -324,6 +322,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 });
             }
 
+            // Demotion logic - Tier 2 to Tier 1
             if (isTier2) {
                 if (userData.weeklyDonated < TIER_2_REQUIREMENT) {
                     await member.roles.remove(TIER_2_ROLE_ID);
@@ -333,49 +332,44 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                         toTier: 1,
                         missedBy: TIER_2_REQUIREMENT - userData.weeklyDonated
                     });
-                    userData.status = 'good';
-                    userData.missedAmount = 0;
-                }
-            } else if (isTier1) {
-                const requirement = TIER_1_REQUIREMENT + (userData.missedAmount || 0);
-                if (userData.weeklyDonated < requirement) {
-                    const missedBy = requirement - userData.weeklyDonated;
 
-                    if (userData.status === 'good') {
-                        userData.status = 'warned';
-                        userData.missedAmount = missedBy;
+                    try {
+                        const demotionEmbed = new EmbedBuilder()
+                            .setTitle('<:xmark:934659388386451516> Weekly Requirement Not Met')
+                            .setColor('#ff0000')
+                            .setDescription(`You missed this week's Tier 2 requirement by ⏣ ${formatNumber(TIER_2_REQUIREMENT - userData.weeklyDonated)}.\n\nYou have been demoted to Tier 1. Your new requirement for next week will be ⏣ ${formatNumber(TIER_1_REQUIREMENT)}.`)
+                            .setTimestamp();
 
-                        summary.warnings.push({
-                            userId,
-                            missedBy,
-                            tier: 1,
-                            newRequirement: TIER_1_REQUIREMENT + missedBy
-                        });
-
-                        try {
-                            const warningEmbed = new EmbedBuilder()
-                                .setTitle('<:xmark:934659388386451516> Weekly Requirement Warning')
-                                .setColor('#ff0000')
-                                .setDescription(`You missed this week's requirement by ⏣ ${formatNumber(missedBy)}.\nYour new requirement for next week will be ⏣ ${formatNumber(TIER_1_REQUIREMENT + missedBy)}.\n\n<:infom:1064823078162538497> Missing the requirement again will result in demotion.`)
-                                .setTimestamp();
-
-                            await member.send({ embeds: [warningEmbed] });
-                        } catch (error) {
-                            console.error(`Failed to send warning DM to ${userId}`);
-                        }
-                    } else if (userData.status === 'warned') {
-                        await member.roles.remove(TIER_1_ROLE_ID);
-                        summary.demotions.push({
-                            userId,
-                            fromTier: 1,
-                            toTier: 0,
-                            missedBy
-                        });
-                        delete usersData[userId];
+                        await member.send({ embeds: [demotionEmbed] });
+                    } catch (error) {
+                        console.error(`Failed to send demotion DM to ${userId}`);
                     }
-                } else {
-                    userData.status = 'good';
-                    userData.missedAmount = 0;
+                }
+            }
+            // Demotion logic - Tier 1 to No Role
+            else if (isTier1) {
+                if (userData.weeklyDonated < TIER_1_REQUIREMENT) {
+                    await member.roles.remove(TIER_1_ROLE_ID);
+                    summary.demotions.push({
+                        userId,
+                        fromTier: 1,
+                        toTier: 0,
+                        missedBy: TIER_1_REQUIREMENT - userData.weeklyDonated
+                    });
+
+                    try {
+                        const demotionEmbed = new EmbedBuilder()
+                            .setTitle('<:xmark:934659388386451516> Weekly Requirement Not Met')
+                            .setColor('#ff0000')
+                            .setDescription(`You missed this week's Tier 1 requirement by ⏣ ${formatNumber(TIER_1_REQUIREMENT - userData.weeklyDonated)}.\n\nYou have been removed from the Money Makers team. If you wish to rejoin then please wait for a week and then dm faiz`)
+                            .setTimestamp();
+
+                        await member.send({ embeds: [demotionEmbed] });
+                    } catch (error) {
+                        console.error(`Failed to send demotion DM to ${userId}`);
+                    }
+
+                    delete usersData[userId];
                 }
             }
 
@@ -409,16 +403,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             value: `Total Weekly Donations: ⏣ ${formatNumber(weeklyDonations)}\nTotal Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}`
         });
 
+        // Add the same weekly stats embed fields to the summary embed
         summaryEmbed.addFields([...weeklyStatsEmbed.data.fields]);
-
-        if (summary.warnings.length > 0) {
-            summaryEmbed.addFields({
-                name: '<:xmark:934659388386451516> Warnings',
-                value: summary.warnings.map(w =>
-                    `> <@${w.userId}> (Tier ${w.tier})\n>  Missed by ⏣ ${formatNumber(w.missedBy)}\n> New requirement: ⏣ ${formatNumber(w.newRequirement)}`
-                ).join('\n\n')
-            });
-        }
 
         if (summary.demotions.length > 0) {
             summaryEmbed.addFields({
@@ -445,8 +431,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             });
         }
 
-        if (summary.warnings.length > 0 || summary.demotions.length > 0 ||
-            summary.promotions.length > 0 || tier2DonationsList) {
+        if (summary.demotions.length > 0 || summary.promotions.length > 0 || tier2DonationsList) {
             await adminChannel.send({ embeds: [summaryEmbed] });
         }
 
