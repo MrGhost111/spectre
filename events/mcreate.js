@@ -325,14 +325,49 @@ module.exports = {
             return;
         }
 
-        const args = message.content.slice(prefix.length).trim().split(/ +/);
-        const commandName = args.shift().toLowerCase();
+        // NEW COMMAND HANDLING LOGIC FOR SPACE ALIASES
+        const content = message.content.slice(prefix.length).trim();
 
-        const command = client.textCommands.get(commandName) ||
-            client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+        // First try to find a command that matches the entire command string
+        // This handles multi-word aliases like "fuck you shut up for a minute"
+        let command = client.textCommands.find(cmd => {
+            if (cmd.aliases && Array.isArray(cmd.aliases)) {
+                return cmd.aliases.some(alias => content.toLowerCase() === alias.toLowerCase());
+            }
+            return false;
+        });
 
-        if (!command) return;
+        // If no command was found with the full string, try the traditional way
+        if (!command) {
+            const args = content.split(/ +/);
+            const commandName = args.shift().toLowerCase();
 
+            command = client.textCommands.get(commandName) ||
+                client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+            // If we found a command, use traditional args
+            if (command) {
+                try {
+                    await command.execute(message, args);
+                } catch (error) {
+                    console.error(`Error executing command ${commandName}:`, error);
+                    await message.reply('There was an error trying to execute that command!').catch(console.error);
+                }
+                return;
+            }
+        } else {
+            // If we found a command with a space alias, execute with empty args array
+            // Or optionally parse remaining arguments if any
+            try {
+                await command.execute(message, []);
+            } catch (error) {
+                console.error(`Error executing command with space alias:`, error);
+                await message.reply('There was an error trying to execute that command!').catch(console.error);
+            }
+            return;
+        }
+
+        // Command not found or no command handling needed
         if (commandName === 'resetsns') {
             if (!message.member.permissions.has('Administrator')) {
                 return message.reply('You do not have permission to use this command.');
@@ -362,13 +397,6 @@ module.exports = {
             }
 
             return message.reply(lbMessage);
-        }
-
-        try {
-            await command.execute(message, args);
-        } catch (error) {
-            console.error(`Error executing command ${commandName}:`, error);
-            await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
     },
 };
