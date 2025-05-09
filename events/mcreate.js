@@ -3,18 +3,9 @@ const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
+const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 
 let lastStickyMessageId = null;
-
-// Create a blacklist file path
-const blacklistPath = path.join(__dirname, '../data/word_blacklist.json');
-
-// Initialize blacklist if it doesn't exist
-if (!fs.existsSync(blacklistPath)) {
-    fs.writeFileSync(blacklistPath, JSON.stringify({
-        "1346427004299378718": [] // One word story channel ID with empty blacklist initially
-    }, null, 2), 'utf8');
-}
 
 module.exports = {
     name: 'messageCreate',
@@ -22,68 +13,10 @@ module.exports = {
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
-                const blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
-                const channelBlacklist = blacklistData[message.channelId] || [];
-
-                // Check if message contains more than one word with punctuation handling
-                const messageContent = message.content.trim();
-                const words = messageContent.split(/\s+/);
-                const wordCount = words.length;
-
-                // Simple check: if we have 2 words, check if one is pure punctuation
-                let isValidMessage = false;
-
-                if (wordCount === 1) {
-                    // Single word is always valid (subject to blacklist)
-                    isValidMessage = true;
-                } else if (wordCount === 2) {
-                    // Check if either word is pure punctuation
-                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
-
-                    if (isPunctuation(words[0]) || isPunctuation(words[1])) {
-                        isValidMessage = true;
-                    }
-                }
-
-                if (!isValidMessage) {
+                const result = await checkOneWordMessage(message);
+                if (!result.isValid) {
                     await message.delete();
-                    const warningMsg = await message.channel.send(
-                        `<@${message.author.id}> Only one word is allowed in this channel! You can include standalone punctuation.`
-                    );
-
-                    // Delete the warning after 5 seconds
-                    setTimeout(async () => {
-                        try {
-                            await warningMsg.delete();
-                        } catch (err) {
-                            console.error('Error deleting warning message:', err);
-                        }
-                    }, 5000);
-
-                    return;
-                }
-
-                // Get the actual word (non-punctuation) for blacklist checking
-                let wordToCheck = messageContent;
-                if (wordCount === 2) {
-                    // Find which part is the actual word
-                    const isPunctuation = (word) => /^[.,!?;:"'()\[\]{}…&-]+$/.test(word);
-                    wordToCheck = isPunctuation(words[0]) ? words[1] : words[0];
-                }
-
-                // Enhanced blacklist check - check if any blacklisted word is contained within the message
-                const wordLower = wordToCheck.toLowerCase();
-                if (channelBlacklist.some(blacklistedWord => {
-                    // Check if the word contains any blacklisted word
-                    const blacklistedWordLower = blacklistedWord.toLowerCase();
-                    return wordLower.includes(blacklistedWordLower) ||
-                        // Or check if blacklisted word is a root of the current word
-                        (blacklistedWordLower.length > 3 && wordLower.startsWith(blacklistedWordLower));
-                })) {
-                    await message.delete();
-                    const warningMsg = await message.channel.send(
-                        `<@${message.author.id}> That word is blacklisted in this channel.`
-                    );
+                    const warningMsg = await message.channel.send(result.message);
 
                     // Delete the warning after 5 seconds
                     setTimeout(async () => {
@@ -101,69 +34,9 @@ module.exports = {
             }
         }
 
-        // Check for blacklist management command - Allow specific user ID in addition to manage messages perm
-        if (message.content.startsWith(',blacklist') &&
-            (message.member.permissions.has('ManageMessages') || message.author.id === '753491023208120321')) {
-            const args = message.content.slice(',blacklist'.length).trim().split(/ +/);
-            const action = args[0]?.toLowerCase();
-            const channelId = args[1] || '1346427004299378718'; // Default to one word story channel
-
-            // Load current blacklist
-            let blacklistData = {};
-            try {
-                blacklistData = JSON.parse(fs.readFileSync(blacklistPath, 'utf8'));
-                if (!blacklistData[channelId]) {
-                    blacklistData[channelId] = [];
-                }
-            } catch (error) {
-                console.error('Error loading blacklist:', error);
-                blacklistData[channelId] = [];
-            }
-
-            if (action === 'add' && args.length > 2) {
-                // Add words to blacklist
-                const wordsToAdd = args.slice(2).join(' ').split(',').map(word => word.trim());
-
-                for (const word of wordsToAdd) {
-                    if (word && !blacklistData[channelId].includes(word)) {
-                        blacklistData[channelId].push(word);
-                    }
-                }
-
-                fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
-                message.reply(`Added ${wordsToAdd.length} word(s) to the blacklist for channel <#${channelId}>.`);
-                return;
-            } else if (action === 'remove' && args.length > 2) {
-                // Remove words from blacklist
-                const wordsToRemove = args.slice(2).join(' ').split(',').map(word => word.trim());
-                const initialCount = blacklistData[channelId].length;
-
-                blacklistData[channelId] = blacklistData[channelId].filter(
-                    word => !wordsToRemove.includes(word)
-                );
-
-                fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
-                message.reply(`Removed ${initialCount - blacklistData[channelId].length} word(s) from the blacklist for channel <#${channelId}>.`);
-                return;
-            } else if (action === 'list') {
-                // List blacklisted words
-                if (blacklistData[channelId].length === 0) {
-                    message.reply(`No words are blacklisted in channel <#${channelId}>.`);
-                } else {
-                    message.reply(`Blacklisted words in <#${channelId}>: ${blacklistData[channelId].join(', ')}`);
-                }
-                return;
-            } else if (action === 'clear') {
-                // Clear all blacklisted words
-                blacklistData[channelId] = [];
-                fs.writeFileSync(blacklistPath, JSON.stringify(blacklistData, null, 2), 'utf8');
-                message.reply(`Cleared the blacklist for channel <#${channelId}>.`);
-                return;
-            } else {
-                message.reply('Usage: `,blacklist [add/remove/list/clear] [channelId] [word1,word2,...]`');
-                return;
-            }
-        }
+        // Check for blacklist management command
+        const blacklistCommandHandled = await handleBlacklistCommand(message);
+        if (blacklistCommandHandled) return;
 
         if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
             try {
@@ -274,8 +147,7 @@ module.exports = {
             }
         }
 
-        // Removed item tracking code that we're replacing with donation tracking
-
+        // Mute role update command
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -325,49 +197,14 @@ module.exports = {
             return;
         }
 
-        // NEW COMMAND HANDLING LOGIC FOR SPACE ALIASES
-        const content = message.content.slice(prefix.length).trim();
+        const args = message.content.slice(prefix.length).trim().split(/ +/);
+        const commandName = args.shift().toLowerCase();
 
-        // First try to find a command that matches the entire command string
-        // This handles multi-word aliases like "fuck you shut up for a minute"
-        let command = client.textCommands.find(cmd => {
-            if (cmd.aliases && Array.isArray(cmd.aliases)) {
-                return cmd.aliases.some(alias => content.toLowerCase() === alias.toLowerCase());
-            }
-            return false;
-        });
+        const command = client.textCommands.get(commandName) ||
+            client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
-        // If no command was found with the full string, try the traditional way
-        if (!command) {
-            const args = content.split(/ +/);
-            const commandName = args.shift().toLowerCase();
+        if (!command) return;
 
-            command = client.textCommands.get(commandName) ||
-                client.textCommands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
-
-            // If we found a command, use traditional args
-            if (command) {
-                try {
-                    await command.execute(message, args);
-                } catch (error) {
-                    console.error(`Error executing command ${commandName}:`, error);
-                    await message.reply('There was an error trying to execute that command!').catch(console.error);
-                }
-                return;
-            }
-        } else {
-            // If we found a command with a space alias, execute with empty args array
-            // Or optionally parse remaining arguments if any
-            try {
-                await command.execute(message, []);
-            } catch (error) {
-                console.error(`Error executing command with space alias:`, error);
-                await message.reply('There was an error trying to execute that command!').catch(console.error);
-            }
-            return;
-        }
-
-        // Command not found or no command handling needed
         if (commandName === 'resetsns') {
             if (!message.member.permissions.has('Administrator')) {
                 return message.reply('You do not have permission to use this command.');
@@ -397,6 +234,13 @@ module.exports = {
             }
 
             return message.reply(lbMessage);
+        }
+
+        try {
+            await command.execute(message, args);
+        } catch (error) {
+            console.error(`Error executing command ${commandName}:`, error);
+            await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
     },
 };
