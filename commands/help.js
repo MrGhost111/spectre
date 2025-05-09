@@ -8,25 +8,41 @@ module.exports = {
         try {
             console.log(`Executing help command for ${interaction.user.tag}`);
 
-            // Check if the user has admin permissions - use PermissionsBitField instead of PermissionFlagsBits
+            // Check if the user has admin permissions
             const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
             console.log(`User ${interaction.user.tag} isAdmin: ${isAdmin}`);
 
-            // Define normal and admin commands manually
+            // Define normal and admin commands manually (sorted alphabetically)
             const normalCommands = [
-                { name: '</mychannel:1279522613986725898> or `,myc`', description: 'Manage your channel' },
                 { name: '</addfriends:1277512176717791278>', description: 'Add friends to your channel' },
+                { name: '`,b99`', description: 'Pick a random episode of Brooklyn Nine-Nine' },
+                { name: '</mychannel:1279522613986725898> or `,myc`', description: 'Manage your channel' },
+                { name: '`,esnipe`', description: 'Displays edited message' },
+                { name: '`,hl`', description: 'Highlight system' },
+                { name: '`,l2l`', description: 'Set up a last-to-leave event' },
+                { name: '`,pin`', description: 'Pin/unpin a message' },
+                { name: '`,resetcd`', description: 'Reset STFU command cooldown' },
                 { name: '</removefriends:1277512176717791282>', description: 'Remove friends from your channel' },
+                { name: '`,seec`', description: 'List all channels user is part of and ensure user is in those channels' },
                 { name: '`,snipe`', description: 'Displays deleted message' },
-                { name: '`,esnipe`', description: 'Displays edited message' }
+                { name: '`,start`', description: 'Start the last-to-leave event' },
+                { name: '`,stfu`', description: 'No need to explain what this is' },
+                { name: '`help`', description: 'See the list of all commands' },
+                { name: '`/promm`', description: 'Command for pro money maker to edit the role' }
             ];
 
             const adminCommands = [
-                { name: '`,deadchannels`', description: 'Admin command to list channels whose owners are no longer in the server.' },
-                { name: '`,seechannels`', description: 'Admin command to list all channels an admin user is part of.' },
-                { name: '`,viewchannel`', description: 'Admin command to view channel info.' },
-                { name: '</faizlame:1278809991985496181>', description: 'Update channel topic to include owners id. Ignore the error at the end.' },
-                { name: '</assign:1277512176717791279>', description: 'Admin command to assign "CURRENT" channel to user' }
+                { name: 'Admin Command: `,deadchannels`', description: 'List channels whose owners are no longer in the server' },
+                { name: 'Admin Command: `,editmm`', description: 'Add/remove donation notes from a money maker' },
+                { name: 'Admin Command: `,resetweekly`', description: 'Reset money makers week manually' },
+                { name: 'Admin Command: `,touchc`', description: 'Scan and fix channels with extra friends or missing owner/req' },
+                { name: 'Admin Command: `,viewc`', description: 'See channel info of a given channel/user' },
+                { name: '</assign:1277512176717791279>', description: 'Assign a channel to a user' },
+                { name: '</faizlame:1278809991985496181>', description: 'Update channel topic to include owner’s ID (ignore the error at the end)' },
+                { name: 'Mod Command: `,allow`', description: 'Let a user bypass auto kick/ban on join' },
+                { name: 'Mod Command: `/say`', description: 'Make bot send a message' },
+                { name: 'Staff Command: `,activity`', description: 'Staff command to see notes' },
+                { name: 'Staff Command: `,viewchannel`', description: 'View channel info' }
             ];
 
             // Create embed to display the commands
@@ -35,14 +51,9 @@ module.exports = {
                 .setColor(0x0099FF) // Using hex color code
                 .setDescription('Here is a list of available commands you can use:')
                 .addFields(
-                    { name: 'Normal Commands', value: normalCommands.map(cmd => `**${cmd.name}**: ${cmd.description}`).join('\n') || 'None' }
+                    { name: 'Normal Commands', value: normalCommands.map(cmd => `**${cmd.name}**: ${cmd.description}`).join('\n') || 'None' },
+                    { name: 'Admin/mod/staff Commands', value: adminCommands.map(cmd => `**${cmd.name}**: ${cmd.description}`).join('\n') || 'None' }
                 );
-
-            if (isAdmin) {
-                embed.addFields(
-                    { name: 'Admin Commands', value: adminCommands.map(cmd => `**${cmd.name}**: ${cmd.description}`).join('\n') || 'None' }
-                );
-            }
 
             try {
                 console.log('Sending help command reply');
