@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
@@ -70,12 +70,15 @@ loadEvents();
 // Client ready handler
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
-    
+
+    // Set the bot's status to idle
+    client.user.setStatus('idle');
+
     // Initialize systems
     client.muteManager = new MuteManager(client);
     console.log('Systems initialized:');
     console.log('- Mute Manager');
-    
+
     // Weekly reset and channel check schedule
     const { weeklyReset } = require('./events/mupdate.js');
     const { weeklyChannelCheck } = require('./utils/autoch.js');
@@ -86,14 +89,14 @@ client.once('ready', () => {
             // Run the weekly reset
             const resetSuccess = await weeklyReset(client);
             console.log(resetSuccess ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
-            
+
             // Run the weekly channel eligibility check with logging to specified channel
             const logChannelId = '843413781409169412'; // Your specified log channel
             const checkResults = await weeklyChannelCheck(client, logChannelId);
             console.log(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
         } catch (error) {
             console.error('Unhandled error during weekly processes:', error);
-            
+
             // Try to log the error to the channel as well
             try {
                 const logChannel = await client.channels.fetch('843413781409169412');
