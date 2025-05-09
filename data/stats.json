@@ -71,6 +71,12 @@
             "totalUses": 3,
             "successes": 2,
             "fails": 1
+        },
+        {
+            "userId": "786612324588060713",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
         }
     ],
     "totalDonations": 18040100101
