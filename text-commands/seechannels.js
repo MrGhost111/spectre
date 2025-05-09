@@ -11,12 +11,13 @@ module.exports = {
         const channelsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         const userChannels = [];
         const addedChannels = [];
+        const archivedCategoryId = '1273361676355244102'; // ID of the archived category
 
         // Check if user owns any channels
         const ownedChannel = Object.values(channelsData).find(
             channelInfo => channelInfo.userId === userId
         );
-        
+
         if (ownedChannel) {
             userChannels.push(ownedChannel.channelId);
         }
@@ -35,13 +36,23 @@ module.exports = {
             return message.reply('You are not listed in any channels.');
         }
 
-        // Check if the user is in those channels and add if not
+        // Check if the user is in those channels and add if not (skipping archived channels)
         for (const channelId of userChannels) {
             const channel = message.guild.channels.cache.get(channelId);
-            if (channel && !channel.members.has(userId)) {
+
+            // Skip if channel doesn't exist
+            if (!channel) continue;
+
+            // Skip channels in archived category
+            if (channel.parentId === archivedCategoryId) {
+                continue;
+            }
+
+            // Add user to channel if they're not already a member
+            if (!channel.members.has(userId)) {
                 try {
-                    await channel.permissionOverwrites.edit(userId, { 
-                        [PermissionsBitField.Flags.ViewChannel]: true 
+                    await channel.permissionOverwrites.edit(userId, {
+                        [PermissionsBitField.Flags.ViewChannel]: true
                     });
                     addedChannels.push(channel);
                 } catch (error) {
@@ -53,9 +64,13 @@ module.exports = {
         // Create embed to display the channels
         const embed = new EmbedBuilder()
             .setTitle('Your Channels')
-            .setDescription(`You have access to the following channels:\n\n${userChannels.map(id => `<#${id}>`).join('\n')}`)
+            .setDescription(`You have access to the following channels:\n\n${userChannels.map(id => {
+                const channel = message.guild.channels.cache.get(id);
+                if (!channel) return `Unknown channel (${id})`;
+                return `<#${id}>${channel.parentId === archivedCategoryId ? ' (archived)' : ''}`;
+            }).join('\n')}`)
             .setColor(Colors.Green);
-        
+
         await message.reply({ embeds: [embed] });
 
         // Inform the user about added channels
