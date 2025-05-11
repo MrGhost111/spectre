@@ -1,59 +1,59 @@
 {
-  "users": [
-    {
-      "userId": "753491023208120321",
-      "totalUses": 285,
-      "successes": 239,
-      "fails": 46
-    },
-    {
-      "userId": "946265224250540054",
-      "totalUses": 1,
-      "successes": 1,
-      "fails": 0
-    },
-    {
-      "userId": "733798791601455154",
-      "totalUses": 4,
-      "successes": 3,
-      "fails": 1
-    },
-    {
-      "userId": "784764536673796126",
-      "totalUses": 6,
-      "successes": 6,
-      "fails": 0
-    },
-    {
-      "userId": "770190440237367316",
-      "totalUses": 1,
-      "successes": 1,
-      "fails": 0
-    },
-    {
-      "userId": "736599653373706262",
-      "totalUses": 2,
-      "successes": 2,
-      "fails": 0
-    },
-    {
-      "userId": "747048507856388096",
-      "totalUses": 2,
-      "successes": 2,
-      "fails": 0
-    },
-    {
-      "userId": "691693416664531085",
-      "totalUses": 1,
-      "successes": 1,
-      "fails": 0
-    },
-    {
-      "userId": "682122261758869504",
-      "totalUses": 1,
-      "successes": 0,
-      "fails": 1
-    }
-  ],
-  "totalDonations": 17940100101
+    "users": [
+        {
+            "userId": "753491023208120321",
+            "totalUses": 285,
+            "successes": 239,
+            "fails": 46
+        },
+        {
+            "userId": "946265224250540054",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
+        },
+        {
+            "userId": "733798791601455154",
+            "totalUses": 4,
+            "successes": 3,
+            "fails": 1
+        },
+        {
+            "userId": "784764536673796126",
+            "totalUses": 6,
+            "successes": 6,
+            "fails": 0
+        },
+        {
+            "userId": "770190440237367316",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
+        },
+        {
+            "userId": "736599653373706262",
+            "totalUses": 3,
+            "successes": 3,
+            "fails": 0
+        },
+        {
+            "userId": "747048507856388096",
+            "totalUses": 2,
+            "successes": 2,
+            "fails": 0
+        },
+        {
+            "userId": "691693416664531085",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
+        },
+        {
+            "userId": "682122261758869504",
+            "totalUses": 1,
+            "successes": 0,
+            "fails": 1
+        }
+    ],
+    "totalDonations": 17940100101
 }
