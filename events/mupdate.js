@@ -193,9 +193,6 @@ async function weeklyReset(client) {
             // Consider notifying admins here
         }
 
-    try {
-        console.log('[RESET] Starting weekly reset process');
-
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
