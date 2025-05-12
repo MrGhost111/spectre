@@ -71,6 +71,12 @@ module.exports = {
     aliases: ['tr', 'simreset'],
     description: 'Test the weekly reset process without affecting real data',
     async execute(client, message, args) {
+        // Check if message.member exists before checking permissions
+        if (!message.member) {
+            console.log('message.member is undefined. This may be a DM or the bot lacks guild member cache.');
+            return message.reply('This command can only be used in a server by an administrator.');
+        }
+
         // Check for admin permissions
         if (!message.member.permissions.has('ADMINISTRATOR')) {
             return message.reply('You need administrator permissions to use this command.');
@@ -104,6 +110,11 @@ module.exports = {
             }
 
             const guild = message.guild;
+
+            // Make sure guild exists
+            if (!guild) {
+                return message.reply('Unable to access guild information. This command must be run in a server.');
+            }
 
             const summary = {
                 demotions: [],
