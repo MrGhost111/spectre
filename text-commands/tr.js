@@ -1,4 +1,4 @@
-﻿const { EmbedBuilder } = require('discord.js');
+﻿const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -74,12 +74,12 @@ module.exports = {
         // Check if message.member exists before checking permissions
         if (!message.member) {
             console.log('message.member is undefined. This may be a DM or the bot lacks guild member cache.');
-            return message.reply('This command can only be used in a server by an administrator.');
+            return message.channel.send('This command can only be used in a server by an administrator.');
         }
 
-        // Check for admin permissions
-        if (!message.member.permissions.has('ADMINISTRATOR')) {
-            return message.reply('You need administrator permissions to use this command.');
+        // Check for admin permissions - Use the proper format for Discord.js v14+
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            return message.channel.send('You need administrator permissions to use this command.');
         }
 
         message.channel.send('🧪 **TEST MODE** - Starting weekly reset simulation. This will NOT affect any real data or roles.');
@@ -113,7 +113,7 @@ module.exports = {
 
             // Make sure guild exists
             if (!guild) {
-                return message.reply('Unable to access guild information. This command must be run in a server.');
+                return message.channel.send('Unable to access guild information. This command must be run in a server.');
             }
 
             const summary = {
