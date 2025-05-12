@@ -202,7 +202,8 @@ async function weeklyReset(client) {
             promotions: []
         };
 
-        let topDonor = null;
+        // Changed to array to track all potential top donors
+        let topDonors = [];
         let topDonation = 0;
         let weeklyDonations = 0;
         const tier2Donations = [];
@@ -217,7 +218,8 @@ async function weeklyReset(client) {
                     usersData[memberId] = {
                         weeklyDonated: 0,
                         totalDonated: 0,
-                        currentTier: hasTier2 ? 2 : 1
+                        currentTier: hasTier2 ? 2 : 1,
+                        lastDonation: new Date().toISOString() // Adding default timestamp
                     };
                 }
             }
@@ -232,11 +234,23 @@ async function weeklyReset(client) {
 
         for (const [userId, userData] of Object.entries(usersData)) {
             weeklyDonations += userData.weeklyDonated || 0;
+
+            // Track all top donors in case of ties
             if (userData.weeklyDonated > topDonation) {
-                topDonor = userId;
+                // New highest donation, clear previous top donors
+                topDonors = [{ id: userId, donation: userData.weeklyDonated, timestamp: userData.lastDonation || new Date().toISOString() }];
                 topDonation = userData.weeklyDonated;
+            } else if (userData.weeklyDonated === topDonation && topDonation > 0) {
+                // Tie with current top donation, add to array
+                topDonors.push({ id: userId, donation: userData.weeklyDonated, timestamp: userData.lastDonation || new Date().toISOString() });
             }
         }
+
+        // Sort top donors by timestamp (earliest first) in case of ties
+        topDonors.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // First in array is the earliest donor with highest amount
+        const topDonor = topDonors.length > 0 ? topDonors[0].id : null;
 
         const { tier1Users, tier2Users } = await getWeeklyStats(client);
         const weeklyStatsEmbed = new EmbedBuilder()
@@ -304,10 +318,17 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                 await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
                 console.log(`[RESET] Added Pro Maker role to ${topDonorMember.user.tag}`);
 
+                // If there was a tie, mention it in the announcement
+                const wasTie = topDonors.length > 1;
+                let tieMessage = '';
+                if (wasTie) {
+                    tieMessage = `\n> *There was a tie for top donor! <@${topDonor}> was selected as they donated first.*`;
+                }
+
                 const topDonorEmbed = new EmbedBuilder()
                     .setTitle('<:winners:1000018706874781806>  Pro Money Maker of the Week')
                     .setColor('#4c00b0')
-                    .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
+                    .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.${tieMessage}`)
                     .setTimestamp();
 
                 await announcementChannel.send({ embeds: [topDonorEmbed] });
