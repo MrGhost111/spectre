@@ -71,15 +71,36 @@ module.exports = {
     aliases: ['tr', 'simreset'],
     description: 'Test the weekly reset process without affecting real data',
     async execute(client, message, args) {
-        // Check if message.member exists before checking permissions
-        if (!message.member) {
-            console.log('message.member is undefined. This may be a DM or the bot lacks guild member cache.');
-            return message.channel.send('This command can only be used in a server by an administrator.');
+        // Safeguard against undefined objects
+        if (!message) {
+            console.error('Message object is undefined in testreset command');
+            return;
+        }
+
+        if (!message.channel) {
+            console.error('Message channel is undefined in testreset command');
+            return;
+        }
+
+        // Handle DM case or missing member case
+        if (!message.guild || !message.member) {
+            console.log('Command used outside a guild or member not cached');
+            try {
+                await message.channel.send('This command can only be used in a server by an administrator.');
+            } catch (error) {
+                console.error('Failed to send error message:', error);
+            }
+            return;
         }
 
         // Check for admin permissions - Use the proper format for Discord.js v14+
         if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            return message.channel.send('You need administrator permissions to use this command.');
+            try {
+                await message.channel.send('You need administrator permissions to use this command.');
+            } catch (error) {
+                console.error('Failed to send permissions message:', error);
+            }
+            return;
         }
 
         message.channel.send('🧪 **TEST MODE** - Starting weekly reset simulation. This will NOT affect any real data or roles.');
