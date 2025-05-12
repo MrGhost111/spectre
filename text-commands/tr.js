@@ -9,7 +9,7 @@ const TIER_1_REQUIREMENT = 35000000;
 const TIER_2_REQUIREMENT = 70000000;
 const TIER_1_ROLE_ID = '783032959350734868';
 const TIER_2_ROLE_ID = '1038888209440067604';
-
+const PRO_MAKER_ROLE_ID = '838478632451178506';
 // Paths for data files
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
