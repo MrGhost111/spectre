@@ -173,6 +173,29 @@ async function weeklyReset(client) {
     try {
         console.log('[RESET] Starting weekly reset process');
 
+        // Explicitly reload the latest data
+        try {
+            if (fs.existsSync(usersFilePath)) {
+                usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
+                console.log('[RESET] Successfully loaded latest user data');
+            } else {
+                console.warn('[RESET] users.json file not found!');
+            }
+
+            if (fs.existsSync(statsFilePath)) {
+                statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
+                console.log('[RESET] Successfully loaded latest stats data');
+            } else {
+                console.warn('[RESET] stats.json file not found!');
+            }
+        } catch (dataLoadError) {
+            console.error('[RESET] Error loading data files:', dataLoadError);
+            // Consider notifying admins here
+        }
+
+    try {
+        console.log('[RESET] Starting weekly reset process');
+
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel = await client.channels.fetch(ADMIN_CHANNEL_ID);
