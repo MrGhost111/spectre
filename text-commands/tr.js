@@ -2,26 +2,32 @@
 const fs = require('fs');
 const path = require('path');
 
-// Constants - these would normally be imported from config, adding them here for testing
-const TIER_1_ROLE_ID = '995621073877176411'; // Replace with actual role ID
-const TIER_2_ROLE_ID = '995621112175558757'; // Replace with actual role ID
-const PRO_MAKER_ROLE_ID = '1098947918127177800'; // Replace with actual role ID
-const TRANSACTION_CHANNEL_ID = '995624090650828812'; // Replace with actual channel ID
-const TIER_1_REQUIREMENT = 50000; // Replace with actual requirement
-const TIER_2_REQUIREMENT = 150000; // Replace with actual requirement
+// Updated Constants with the correct IDs and requirements
+const ANNOUNCEMENT_CHANNEL_ID = '833241820959473724';
+const ACTIVITY_CHANNEL_ID = '1327928516662005770';
+const TRANSACTION_CHANNEL_ID = '833246120389902356';
+const ADMIN_CHANNEL_ID = '966598961353850910';
+const DANK_MEMER_BOT_ID = '270904126974590976';
+
+const TIER_1_ROLE_ID = '783032959350734868';
+const TIER_2_ROLE_ID = '1038888209440067604';
+const PRO_MAKER_ROLE_ID = '838478632451178506';
+
+const TIER_1_REQUIREMENT = 35000000;
+const TIER_2_REQUIREMENT = 70000000;
 
 // Path to data files
-const usersFilePath = path.join(__dirname, '..', 'data', 'users.json');
-const statsFilePath = path.join(__dirname, '..', 'data', 'stats.json');
+const usersFilePath = path.join(__dirname, '../data/users.json');
+const itemsFilePath = path.join(__dirname, '../data/items.json');
+const statsFilePath = path.join(__dirname, '../data/stats.json');
 
-// Helper function for number formatting from the original code
+// Helper function for number formatting
 function formatNumber(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// Import the getWeeklyStats function from the appropriate file
-// For testing, we'll create a simplified version
-async function getWeeklyStats(client) {
+// Get weekly stats function
+async function getWeeklyStats(client, guild) {
     try {
         // Load the user data
         const usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
@@ -29,8 +35,7 @@ async function getWeeklyStats(client) {
         const tier1Users = [];
         const tier2Users = [];
 
-        // Get the guild to check member roles
-        const guild = client.guilds.cache.first();
+        // Get the guild members
         const members = await guild.members.fetch();
 
         for (const [userId, userData] of Object.entries(usersData)) {
@@ -72,41 +77,27 @@ module.exports = {
     description: 'Test the weekly reset process without affecting real data',
     async execute(client, message, args) {
         // Safeguard against undefined objects
-        if (!message) {
-            console.error('Message object is undefined in testreset command');
+        if (!message || !message.channel) {
+            console.error('Message or message.channel is undefined in testreset command');
             return;
         }
-
-        if (!message.channel) {
-            console.error('Message channel is undefined in testreset command');
-            return;
-        }
-
-        // Handle DM case or missing member case
-        if (!message.guild || !message.member) {
-            console.log('Command used outside a guild or member not cached');
-            try {
-                await message.channel.send('This command can only be used in a server by an administrator.');
-            } catch (error) {
-                console.error('Failed to send error message:', error);
-            }
-            return;
-        }
-
-        // Check for admin permissions - Use the proper format for Discord.js v14+
-        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-            try {
-                await message.channel.send('You need administrator permissions to use this command.');
-            } catch (error) {
-                console.error('Failed to send permissions message:', error);
-            }
-            return;
-        }
-
-        message.channel.send('🧪 **TEST MODE** - Starting weekly reset simulation. This will NOT affect any real data or roles.');
-        await message.channel.send('Loading data and calculating results...');
 
         try {
+            // Handle DM case or missing member case
+            if (!message.guild || !message.member) {
+                return await message.channel.send('This command can only be used in a server by an administrator.');
+            }
+
+            // Check for admin permissions
+            if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                return await message.channel.send('You need administrator permissions to use this command.');
+            }
+
+            const channel = message.channel;
+
+            await channel.send('🧪 **TEST MODE** - Starting weekly reset simulation. This will NOT affect any real data or roles.');
+            await channel.send('Loading data and calculating results...');
+
             // Load the current data
             let usersData = {};
             let statsData = {};
@@ -114,19 +105,19 @@ module.exports = {
             try {
                 if (fs.existsSync(usersFilePath)) {
                     usersData = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-                    await message.channel.send('✅ Successfully loaded user data');
+                    await channel.send('✅ Successfully loaded user data');
                 } else {
-                    await message.channel.send('⚠️ users.json file not found! Using empty data for simulation.');
+                    await channel.send('⚠️ users.json file not found! Using empty data for simulation.');
                 }
 
                 if (fs.existsSync(statsFilePath)) {
                     statsData = JSON.parse(fs.readFileSync(statsFilePath, 'utf8'));
-                    await message.channel.send('✅ Successfully loaded stats data');
+                    await channel.send('✅ Successfully loaded stats data');
                 } else {
-                    await message.channel.send('⚠️ stats.json file not found! Using empty data for simulation.');
+                    await channel.send('⚠️ stats.json file not found! Using empty data for simulation.');
                 }
             } catch (dataLoadError) {
-                await message.channel.send(`❌ Error loading data files: ${dataLoadError.message}`);
+                await channel.send(`❌ Error loading data files: ${dataLoadError.message}`);
                 return;
             }
 
@@ -134,7 +125,7 @@ module.exports = {
 
             // Make sure guild exists
             if (!guild) {
-                return message.channel.send('Unable to access guild information. This command must be run in a server.');
+                return await channel.send('Unable to access guild information. This command must be run in a server.');
             }
 
             const summary = {
@@ -148,7 +139,7 @@ module.exports = {
             const tier2Donations = [];
 
             // Calculate weekly summary
-            await message.channel.send('📊 Analyzing member data and calculating promotions/demotions...');
+            await channel.send('📊 Analyzing member data and calculating promotions/demotions...');
 
             const members = await guild.members.fetch();
             for (const [memberId, member] of members) {
@@ -223,18 +214,18 @@ module.exports = {
                         }
                     }
                 } catch (memberError) {
-                    await message.channel.send(`⚠️ Error processing member ${userId}: ${memberError.message}`);
+                    await channel.send(`⚠️ Error processing member ${userId}: ${memberError.message}`);
                 }
             }
 
             // Get weekly stats
-            const { tier1Users, tier2Users } = await getWeeklyStats(client);
+            const { tier1Users, tier2Users } = await getWeeklyStats(client, guild);
 
             // Simulate all the messages that would be sent
-            await message.channel.send('🔄 Generating result messages that would be sent in a real reset...');
+            await channel.send('🔄 Generating result messages that would be sent in a real reset...');
 
             // Separator for clarity
-            await message.channel.send('▬▬▬▬▬▬▬▬▬▬ 📢 ANNOUNCEMENT CHANNEL MESSAGES ▬▬▬▬▬▬▬▬▬▬');
+            await channel.send('▬▬▬▬▬▬▬▬▬▬ 📢 ANNOUNCEMENT CHANNEL MESSAGES ▬▬▬▬▬▬▬▬▬▬');
 
             // Weekly stats embed
             const weeklyStatsEmbed = new EmbedBuilder()
@@ -271,8 +262,8 @@ The scoreboard has now been reset! Thank you for all of your donations. We have 
 Congratulations to any promoted members and good luck for the next week. 
 You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according to your level!!`;
 
-            await message.channel.send(pingMessage);
-            await message.channel.send({ embeds: [weeklyStatsEmbed] });
+            await channel.send(pingMessage);
+            await channel.send({ embeds: [weeklyStatsEmbed] });
 
             // Top donor message
             if (topDonor) {
@@ -282,7 +273,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                     .setDescription(`> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.`)
                     .setTimestamp();
 
-                await message.channel.send({ embeds: [topDonorEmbed] });
+                await channel.send({ embeds: [topDonorEmbed] });
             }
 
             // Promotions message (if any)
@@ -296,11 +287,11 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                         promotionUserIds.map(id => `<:aquadot:860074237954883585> <@${id}>`).join('\n')
                     )
                     .setTimestamp();
-                await message.channel.send({ embeds: [promotionEmbed] });
+                await channel.send({ embeds: [promotionEmbed] });
             }
 
             // Separator for clarity
-            await message.channel.send('▬▬▬▬▬▬▬▬▬▬ 👑 ADMIN CHANNEL MESSAGES ▬▬▬▬▬▬▬▬▬▬');
+            await channel.send('▬▬▬▬▬▬▬▬▬▬ 👑 ADMIN CHANNEL MESSAGES ▬▬▬▬▬▬▬▬▬▬');
 
             // Summary embed for admin channel
             const tier2DonationsList = tier2Donations
@@ -348,16 +339,20 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
 
             // Send summary embed if there's anything to report
             if (summary.demotions.length > 0 || summary.promotions.length > 0 || tier2DonationsList) {
-                await message.channel.send({ embeds: [summaryEmbed] });
+                await channel.send({ embeds: [summaryEmbed] });
             }
 
             // Final message
-            await message.channel.send('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬');
-            await message.channel.send('✅ Weekly reset simulation completed! This was a test only - no actual data or roles were changed.');
+            await channel.send('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬');
+            await channel.send('✅ Weekly reset simulation completed! This was a test only - no actual data or roles were changed.');
 
         } catch (error) {
             console.error('Error during reset simulation:', error);
-            await message.channel.send(`❌ Error during reset simulation: ${error.message}`);
+            if (message.channel) {
+                await message.channel.send(`❌ Error during reset simulation: ${error.message}`);
+            } else {
+                console.error('Could not send error message - channel not available');
+            }
         }
     }
 };
