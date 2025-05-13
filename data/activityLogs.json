@@ -12569,7 +12569,21 @@
       "action": "add",
       "amount": 1,
       "timestamp": 1747063743559
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1747142574188
+    },
+    {
+      "userId": "918097380291772416",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1747142576236
     }
   ],
-  "weekly": {}
+  "weekly": {
+    "918097380291772416": 2
+  }
 }
