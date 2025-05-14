@@ -476,7 +476,9 @@
       "scribble"
     ],
     "blacklist": {
-      "words": [],
+      "words": [
+        "purpose"
+      ],
       "users": [],
       "channels": []
     }
