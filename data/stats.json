@@ -80,9 +80,9 @@
         },
         {
             "userId": "825400508591112282",
-            "totalUses": 4,
+            "totalUses": 5,
             "successes": 4,
-            "fails": 0
+            "fails": 1
         },
         {
             "userId": "827983414308241448",
@@ -158,8 +158,8 @@
         },
         {
             "userId": "756011318913531917",
-            "totalUses": 1,
-            "successes": 1,
+            "totalUses": 2,
+            "successes": 2,
             "fails": 0
         }
     ],
