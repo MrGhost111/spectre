@@ -87,11 +87,11 @@ async function getWeeklyStats(client) {
     return { tier1Users, tier2Users };
 }
 
-// **Tracks donation message edits every 5 seconds for 30 seconds**
+// **Tracks donation message edits every 0.25 seconds for 30 seconds**
 async function trackDonation(client, message, donorId, donationAmount) {
     let attempts = 0;
     const checkInterval = setInterval(async () => {
-        if (attempts >= 6) {
+        if (attempts >= 120) {
             console.log("⏹️ Stopping donation tracking: No confirmation detected within 30 seconds.");
             clearInterval(checkInterval);
             return;
@@ -117,7 +117,7 @@ async function trackDonation(client, message, donorId, donationAmount) {
         }
 
         attempts++;
-    }, 500);
+    }, 250);
 }
 
 // Extract donation amount from message components
