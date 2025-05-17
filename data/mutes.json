@@ -1,17 +1,6 @@
 {
     "users": [
         {
-            "userId": "705687251950239774",
-            "guildId": "673970118744735764",
-            "roleId": "673978861335085107",
-            "muteStartTime": 1747504102,
-            "muteEndTime": 1747528382,
-            "button_clicked": true,
-            "issuerId": "631092568246976513",
-            "muteChainId": "chain_1747504054489_hc4nrz",
-            "usedRiskInChain": true
-        },
-        {
             "userId": "802556469575942164",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
@@ -20,6 +9,39 @@
             "button_clicked": true,
             "issuerId": "825400508591112282",
             "muteChainId": "chain_1747504687054_hefj72",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "705687251950239774",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1747504753,
+            "muteEndTime": 1747505094,
+            "button_clicked": true,
+            "issuerId": "756374124149997588",
+            "muteChainId": "chain_1747504744604_z1qpy2",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "777037380367417344",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1747504768,
+            "muteEndTime": 1747504854,
+            "button_clicked": true,
+            "issuerId": "825400508591112282",
+            "muteChainId": "chain_1747504754279_k2n3s0",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "631092568246976513",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1747504787,
+            "muteEndTime": 1747505063,
+            "button_clicked": true,
+            "issuerId": "753491023208120321",
+            "muteChainId": "chain_1747504770333_m9gqs0",
             "usedRiskInChain": true
         }
     ]
