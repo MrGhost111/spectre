@@ -12671,7 +12671,21 @@
       "action": "add",
       "amount": 1,
       "timestamp": 1747587998612
+    },
+    {
+      "userId": "736599653373706262",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1747650854164
+    },
+    {
+      "userId": "736599653373706262",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1747650855440
     }
   ],
-  "weekly": {}
+  "weekly": {
+    "736599653373706262": 2
+  }
 }
