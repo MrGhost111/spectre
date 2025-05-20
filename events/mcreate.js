@@ -21,25 +21,9 @@ let lastStickyMessageId = null;
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-
-  // Handle DM as chat request
-        if (!message.guild) {
-            try {
-                const response = await openai.chat.completions.create({
-                    model: 'gpt-4-turbo', // Use latest available model
-                    messages: [{ role: 'system', content: 'You are a helpful Discord chatbot.' }, { role: 'user', content: message.content }],
-                });
-
-                await message.channel.send(response.choices[0].message.content);
-            } catch (error) {
-                console.error('Error using OpenAI API:', error);
-                await message.channel.send('Oops! Something went wrong with the chatbot.');
-            }
-            return;
-       }
-
 if (!message.guild) {
-    console.log('Received a DM:', message.content);
+    console.log(`Received DM from ${message.author.tag}: ${message.content}`);
+    await message.channel.send('I see your DM!');
 }
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
