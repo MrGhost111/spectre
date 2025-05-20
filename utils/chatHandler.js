@@ -125,7 +125,7 @@ class ChatHandler {
         this.apiKey = apiKey;
         this.memory = new ChatMemory();
         this.specialUserID = '747048507856388096'; // Nikita's user ID
-        this.adminIDs = ['PUT_YOUR_DISCORD_ID_HERE']; // Add your Discord ID here to receive error logs
+        this.adminIDs = ['753491023208120321']; // Add your Discord ID here to receive error logs
         this.personalInfo = {
             // This contains all the specific details about Nikita
             name: "Nikki",
