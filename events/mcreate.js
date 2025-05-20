@@ -1,85 +1,67 @@
+// events/messageCreate.js
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ChannelType } = require('discord.js'); // Import ChannelType for DM checks [3]
+const OpenAI = require('openai').default; // Import OpenAI for API interaction [2]
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const { OpenAI } = require('openai');
 
 let lastStickyMessageId = null;
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-// For conversation history
-const conversationHistory = new Map();
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle DM messages with OpenAI
-        if (!message.guild && !message.author.bot) {
+        // Handle DM messages by sending to OpenAI
+        if (message.channel.type === ChannelType.DM &&!message.author.bot) { // Check if it's a DM and not from a bot [3]
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
-            
+
             try {
-                // Initialize conversation history if it doesn't exist
-                if (!conversationHistory.has(message.author.id)) {
-                    conversationHistory.set(message.author.id, [
-                        {
-                            role: "system",
-                            content: "You are a helpful assistant in a Discord DM conversation. Keep responses concise and friendly."
-                        }
-                    ]);
+                // Indicate that the bot is typing for better user experience
+                await message.channel.sendTyping();
+
+                // Ensure OpenAI client is initialized and available on the client object
+                if (!client.openai) {
+                    await message.author.send('The AI service is not initialized. Please try again later.');
+                    console.error('OpenAI client not initialized when receiving DM.');
+                    return;
                 }
 
-                const userMessages = conversationHistory.get(message.author.id);
-                userMessages.push({ role: "user", content: message.content });
-
-                // Limit conversation history to last 6 messages to prevent token overflow
-                if (userMessages.length > 6) {
-                    userMessages.splice(1, userMessages.length - 6);
-                }
-
-                // Create chat completion with OpenAI
-                const response = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
-                    messages: userMessages,
-                    max_tokens: 500,
-                    temperature: 0.7
+                // Send the user's message to OpenAI for chat completion
+                const completion = await client.openai.chat.completions.create({ // Use client.openai instance [4, 2]
+                    model: 'gpt-4o', // Specify the AI model to use (e.g., 'gpt-4o' or 'gpt-3.5-turbo') [4]
+                    messages:,
+                    // Optional: Enable streaming for faster perceived responses (uncomment if desired)
+                    // stream: true, // [4]
                 });
 
-                const aiResponse = response.choices[0].message.content;
-                userMessages.push({ role: "assistant", content: aiResponse });
-                
-                // Split response if it's too long for Discord
-                if (aiResponse.length > 2000) {
-                    const parts = [];
-                    for (let i = 0; i < aiResponse.length; i += 2000) {
-                        parts.push(aiResponse.substring(i, i + 2000));
-                    }
-                    for (const part of parts) {
-                        await message.author.send(part);
-                    }
-                } else {
-                    await message.author.send(aiResponse);
-                }
-                
-                console.log(`Successfully sent AI response to ${message.author.tag}`);
+                let aiResponseContent = '';
+
+                // If streaming is NOT enabled (default behavior):
+                aiResponseContent = completion.choices.message.content; // Extract the AI's response content [4]
+
+                // Send the AI's response back to the user via DM
+                await message.author.send(aiResponseContent); // Send DM to the message author [5, 6]
+                console.log(`Sent AI response to ${message.author.tag}`);
+
             } catch (error) {
-                console.error(`Failed to send AI response: ${error.message}`);
-                try {
-                    await message.author.send("Sorry, I encountered an error processing your message. Please try again later.");
-                } catch (sendError) {
-                    console.error(`Also failed to send error message: ${sendError.message}`);
+                console.error('Error interacting with OpenAI API:');
+                if (error instanceof OpenAI.APIError) { // Handle specific OpenAI API errors [4]
+                    console.error(`Status: ${error.status}`);
+                    console.error(`Name: ${error.name}`);
+                    console.error(`Request ID: ${error.request_id}`); // Log request ID for debugging with OpenAI [4]
+                    console.error(`Headers: ${JSON.stringify(error.headers)}`);
+                    await message.author.send('An error occurred while processing your request with OpenAI. Please try again later.');
+                } else {
+                    console.error(error);
+                    await message.author.send('An unexpected error occurred. Please try again later.');
                 }
             }
-            return;
+            return; // Stop further processing for DMs after handling
         }
 
         // One Word Story moderation
-        if (message.channelId === '1346427004299378718' && !message.author.bot) {
+        if (message.channelId === '1346427004299378718' &&!message.author.bot) {
             try {
                 const result = await checkOneWordMessage(message);
                 if (!result.isValid) {
@@ -106,7 +88,7 @@ module.exports = {
         const blacklistCommandHandled = await handleBlacklistCommand(message);
         if (blacklistCommandHandled) return;
 
-        if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
+        if (message.channelId === '673970943244369930' && message.author.id!== client.user.id) {
             try {
                 if (lastStickyMessageId) {
                     try {
@@ -157,9 +139,9 @@ module.exports = {
         ];
 
         if (!message.author.bot &&
-            message.channelId !== faceRevealChannelId &&
+            message.channelId!== faceRevealChannelId &&
             message.channel.parentId &&
-            !blacklistedCategories.includes(message.channel.parentId)) {
+           !blacklistedCategories.includes(message.channel.parentId)) {
 
             const hasImage = message.attachments.some(attachment =>
                 attachment.contentType?.startsWith('image/')) ||
@@ -170,19 +152,19 @@ module.exports = {
                     const logChannel = await client.channels.fetch(logChannelId);
                     if (logChannel) {
                         const embed = new EmbedBuilder()
-                            .setColor('#00ff00')
-                            .setAuthor({
+                           .setColor('#00ff00')
+                           .setAuthor({
                                 name: message.author.tag,
                                 iconURL: message.author.displayAvatarURL({ dynamic: true })
                             })
-                            .setTimestamp()
-                            .addFields(
+                           .setTimestamp()
+                           .addFields(
                                 { name: 'Author ID', value: message.author.id },
                                 { name: 'Channel', value: `<#${message.channel.id}>` },
                                 { name: 'Message Link', value: `[Jump to Message](${message.url})` }
                             );
 
-                        const imageUrls = [];
+                        const imageUrls =;
                         message.attachments.forEach(attachment => {
                             if (attachment.contentType?.startsWith('image/')) {
                                 imageUrls.push(attachment.url);
@@ -190,21 +172,21 @@ module.exports = {
                         });
 
                         const imageMatches = [...message.content.matchAll(/(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/gi)];
-                        imageMatches.forEach(match => imageUrls.push(match[0]));
+                        imageMatches.forEach(match => imageUrls.push(match));
 
                         if (imageUrls.length > 0) {
-                            embed.setImage(imageUrls[0]);
+                            embed.setImage(imageUrls);
                             await logChannel.send({ embeds: [embed] });
 
                             for (let i = 1; i < imageUrls.length; i++) {
                                 const additionalEmbed = new EmbedBuilder()
-                                    .setColor('#00ff00')
-                                    .setAuthor({
+                                   .setColor('#00ff00')
+                                   .setAuthor({
                                         name: message.author.tag,
                                         iconURL: message.author.displayAvatarURL({ dynamic: true })
                                     })
-                                    .setTimestamp()
-                                    .setImage(imageUrls[i]);
+                                   .setTimestamp()
+                                   .setImage(imageUrls[i]);
                                 await logChannel.send({ embeds: [additionalEmbed] });
                             }
                         }
@@ -215,7 +197,7 @@ module.exports = {
             }
         }
 
-        // Mute role update command
+        // Mute role update command - Fixed with proper function declaration
         if (message.content.startsWith('!muterole update') && message.guild) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -230,7 +212,7 @@ module.exports = {
 
             try {
                 await message.channel.send('Waiting for Carl...');
-                
+
                 setTimeout(async () => {
                     try {
                         for (const channelId of eventChannelIds) {
@@ -292,8 +274,8 @@ module.exports = {
             const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
 
             const sortedUsers = Object.entries(donoLogs)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 10);
+               .sort(([, a], [, b]) => b - a)
+               .slice(0, 10);
 
             if (sortedUsers.length === 0) {
                 return message.reply('No donation notes have been set yet!');
