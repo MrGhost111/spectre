@@ -4,33 +4,19 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const { Configuration, OpenAIApi } = require('openai');
-require('dotenv').config();
 
 let lastStickyMessageId = null;
-
-const configuration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle DM messages using OpenAI API
+        // Handle DM messages (echo back what user says)
         if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
             
             try {
-                const response = await openai.createChatCompletion({
-                    model: 'gpt-3.5-turbo',
-                    messages: [
-                        { role: 'user', content: message.content }
-                    ],
-                });
-
-                const reply = response.data.choices[0].message.content.trim();
-                await message.author.send(reply);
+                // Using the proven working method from dmtest command
+                await message.author.send(`You said: "${message.content}"`);
                 console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
                 console.error(`Failed to send DM response: ${error.message}`);
@@ -66,6 +52,7 @@ module.exports = {
         const blacklistCommandHandled = await handleBlacklistCommand(message);
         if (blacklistCommandHandled) return;
 
+        // Sticky message handling
         if (message.channelId === '673970943244369930' && message.author.id !== client.user.id) {
             try {
                 if (lastStickyMessageId) {
@@ -89,10 +76,6 @@ module.exports = {
         }
 
         // Track donation messages from Dank Memer bot
-        const DANK_MEMER_BOT_ID = '270904126974590976';
-        const TRANSACTION_CHANNEL_ID = '833246120389902356';
-
-        // Forward to donation tracker
         await donationTracker.execute(client, message);
 
         // Auto react for specific channel
@@ -105,6 +88,7 @@ module.exports = {
             }
         }
 
+        // Image logging
         const logChannelId = '762404827698954260';
         const faceRevealChannelId = '721347947463180319';
         const blacklistedCategories = [
@@ -202,7 +186,7 @@ module.exports = {
                                 console.log(`Channel not found: ${channelId}`);
                             }
                         }
-                        await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
+                        await message.channel.send('Fixed Carl\'s skill issue by reverting changes made to event channels.');
                     } catch (error) {
                         console.error('Error updating permissions:', error);
                         await message.channel.send('There was an error updating permissions. Please try again.');
@@ -260,7 +244,20 @@ module.exports = {
             }
 
             let lbMessage = '**🏆 Donation Note Setters Leaderboard**\n\n';
-            for (let i = 0; i < sortedUsers
-::contentReference[oaicite:1]{index=1}
- 
+            for (let i = 0; i < sortedUsers.length; i++) {
+                const [userId, count] = sortedUsers[i];
+                lbMessage += `${i + 1}. <@${userId}>: ${count} notes\n`;
+            }
+
+            return message.reply(lbMessage);
+        }
+
+        try {
+            await command.execute(message, args);
+        } catch (error) {
+            console.error(`Error executing command ${commandName}:`, error);
+            await message.reply('There was an error trying to execute that command!').catch(console.error);
+        }
+    },
+};
 
