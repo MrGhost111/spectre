@@ -1,4 +1,19 @@
-const fs = require('fs');
+// Mute role update command
+        if (message.content.startsWith('!muterole update') && message.guild) {
+            const eventChannelIds = [
+                '1296077996435832902',
+                '815478998283976704',
+                '850431178170433556',
+                '944923216982470656',
+                '710788619719409695',
+                '944924520647643156'
+            ];
+
+            const mutedRoleId = '673978861335085107';
+
+            await message.channel.send('Waiting for Carl...');
+
+            setTimeoutconst fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
@@ -11,15 +26,17 @@ module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
         // Handle DM messages (echo back what user says)
-        if (!message.guild && !message.author.bot) {
+        // In Discord.js v14, channel types are represented by numbers, where DM is type 1
+        if (message.channel.type === 1 && !message.author.bot) {
+            console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
+            
             try {
-                // Echo back the message to test DM functionality
-                await message.reply(`I received your DM: "${message.content}"`);
-                console.log(`Received DM from ${message.author.tag}: ${message.content}`);
-                return;
+                await message.author.send(`You said: "${message.content}"`);
+                console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
-                console.error('Error handling DM:', error);
+                console.error(`Failed to send DM response: ${error.message}`);
             }
+            return;
         }
 
         // One Word Story moderation
