@@ -11,11 +11,11 @@ module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
         // Handle DM messages (echo back what user says)
-        // In Discord.js v14, channel types are represented by numbers, where DM is type 1
-        if (message.channel.type === 1 && !message.author.bot) {
+        if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
             
             try {
+                // Using the proven working method from dmtest command
                 await message.author.send(`You said: "${message.content}"`);
                 console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
