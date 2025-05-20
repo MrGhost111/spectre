@@ -4,6 +4,12 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
+const { Configuration, OpenAIApi } = require('openai');
+require('dotenv').config();
+
+const openai = new OpenAIApi(new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+}));
 
 let lastStickyMessageId = null;
 
@@ -15,7 +21,6 @@ module.exports = {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
             
             try {
-                // Using the proven working method from dmtest command
                 await message.author.send(`You said: "${message.content}"`);
                 console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
@@ -32,7 +37,6 @@ module.exports = {
                     await message.delete();
                     const warningMsg = await message.channel.send(result.message);
 
-                    // Delete the warning after 5 seconds
                     setTimeout(async () => {
                         try {
                             await warningMsg.delete();
@@ -203,13 +207,32 @@ module.exports = {
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
             try {
-                // Skip highlight checking if the message author is a bot
                 if (!message.author.bot) {
                     await checkMessageForHighlights(client, message);
                 }
             } catch (error) {
                 console.error('Error checking highlights:', error);
             }
+
+            // OpenAI Integration
+            try {
+                const response = await openai.createChatCompletion({
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                        { role: 'system', content: 'You are a helpful assistant.' },
+                        { role: 'user', content: message.content }
+                    ],
+                    max_tokens: 150,
+                });
+
+                const reply = response.data.choices[0].message.content.trim();
+                if (reply) {
+                    await message.reply(reply);
+                }
+            } catch (error) {
+                console.error('Error with OpenAI API:', error);
+            }
+
             return;
         }
 
