@@ -48,11 +48,7 @@ async function logToDiscord(message, isError = false) {
                 if (logChannel) {
                     await logChannel.send(formattedMessage);
                 }
-            } catch (channelError) {
-                // Both methods failed, can only log to console at this point
-                console.error('Failed to log to Discord channel:', channelError);
-            }
-        }
+           
     } catch (error) {
         // Critical error in logging function itself
         console.error('Critical error in logging function:', error);
