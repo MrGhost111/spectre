@@ -1,19 +1,4 @@
-// Mute role update command
-        if (message.content.startsWith('!muterole update') && message.guild) {
-            const eventChannelIds = [
-                '1296077996435832902',
-                '815478998283976704',
-                '850431178170433556',
-                '944923216982470656',
-                '710788619719409695',
-                '944924520647643156'
-            ];
-
-            const mutedRoleId = '673978861335085107';
-
-            await message.channel.send('Waiting for Carl...');
-
-            setTimeoutconst fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
@@ -176,8 +161,8 @@ module.exports = {
             }
         }
 
-        // Mute role update command
-        if (message.content.startsWith('!muterole update')) {
+        // Mute role update command - Fixed with proper function declaration
+        if (message.content.startsWith('!muterole update') && message.guild) {
             const eventChannelIds = [
                 '1296077996435832902',
                 '815478998283976704',
@@ -189,26 +174,30 @@ module.exports = {
 
             const mutedRoleId = '673978861335085107';
 
-            await message.channel.send('Waiting for Carl...');
-
-            setTimeout(async () => {
-                try {
-                    for (const channelId of eventChannelIds) {
-                        const channel = await message.guild.channels.fetch(channelId);
-                        if (channel) {
-                            await channel.permissionOverwrites.edit(mutedRoleId, { ViewChannel: null, SendMessages: null });
-                            console.log(`Updated permissions for muted role in channel: ${channel.id}`);
-                        } else {
-                            console.log(`Channel not found: ${channelId}`);
+            try {
+                await message.channel.send('Waiting for Carl...');
+                
+                setTimeout(async () => {
+                    try {
+                        for (const channelId of eventChannelIds) {
+                            const channel = await message.guild.channels.fetch(channelId);
+                            if (channel) {
+                                await channel.permissionOverwrites.edit(mutedRoleId, { ViewChannel: null, SendMessages: null });
+                                console.log(`Updated permissions for muted role in channel: ${channel.id}`);
+                            } else {
+                                console.log(`Channel not found: ${channelId}`);
+                            }
                         }
+                        await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
+                    } catch (error) {
+                        console.error('Error updating permissions:', error);
+                        await message.channel.send('There was an error updating permissions. Please try again.');
                     }
-                    await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
-                } catch (error) {
-                    console.error('Error updating permissions:', error);
-                    await message.channel.send('There was an error updating permissions. Please try again.');
-                }
-            }, 5000);
-            return;
+                }, 5000);
+                return;
+            } catch (error) {
+                console.error('Error in muterole update command:', error);
+            }
         }
 
         const prefix = ',';
