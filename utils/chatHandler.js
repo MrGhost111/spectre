@@ -8,6 +8,11 @@ const axios = require('axios');
 class ChatMemory {
     constructor() {
         this.memoryPath = path.join(__dirname, '../data/chatMemory.json');
+        // Create directory if it doesn't exist
+        const dir = path.dirname(this.memoryPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
         this.memory = this.loadMemory();
         this.specialUserID = '747048507856388096'; // Nikita's user ID
 
@@ -196,6 +201,12 @@ Use proper grammar and maintain a conversational tone.
         const recentMessages = this.memory.getRecentMessages(userId, 5);
 
         try {
+            // Validate the API key before making the request
+            if (!this.apiKey || this.apiKey.trim() === '') {
+                console.error('OpenAI API key is missing or invalid');
+                return "Sorry, my configuration is incomplete. Please notify the server admin about this issue.";
+            }
+
             const messages = [
                 { role: "system", content: systemPrompt }
             ];
@@ -209,6 +220,15 @@ Use proper grammar and maintain a conversational tone.
             // Add current message
             messages.push({ role: "user", content: message });
 
+            // Log request details for debugging (excluding the API key)
+            console.log(`[${new Date().toISOString()}] Making OpenAI API request for user ${userId}`);
+            console.log('Request payload:', JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) + (m.content.length > 50 ? '...' : '') })),
+                max_tokens: 500,
+                temperature: 0.7
+            }, null, 2));
+
             const response = await axios.post(
                 'https://api.openai.com/v1/chat/completions',
                 {
@@ -221,11 +241,13 @@ Use proper grammar and maintain a conversational tone.
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`
-                    }
+                    },
+                    timeout: 10000 // 10 seconds timeout
                 }
             );
 
             const aiResponse = response.data.choices[0].message.content;
+            console.log(`[${new Date().toISOString()}] Received successful response from OpenAI API`);
 
             // Store this conversation
             this.memory.addMessage(userId, message, aiResponse);
@@ -233,10 +255,32 @@ Use proper grammar and maintain a conversational tone.
             return aiResponse;
 
         } catch (error) {
-            console.error('Error generating AI response:', error);
+            // Detailed error logging
+            console.error(`[${new Date().toISOString()}] Error generating AI response:`, error.message);
+
             if (error.response) {
-                console.error('API Error:', error.response.data);
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                console.error('API Error Status:', error.response.status);
+                console.error('API Error Data:', JSON.stringify(error.response.data, null, 2));
+
+                // Return specific error message based on status code
+                if (error.response.status === 401) {
+                    return "My access key seems to be invalid. Please notify the server admin about this authentication issue.";
+                } else if (error.response.status === 429) {
+                    return "I've reached my thinking limit for now. Please try again in a minute or two.";
+                } else if (error.response.status >= 500) {
+                    return "The AI service is experiencing issues right now. Please try again later.";
+                }
+            } else if (error.request) {
+                // The request was made but no response was received
+                console.error('No response received from API');
+                return "I can't seem to reach my thinking service right now. Please check your internet connection and try again.";
+            } else {
+                // Something happened in setting up the request that triggered an Error
+                console.error('Error setting up request:', error.message);
             }
+
             return "I'm having trouble connecting to my thinking circuits right now. Could you try again in a moment?";
         }
     }
@@ -251,6 +295,8 @@ Use proper grammar and maintain a conversational tone.
             // Check if it's our special user
             const isSpecialUser = message.author.id === this.specialUserID;
 
+            console.log(`[${new Date().toISOString()}] Received DM from ${isSpecialUser ? 'special user' : 'user'} ${message.author.tag} (${message.author.id}): ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`);
+
             // Generate AI response
             const response = await this.generateResponse(message.author.id, message.content);
 
@@ -263,17 +309,59 @@ Use proper grammar and maintain a conversational tone.
                         "❤️"; // Fallback to a heart if emote not found
                     await message.react(emote);
                 } catch (err) {
-                    console.error("Error adding reaction:", err);
+                    console.error(`[${new Date().toISOString()}] Error adding reaction:`, err.message);
                     // Silently fail if reaction doesn't work
                 }
             }
 
             // Send the response
+            console.log(`[${new Date().toISOString()}] Sending response to ${message.author.tag}: ${response.substring(0, 50)}${response.length > 50 ? '...' : ''}`);
             await message.reply(response);
 
         } catch (error) {
-            console.error('Error handling DM:', error);
+            console.error(`[${new Date().toISOString()}] Error handling DM:`, error.message);
             await message.reply("I'm having a bit of a glitch right now. Please try again in a moment.");
+        }
+    }
+
+    // Method to test API connection
+    async testOpenAIConnection() {
+        try {
+            const response = await axios.post(
+                'https://api.openai.com/v1/chat/completions',
+                {
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "user", content: "Hello" }],
+                    max_tokens: 5
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.apiKey}`
+                    },
+                    timeout: 5000 // 5 seconds timeout
+                }
+            );
+
+            return {
+                success: true,
+                message: "Successfully connected to OpenAI API"
+            };
+        } catch (error) {
+            let errorMessage = "Unknown error testing OpenAI connection";
+
+            if (error.response) {
+                errorMessage = `API responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`;
+            } else if (error.request) {
+                errorMessage = "No response received from OpenAI API";
+            } else {
+                errorMessage = `Request setup error: ${error.message}`;
+            }
+
+            return {
+                success: false,
+                message: errorMessage
+            };
         }
     }
 }
@@ -294,5 +382,10 @@ module.exports = {
             throw new Error("ChatHandler not initialized. Call initialize() with an API key first.");
         }
         return handler;
+    },
+    // Export test connection method to be called directly
+    testConnection: async (apiKey) => {
+        const tempHandler = new ChatHandler(apiKey);
+        return await tempHandler.testOpenAIConnection();
     }
 };
