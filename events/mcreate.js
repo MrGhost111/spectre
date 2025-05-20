@@ -4,27 +4,24 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const OpenAI = require('openai'); // Import OpenAI
-require('dotenv').config(); // Import dotenv for environment variables
-
-// Initialize OpenAI with the new client
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Store conversation history for each user
-const conversationHistory = new Map();
-const MAX_HISTORY_LENGTH = 10; // Limit conversation history to prevent token overflow
 
 let lastStickyMessageId = null;
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-if (!message.guild) {
-    console.log(`Received DM from ${message.author.tag}: ${message.content}`);
-    await message.channel.send('I see your DM!');
-}
+        // Handle DM messages (echo back what user says)
+        if (!message.guild && !message.author.bot) {
+            try {
+                // Echo back the message to test DM functionality
+                await message.reply(`I received your DM: "${message.content}"`);
+                console.log(`Received DM from ${message.author.tag}: ${message.content}`);
+                return;
+            } catch (error) {
+                console.error('Error handling DM:', error);
+            }
+        }
+
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
@@ -259,122 +256,3 @@ if (!message.guild) {
         }
     },
 };
-
-// Function to handle chatbot DMs
-async function handleChatbotDM(client, message) {
-    const userId = message.author.id;
-    
-    // Initialize conversation history for this user if it doesn't exist
-    if (!conversationHistory.has(userId)) {
-        conversationHistory.set(userId, []);
-    }
-    
-    const userHistory = conversationHistory.get(userId);
-    
-    // Add user message to history
-    userHistory.push({
-        role: 'user',
-        content: message.content
-    });
-    
-    // Maintain history within limits
-    if (userHistory.length > MAX_HISTORY_LENGTH * 2) { // *2 because each exchange has 2 messages
-        userHistory.splice(0, 2); // Remove oldest exchange (user + assistant)
-    }
-    
-    // Send typing indicator to show the bot is "thinking"
-    await message.channel.sendTyping();
-    
-    try {
-        // Add system message at the beginning for context
-        const conversationWithSystem = [
-            {
-                role: 'system',
-                content: 'You are a helpful assistant for a Discord server. Be friendly, concise, and helpful. Keep responses under 2000 characters to fit in Discord messages.'
-            },
-            ...userHistory
-        ];
-        
-        // Make API call to OpenAI
-        const response = await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: conversationWithSystem,
-            max_tokens: 1000,
-            temperature: 0.7,
-        });
-        
-        // Get the response text
-        const responseText = response.choices[0].message.content.trim();
-        
-        // Add bot response to conversation history
-        userHistory.push({
-            role: 'assistant',
-            content: responseText
-        });
-        
-        // Split long messages if needed (Discord has 2000 character limit)
-        if (responseText.length <= 2000) {
-            await message.reply(responseText);
-        } else {
-            // Split into chunks
-            const chunks = splitMessage(responseText);
-            for (const chunk of chunks) {
-                await message.channel.send(chunk);
-            }
-        }
-        
-    } catch (error) {
-        console.error('Error with OpenAI API:', error);
-        
-        // Check if it's specifically an API key issue
-        if (error.response && error.response.status === 401) {
-            await message.reply("I'm having trouble connecting to my brain. Please ask the server admin to check my API key configuration.");
-        } else {
-            await message.reply("Sorry, I'm having trouble processing your request right now. Please try again later.");
-        }
-    }
-}
-
-// Helper function to split messages that exceed Discord's character limit
-function splitMessage(text, maxLength = 1990) {
-    const chunks = [];
-    let currentChunk = '';
-    
-    // Split by paragraphs to try to keep content coherent
-    const paragraphs = text.split('\n');
-    
-    for (const paragraph of paragraphs) {
-        // If adding this paragraph would exceed the limit
-        if (currentChunk.length + paragraph.length + 1 > maxLength) {
-            // If the current chunk isn't empty, push it
-            if (currentChunk.length > 0) {
-                chunks.push(currentChunk);
-                currentChunk = '';
-            }
-            
-            // If the paragraph itself is too long, split it
-            if (paragraph.length > maxLength) {
-                const words = paragraph.split(' ');
-                for (const word of words) {
-                    if (currentChunk.length + word.length + 1 > maxLength) {
-                        chunks.push(currentChunk);
-                        currentChunk = word + ' ';
-                    } else {
-                        currentChunk += word + ' ';
-                    }
-                }
-            } else {
-                currentChunk = paragraph + '\n';
-            }
-        } else {
-            currentChunk += paragraph + '\n';
-        }
-    }
-    
-    // Don't forget the last chunk
-    if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-    }
-    
-    return chunks;
-}
