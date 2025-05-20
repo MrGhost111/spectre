@@ -14,7 +14,7 @@ const LOG_CHANNEL_ID = '1349968940973166645'; // Replace with your log channel I
 const ADMIN_USER_ID = '753491023208120321'; // Replace with your user ID to receive DM logs
 
 const client = new Client({
-    intents:
+    intents: [
         GatewayIntentBits.DirectMessageReactions,
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
