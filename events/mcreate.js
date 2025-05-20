@@ -4,14 +4,13 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const { Configuration, OpenAIApi } = require('openai'); // Import OpenAI
+const OpenAI = require('openai'); // Import OpenAI
 require('dotenv').config(); // Import dotenv for environment variables
 
-// Initialize OpenAI
-const configuration = new Configuration({
+// Initialize OpenAI with the new client
+const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 // Store conversation history for each user
 const conversationHistory = new Map();
@@ -305,7 +304,7 @@ async function handleChatbotDM(client, message) {
         ];
         
         // Make API call to OpenAI
-        const response = await openai.createChatCompletion({
+        const response = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
             messages: conversationWithSystem,
             max_tokens: 1000,
@@ -313,7 +312,7 @@ async function handleChatbotDM(client, message) {
         });
         
         // Get the response text
-        const responseText = response.data.choices[0].message.content.trim();
+        const responseText = response.choices[0].message.content.trim();
         
         // Add bot response to conversation history
         userHistory.push({
