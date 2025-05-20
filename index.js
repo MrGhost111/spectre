@@ -6,8 +6,8 @@ const MuteManager = require('./utils/muteManager');
 require('dotenv').config();
 
 // Define log channel ID for system issues
-const LOG_CHANNEL_ID = 'REPLACE_WITH_YOUR_LOG_CHANNEL_ID'; // Replace with your log channel ID
-const ADMIN_USER_ID = 'REPLACE_WITH_YOUR_ADMIN_ID'; // Replace with your user ID to receive DM logs
+const LOG_CHANNEL_ID = '1349968940973166645'; // Replace with your log channel ID
+const ADMIN_USER_ID = '753491023208120321'; // Replace with your user ID to receive DM logs
 
 const client = new Client({
     intents: [
@@ -137,7 +137,7 @@ const loadEvents = async () => {
 const initializeChatHandler = async () => {
     try {
         // Get the API key from environment variables for security
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = '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';
 
         if (!apiKey) {
             await logToDiscord('OpenAI API key not found in environment variables. ChatHandler initialization failed.', true);

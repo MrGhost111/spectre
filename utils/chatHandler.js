@@ -31,12 +31,9 @@ class ChatMemory {
             if (fs.existsSync(this.memoryPath)) {
                 return JSON.parse(fs.readFileSync(this.memoryPath, 'utf8'));
             }
-            fs.mkdirSync(path.join(__dirname, '../data'), { recursive: true });
-            fs.writeFileSync(this.memoryPath, '{}', 'utf8');
             return {};
         } catch (error) {
-            // Log error to memory rather than console
-            this.logError(`Error loading chat memory: ${error.message}`);
+            console.error('Error loading chat memory:', error);
             return {};
         }
     }
@@ -45,8 +42,7 @@ class ChatMemory {
         try {
             fs.writeFileSync(this.memoryPath, JSON.stringify(this.memory, null, 2), 'utf8');
         } catch (error) {
-            // Log error to memory rather than console
-            this.logError(`Error saving chat memory: ${error.message}`);
+            console.error('Error saving chat memory:', error);
         }
     }
 
@@ -88,36 +84,6 @@ class ChatMemory {
         const userMemory = this.getUserMemory(userId);
         return userMemory.conversationHistory.slice(-count);
     }
-
-    // Store errors for later sending to Discord
-    logError(errorMessage) {
-        if (!this.memory.errors) {
-            this.memory.errors = [];
-        }
-        this.memory.errors.push({
-            timestamp: Date.now(),
-            message: errorMessage
-        });
-        // Keep the error log manageable
-        if (this.memory.errors.length > 100) {
-            this.memory.errors = this.memory.errors.slice(-100);
-        }
-        // Still try to save memory even though we're in an error state
-        try {
-            fs.writeFileSync(this.memoryPath, JSON.stringify(this.memory, null, 2), 'utf8');
-        } catch (e) {
-            // Cannot log or save - critical failure
-        }
-    }
-
-    getErrors() {
-        return this.memory.errors || [];
-    }
-
-    clearErrors() {
-        this.memory.errors = [];
-        this.saveMemory();
-    }
 }
 
 class ChatHandler {
@@ -125,7 +91,6 @@ class ChatHandler {
         this.apiKey = apiKey;
         this.memory = new ChatMemory();
         this.specialUserID = '747048507856388096'; // Nikita's user ID
-        this.adminIDs = ['753491023208120321']; // Add your Discord ID here to receive error logs
         this.personalInfo = {
             // This contains all the specific details about Nikita
             name: "Nikki",
@@ -268,24 +233,10 @@ Use proper grammar and maintain a conversational tone.
             return aiResponse;
 
         } catch (error) {
-            let errorMessage = 'Error generating AI response: ';
-
+            console.error('Error generating AI response:', error);
             if (error.response) {
-                errorMessage += JSON.stringify(error.response.data);
-            } else if (error.request) {
-                errorMessage += 'No response received from API';
-            } else {
-                errorMessage += error.message;
+                console.error('API Error:', error.response.data);
             }
-
-            // Log the error to memory
-            this.memory.logError(errorMessage);
-
-            // Send error logs to admin if this is an admin
-            if (this.adminIDs.includes(userId)) {
-                return `Error generating response: ${errorMessage}`;
-            }
-
             return "I'm having trouble connecting to my thinking circuits right now. Could you try again in a moment?";
         }
     }
@@ -296,42 +247,6 @@ Use proper grammar and maintain a conversational tone.
         try {
             // Show typing indicator
             await message.channel.sendTyping();
-
-            const userId = message.author.id;
-
-            // Special admin command to get error logs
-            if (this.adminIDs.includes(userId) && message.content.toLowerCase() === '!errors') {
-                const errors = this.memory.getErrors();
-                if (errors.length === 0) {
-                    await message.reply("No errors logged.");
-                    return;
-                }
-
-                // Send last 10 errors as an embed
-                const embed = new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('Error Logs')
-                    .setDescription('Last 10 errors from the chat system');
-
-                const recentErrors = errors.slice(-10);
-                recentErrors.forEach((error, index) => {
-                    const date = new Date(error.timestamp).toLocaleString();
-                    embed.addFields({
-                        name: `Error ${index + 1} - ${date}`,
-                        value: error.message.substring(0, 1024)
-                    });
-                });
-
-                await message.reply({ embeds: [embed] });
-                return;
-            }
-
-            // Special admin command to clear error logs
-            if (this.adminIDs.includes(userId) && message.content.toLowerCase() === '!clearerrors') {
-                this.memory.clearErrors();
-                await message.reply("Error logs cleared.");
-                return;
-            }
 
             // Check if it's our special user
             const isSpecialUser = message.author.id === this.specialUserID;
@@ -348,7 +263,7 @@ Use proper grammar and maintain a conversational tone.
                         "❤️"; // Fallback to a heart if emote not found
                     await message.react(emote);
                 } catch (err) {
-                    this.memory.logError(`Error adding reaction: ${err.message}`);
+                    console.error("Error adding reaction:", err);
                     // Silently fail if reaction doesn't work
                 }
             }
@@ -357,12 +272,8 @@ Use proper grammar and maintain a conversational tone.
             await message.reply(response);
 
         } catch (error) {
-            this.memory.logError(`Error handling DM: ${error.message}`);
-            try {
-                await message.reply("I'm having a bit of a glitch right now. Please try again in a moment.");
-            } catch (replyError) {
-                this.memory.logError(`Failed to send error message: ${replyError.message}`);
-            }
+            console.error('Error handling DM:', error);
+            await message.reply("I'm having a bit of a glitch right now. Please try again in a moment.");
         }
     }
 }
@@ -375,15 +286,8 @@ module.exports = {
         if (!apiKey) {
             throw new Error("OpenAI API key is required to initialize ChatHandler");
         }
-
-        try {
-            handler = new ChatHandler(apiKey);
-            return handler;
-        } catch (error) {
-            // Can't use memory logging here since it's not initialized yet
-            console.error("Critical error initializing ChatHandler:", error);
-            throw error;
-        }
+        handler = new ChatHandler(apiKey);
+        return handler;
     },
     getInstance: () => {
         if (!handler) {
