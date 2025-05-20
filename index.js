@@ -41,15 +41,7 @@ async function logToDiscord(message, isError = false) {
         // Check if client is ready before attempting to send messages
         if (!client.isReady()) return;
 
-        // Try sending to admin DM
-        try {
-            const admin = await client.users.fetch(ADMIN_USER_ID);
-            if (admin) {
-                await admin.send(formattedMessage);
-            }
-        } catch (dmError) {
-            console.error('Failed to send log to admin DM:', dmError);
-
+        
             // If DM fails, try logging to a channel
             try {
                 const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
