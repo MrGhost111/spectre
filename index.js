@@ -67,7 +67,7 @@ const loadEvents = () => {
 loadCommands();
 loadEvents();
 try {
-    const chatHandler = require('./utils/chatHandler').initialize('YOUR_OPENAI_API_KEY');
+    const chatHandler = require('./utils/chatHandler').initialize('YOUR_OPENAI_API_KEYsk-proj-THHCaz6THFpHfCIJAcTSMmqxxCkBsQkh0ADJkOXjNTYJgaIf54OLbA6D-AwHyUxu93UTz59z8RT3BlbkFJAq5N5J8t64rnQuVxcJZcfZan92R1hv0ZUWjAsHLHS4ys7JLwf-ZMdUjRHO3PQPCa_SWyTK_IwA');
     console.log('ChatHandler initialized successfully');
 } catch (error) {
     console.error('Failed to initialize ChatHandler:', error);
