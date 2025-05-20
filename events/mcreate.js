@@ -36,20 +36,11 @@ module.exports = {
                 await message.channel.send('Oops! Something went wrong with the chatbot.');
             }
             return;
-        }
+       }
 
-        // Handle DMs to the bot (ChatBot functionality)
-        if (!message.guild && !message.author.bot) {
-            try {
-                await handleChatbotDM(client, message);
-                return; // Return early to skip other checks for DMs
-            } catch (error) {
-                console.error('Error handling chatbot DM:', error);
-                await message.reply('Sorry, I encountered an error while processing your message. Please try again later.');
-                return;
-            }
-        }
-
+if (!message.guild) {
+    console.log('Received a DM:', message.content);
+}
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
