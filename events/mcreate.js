@@ -1,15 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
-const { Configuration, OpenAIApi } = require('openai');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
+const { Configuration, OpenAIApi } = require('openai');
 require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// Initialize OpenAI API
 const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -18,19 +17,16 @@ const openai = new OpenAIApi(configuration);
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle DM messages using OpenAI
+        // Handle DM messages using OpenAI API
         if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
-
+            
             try {
                 const response = await openai.createChatCompletion({
                     model: 'gpt-3.5-turbo',
                     messages: [
-                        { role: 'system', content: 'You are a helpful assistant.' },
                         { role: 'user', content: message.content }
                     ],
-                    max_tokens: 150,
-                    temperature: 0.7,
                 });
 
                 const reply = response.data.choices[0].message.content.trim();
@@ -38,7 +34,6 @@ module.exports = {
                 console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
                 console.error(`Failed to send DM response: ${error.message}`);
-                await message.author.send('Sorry, I encountered an error while processing your message.');
             }
             return;
         }
@@ -180,7 +175,7 @@ module.exports = {
             }
         }
 
-        // Mute role update command - Fixed with proper function declaration
+        // Mute role update command
         if (message.content.startsWith('!muterole update') && message.guild) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -195,7 +190,7 @@ module.exports = {
 
             try {
                 await message.channel.send('Waiting for Carl...');
-
+                
                 setTimeout(async () => {
                     try {
                         for (const channelId of eventChannelIds) {
@@ -265,10 +260,7 @@ module.exports = {
             }
 
             let lbMessage = '**🏆 Donation Note Setters Leaderboard**\n\n';
-            for (let i = 0; i < sortedUsers.length; i++) {
-                const [userId, count] = sortedUsers[i];
-                lbMessage += `${i + 1}. <@${userId}>: ${count} notes\n`;
-            }
-
-            return
+            for (let i = 0; i < sortedUsers
+::contentReference[oaicite:1]{index=1}
+ 
 
