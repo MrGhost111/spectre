@@ -1,14 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const axios = require('axios');
-require('dotenv').config();
+const { ChatHandler } = require('../utils/chatHandler');
 
 let lastStickyMessageId = null;
-const chatHistories = new Map();
 
 module.exports = {
     name: 'messageCreate',
@@ -18,60 +16,30 @@ module.exports = {
         if (!message.guild) {
             try {
                 await message.channel.sendTyping();
+                const response = await ChatHandler.generateResponse(message.author.id, message.content);
                 
-                if (!chatHistories.has(message.author.id)) {
-                    chatHistories.set(message.author.id, []);
-                }
-                const history = chatHistories.get(message.author.id);
-
-                const messages = [
-                    {
-                        role: "system",
-                        content: "You are a helpful AI assistant. Keep responses concise and friendly."
-                    },
-                    ...history.slice(-4),
-                    {
-                        role: "user",
-                        content: message.content
-                    }
-                ];
-
-                const response = await axios.post(
-                    'https://api.openai.com/v1/chat/completions',
-                    {
-                        model: "gpt-3.5-turbo",
-                        messages: messages,
-                        max_tokens: 500,
-                        temperature: 0.7
-                    },
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-                        },
-                        timeout: 10000
-                    }
-                );
-
-                const aiResponse = response.data.choices[0].message.content;
-                
-                history.push(
-                    { role: "user", content: message.content },
-                    { role: "assistant", content: aiResponse }
-                );
-                
-                if (history.length > 10) {
-                    chatHistories.set(message.author.id, history.slice(-10));
+                if (response.length > 1999) {
+                    const buffer = Buffer.from(response, 'utf-8');
+                    const attachment = new AttachmentBuilder(buffer, { name: 'response.txt' });
+                    return message.reply({
+                        content: 'Response too long - sending as file:',
+                        files: [attachment]
+                    });
                 }
                 
-                return message.reply(aiResponse);
+                return message.reply(response);
             } catch (error) {
-                console.error('AI Error:', error);
-                return message.reply("I'm having trouble responding. Please try again later.");
+                console.error('AI Chat Error:', error);
+                try {
+                    await message.reply("I'm having technical difficulties. Please try again later!");
+                } catch (replyError) {
+                    console.error('Failed to send error reply:', replyError);
+                }
+                return;
             }
         }
 
-        if (message.channelId === '1346427004299378718') {
+        if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
                 const result = await checkOneWordMessage(message);
                 if (!result.isValid) {
@@ -98,7 +66,7 @@ module.exports = {
                         const oldMessage = await message.channel.messages.fetch(lastStickyMessageId);
                         if (oldMessage) await oldMessage.delete();
                     } catch (error) {
-                        console.error('Sticky Message Delete Error:', error);
+                        console.error('Error deleting old sticky message:', error);
                     }
                 }
 
@@ -107,7 +75,7 @@ module.exports = {
                 );
                 lastStickyMessageId = stickyMessage.id;
             } catch (error) {
-                console.error('Sticky Message Error:', error);
+                console.error('Error handling sticky message:', error);
             }
         }
 
@@ -118,7 +86,7 @@ module.exports = {
                 await message.react('<:upvote:1303963379945181224>');
                 await message.react('<:downvote:1303963004915679232>');
             } catch (error) {
-                console.error('Reaction Error:', error);
+                console.error('Error adding reactions:', error);
             }
         }
 
@@ -133,7 +101,8 @@ module.exports = {
             '720398363186692216'
         ];
 
-        if (message.channelId !== faceRevealChannelId &&
+        if (!message.author.bot &&
+            message.channelId !== faceRevealChannelId &&
             message.channel.parentId &&
             !blacklistedCategories.includes(message.channel.parentId)) {
 
@@ -186,7 +155,7 @@ module.exports = {
                         }
                     }
                 } catch (error) {
-                    console.error('Image Log Error:', error);
+                    console.error('Error logging image:', error);
                 }
             }
         }
@@ -215,8 +184,8 @@ module.exports = {
                     }
                     await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
                 } catch (error) {
-                    console.error('Mute Role Error:', error);
-                    await message.channel.send('Error updating permissions. Please try again.');
+                    console.error('Error updating permissions:', error);
+                    await message.channel.send('There was an error updating permissions. Please try again.');
                 }
             }, 5000);
             return;
@@ -225,10 +194,13 @@ module.exports = {
         const prefix = ',';
 
         if (!message.content.startsWith(prefix)) {
+            if (!message.guild) return;
             try {
-                await checkMessageForHighlights(client, message);
+                if (!message.author.bot) {
+                    await checkMessageForHighlights(client, message);
+                }
             } catch (error) {
-                console.error('Highlight Error:', error);
+                console.error('Error checking highlights:', error);
             }
             return;
         }
@@ -275,8 +247,8 @@ module.exports = {
         try {
             await command.execute(message, args);
         } catch (error) {
-            console.error(`Command Error (${commandName}):`, error);
-            await message.reply('There was an error executing that command!');
+            console.error(`Error executing command ${commandName}:`, error);
+            await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
     }
 };
