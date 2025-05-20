@@ -1,77 +1,44 @@
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
+const { Configuration, OpenAIApi } = require('openai');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
+require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// Create a Map to store conversation histories for different users
-const conversationHistories = new Map();
-
-// Function to get or create a user's conversation history
-function getUserConversation(userId) {
-    if (!conversationHistories.has(userId)) {
-        conversationHistories.set(userId, [
-            { role: "system", content: "You are a helpful assistant in a Discord bot. Keep responses concise and conversational." }
-        ]);
-    }
-    return conversationHistories.get(userId);
-}
-
-// Maximum number of messages to keep in history
-const MAX_HISTORY = 10;
+// Initialize OpenAI API
+const configuration = new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle DM messages with OpenAI integration
+        // Handle DM messages using OpenAI
         if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
-            
+
             try {
-                // Initialize OpenAI only when receiving a DM
-                const OpenAI = require('openai');
-                const openai = new OpenAI({
-                    apiKey: process.env.OPENAI_API_KEY
+                const response = await openai.createChatCompletion({
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                        { role: 'system', content: 'You are a helpful assistant.' },
+                        { role: 'user', content: message.content }
+                    ],
+                    max_tokens: 150,
+                    temperature: 0.7,
                 });
-                
-                // Show typing indicator while processing
-                await message.channel.sendTyping();
-                
-                // Get user's conversation history
-                const userId = message.author.id;
-                const conversation = getUserConversation(userId);
-                
-                // Add the user's new message to the conversation
-                conversation.push({ role: "user", content: message.content });
-                
-                // Keep history within limits by removing oldest messages (but keeping the system prompt)
-                while (conversation.length > MAX_HISTORY + 1) {
-                    conversation.splice(1, 1);
-                }
-                
-                // Get response from OpenAI
-                const response = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
-                    messages: conversation,
-                    max_tokens: 500
-                });
-                
-                // Extract the response text
-                const responseText = response.choices[0]?.message?.content || "Sorry, I couldn't process your message.";
-                
-                // Add the assistant's response to the conversation history
-                conversation.push({ role: "assistant", content: responseText });
-                
-                // Send response back to user
-                await message.author.send(responseText);
-                console.log(`Successfully sent AI response to ${message.author.tag}`);
+
+                const reply = response.data.choices[0].message.content.trim();
+                await message.author.send(reply);
+                console.log(`Successfully sent DM response to ${message.author.tag}`);
             } catch (error) {
-                console.error(`OpenAI integration error: ${error.message}`);
-                // Fallback to echo if OpenAI fails
-                await message.author.send(`I encountered an error processing your message. Here's what you said: "${message.content}"`);
+                console.error(`Failed to send DM response: ${error.message}`);
+                await message.author.send('Sorry, I encountered an error while processing your message.');
             }
             return;
         }
@@ -228,7 +195,7 @@ module.exports = {
 
             try {
                 await message.channel.send('Waiting for Carl...');
-                
+
                 setTimeout(async () => {
                     try {
                         for (const channelId of eventChannelIds) {
@@ -303,14 +270,5 @@ module.exports = {
                 lbMessage += `${i + 1}. <@${userId}>: ${count} notes\n`;
             }
 
-            return message.reply(lbMessage);
-        }
+            return
 
-        try {
-            await command.execute(message, args);
-        } catch (error) {
-            console.error(`Error executing command ${commandName}:`, error);
-            await message.reply('There was an error trying to execute that command!').catch(console.error);
-        }
-    },
-};
