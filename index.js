@@ -4,14 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 const MuteManager = require('./utils/muteManager');
-require('dotenv').config(); // Load environment variables from.env file [1]
+require('dotenv').config(); // Load environment variables from.env file
 
 // Import OpenAI here for global client access
-const OpenAI = require('openai').default; // Correct way to import OpenAI in CommonJS [2]
+const OpenAI = require('openai').default; // Correct way to import OpenAI in CommonJS
 
 // Define log channel ID for system issues
 const LOG_CHANNEL_ID = '1349968940973166645'; // Replace with your log channel ID
-const ADMIN_USER_ID = '753491023208120321'; // Replace with your user ID to receive DM logs
 
 const client = new Client({
     intents: [
@@ -19,39 +18,20 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // Required to read message content [3]
+        GatewayIntentBits.MessageContent, // Required to read message content
         GatewayIntentBits.GuildVoiceStates,
     ],
 });
 
-// Debug logging function that logs to Discord instead of console
-async function logToDiscord(message, isError = false) {
-    try {
-        // Create a formatted message
-        const timestamp = new Date().toISOString();
-        const formattedMessage = `[${timestamp}] ${isError? '❌ ERROR: ' : '📝 INFO: '}${message}`;
-
-        // Log to console as backup
-        if (isError) {
-            console.error(formattedMessage);
-        } else {
-            console.log(formattedMessage);
-        }
-
-        // Check if client is ready before attempting to send messages
-        if (!client.isReady()) return;
-
-        
-            // If DM fails, try logging to a channel
-            try {
-                const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-                if (logChannel) {
-                    await logChannel.send(formattedMessage);
-                }
-           
-    } catch (error) {
-        // Critical error in logging function itself
-        console.error('Critical error in logging function:', error);
+// Simple logging function that logs to console
+function logToConsole(message, isError = false) {
+    const timestamp = new Date().toISOString();
+    const formattedMessage = `[${timestamp}] ${isError? '❌ ERROR: ' : '📝 INFO: '}${message}`;
+    
+    if (isError) {
+        console.error(formattedMessage);
+    } else {
+        console.log(formattedMessage);
     }
 }
 
@@ -62,10 +42,10 @@ client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 client.itemPrices = new Map();
 client.prefix = ','; // Define your command prefix here
-client.logToDiscord = logToDiscord; // Add logging function to client
+client.logToDiscord = logToConsole; // Use console logging instead
 
 // Load commands
-const loadCommands = async () => {
+const loadCommands = () => {
     try {
         const textCommandFiles = fs.readdirSync('./text-commands').filter(file => file.endsWith('.js'));
         for (const file of textCommandFiles) {
@@ -73,7 +53,7 @@ const loadCommands = async () => {
                 const command = require(`./text-commands/${file}`);
                 if (command.name) {
                     client.textCommands.set(command.name, command);
-                    await logToDiscord(`Loaded text command: ${command.name}`);
+                    logToConsole(`Loaded text command: ${command.name}`);
                 }
                 if (command.aliases?.length) {
                     command.aliases.forEach(alias => {
@@ -81,7 +61,7 @@ const loadCommands = async () => {
                     });
                 }
             } catch (error) {
-                await logToDiscord(`Failed to load text command file ${file}: ${error.message}`, true);
+                logToConsole(`Failed to load text command file ${file}: ${error.message}`, true);
             }
         }
 
@@ -91,19 +71,19 @@ const loadCommands = async () => {
                 const command = require(`./commands/${file}`);
                 if (command.data && command.data.name) {
                     client.commands.set(command.data.name, command);
-                    await logToDiscord(`Loaded slash command: ${command.data.name}`);
+                    logToConsole(`Loaded slash command: ${command.data.name}`);
                 }
             } catch (error) {
-                await logToDiscord(`Failed to load slash command file ${file}: ${error.message}`, true);
+                logToConsole(`Failed to load slash command file ${file}: ${error.message}`, true);
             }
         }
     } catch (error) {
-        await logToDiscord(`Critical error loading commands: ${error.message}`, true);
+        logToConsole(`Critical error loading commands: ${error.message}`, true);
     }
 };
 
 // Load events
-const loadEvents = async () => {
+const loadEvents = () => {
     try {
         const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
         for (const file of eventFiles) {
@@ -114,52 +94,52 @@ const loadEvents = async () => {
                 } else {
                     client.on(event.name, (...args) => event.execute(client,...args));
                 }
-                await logToDiscord(`Loaded event: ${event.name}`);
+                logToConsole(`Loaded event: ${event.name}`);
             } catch (error) {
-                await logToDiscord(`Failed to load event file ${file}: ${error.message}`, true);
+                logToConsole(`Failed to load event file ${file}: ${error.message}`, true);
             }
         }
     } catch (error) {
-        await logToDiscord(`Critical error loading events: ${error.message}`, true);
+        logToConsole(`Critical error loading events: ${error.message}`, true);
     }
 };
 
 // Client ready handler
-client.once('ready', async () => {
-    await logToDiscord(`Logged in as ${client.user.tag}!`);
+client.once('ready', () => {
+    logToConsole(`Logged in as ${client.user.tag}!`);
 
     // Set the bot's status to idle
     client.user.setStatus('idle');
     client.user.setActivity('your DMs', { type: ActivityType.Listening });
 
     // Load commands and events
-    await loadCommands();
-    await loadEvents();
+    loadCommands();
+    loadEvents();
 
     // Initialize systems
     client.muteManager = new MuteManager(client);
-    await logToDiscord('Mute Manager initialized');
+    logToConsole('Mute Manager initialized');
 
     // Initialize OpenAI Client directly here
     try {
-        const openaiApiKey = process.env.OPENAI_API_KEY; // Get API key from environment variables [4, 1]
+        const openaiApiKey = process.env.OPENAI_API_KEY;
         if (!openaiApiKey) {
-            await logToDiscord('OpenAI API key not found in environment variables. OpenAI client not initialized.', true);
+            logToConsole('OpenAI API key not found in environment variables. OpenAI client not initialized.', true);
         } else {
-            client.openai = new OpenAI({ // Instantiate OpenAI client [4, 2]
+            client.openai = new OpenAI({
                 apiKey: openaiApiKey,
-                maxRetries: 3, // Configure automatic retries for transient errors [4]
+                maxRetries: 3,
             });
-            await logToDiscord('OpenAI client initialized successfully');
+            logToConsole('OpenAI client initialized successfully');
         }
     } catch (error) {
-        await logToDiscord(`Failed to initialize OpenAI client: ${error.message}`, true);
+        logToConsole(`Failed to initialize OpenAI client: ${error.message}`, true);
     }
 
     // Setup cron job for weekly tasks
     setupWeeklyCronJobs();
 
-    await logToDiscord(`Bot startup complete.`);
+    logToConsole(`Bot startup complete.`);
 });
 
 // Setup weekly cron jobs
@@ -169,27 +149,29 @@ function setupWeeklyCronJobs() {
         const { weeklyReset } = require('./events/mupdate.js');
         const { weeklyChannelCheck } = require('./utils/autoch.js');
 
-        cron.schedule('0 0 * * 0', async () => {
-            await logToDiscord('Weekly reset triggered at: ' + new Date().toISOString());
+        cron.schedule('0 0 * * 0', () => {
+            logToConsole('Weekly reset triggered at: ' + new Date().toISOString());
             try {
                 // Run the weekly reset
-                const resetSuccess = await weeklyReset(client);
-                await logToDiscord(resetSuccess? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+                weeklyReset(client)
+                    .then(resetSuccess => {
+                        logToConsole(resetSuccess ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
+                    })
+                    .catch(error => {
+                        logToConsole(`Error during weekly reset: ${error.message}`, true);
+                    });
 
                 // Run the weekly channel eligibility check with logging to specified channel
                 const logChannelId = '843413781409169412'; // Your specified log channel
-                const checkResults = await weeklyChannelCheck(client, logChannelId);
-                await logToDiscord(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
+                weeklyChannelCheck(client, logChannelId)
+                    .then(checkResults => {
+                        logToConsole(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
+                    })
+                    .catch(error => {
+                        logToConsole(`Error during weekly channel check: ${error.message}`, true);
+                    });
             } catch (error) {
-                await logToDiscord(`Unhandled error during weekly processes: ${error.message}`, true);
-
-                // Try to log the error to the channel as well
-                try {
-                    const logChannel = await client.channels.fetch('843413781409169412');
-                    await logChannel.send(`❌ **Error during weekly processes:** ${error.message}`);
-                } catch (channelError) {
-                    await logToDiscord(`Failed to log error to channel: ${channelError.message}`, true);
-                }
+                logToConsole(`Unhandled error during weekly processes: ${error.message}`, true);
             }
         }, {
             timezone: "UTC",
@@ -197,28 +179,27 @@ function setupWeeklyCronJobs() {
             runOnInit: false
         });
 
-        logToDiscord('Weekly reset and channel check schedules set up successfully');
+        logToConsole('Weekly reset and channel check schedules set up successfully');
     } catch (error) {
-        logToDiscord(`Failed to set up cron jobs: ${error.message}`, true);
+        logToConsole(`Failed to set up cron jobs: ${error.message}`, true);
     }
 }
 
 // Handle errors to prevent crashing
-process.on('unhandledRejection', async (error) => {
-    await logToDiscord(`Unhandled promise rejection: ${error.message}`, true);
+process.on('unhandledRejection', (error) => {
+    logToConsole(`Unhandled promise rejection: ${error.message}`, true);
     console.error('Unhandled promise rejection:', error);
 });
 
-process.on('uncaughtException', async (error) => {
-    await logToDiscord(`Uncaught exception: ${error.message}`, true);
+process.on('uncaughtException', (error) => {
+    logToConsole(`Uncaught exception: ${error.message}`, true);
     console.error('Uncaught exception:', error);
     // Don't exit the process, try to keep the bot running
 });
 
 // Login
-client.login(process.env.DISCORD_TOKEN).catch(async (error) => {
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
     console.error('Failed to login:', error);
-    // Can't use logToDiscord here as client isn't logged in yet
 });
 
 module.exports = client;
