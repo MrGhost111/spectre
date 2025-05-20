@@ -1,61 +1,64 @@
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const { ChatHandler } = require('../utils/chatHandler');
+const { Configuration, OpenAIApi } = require('openai'); // Import OpenAI
+require('dotenv').config(); // Import dotenv for environment variables
+
+// Initialize OpenAI
+const configuration = new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
+// Store conversation history for each user
+const conversationHistory = new Map();
+const MAX_HISTORY_LENGTH = 10; // Limit conversation history to prevent token overflow
 
 let lastStickyMessageId = null;
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        if (message.author.bot) return;
-
-        if (!message.guild) {
+        // Handle DMs to the bot (ChatBot functionality)
+        if (!message.guild && !message.author.bot) {
             try {
-                await message.channel.sendTyping();
-                const response = await ChatHandler.generateResponse(message.author.id, message.content);
-                
-                if (response.length > 1999) {
-                    const buffer = Buffer.from(response, 'utf-8');
-                    const attachment = new AttachmentBuilder(buffer, { name: 'response.txt' });
-                    return message.reply({
-                        content: 'Response too long - sending as file:',
-                        files: [attachment]
-                    });
-                }
-                
-                return message.reply(response);
+                await handleChatbotDM(client, message);
+                return; // Return early to skip other checks for DMs
             } catch (error) {
-                console.error('AI Chat Error:', error);
-                try {
-                    await message.reply("I'm having technical difficulties. Please try again later!");
-                } catch (replyError) {
-                    console.error('Failed to send error reply:', replyError);
-                }
+                console.error('Error handling chatbot DM:', error);
+                await message.reply('Sorry, I encountered an error while processing your message. Please try again later.');
                 return;
             }
         }
 
+        // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {
                 const result = await checkOneWordMessage(message);
                 if (!result.isValid) {
                     await message.delete();
                     const warningMsg = await message.channel.send(result.message);
+
+                    // Delete the warning after 5 seconds
                     setTimeout(async () => {
-                        try { await warningMsg.delete(); } 
-                        catch (err) { console.error('Error deleting warning:', err); }
+                        try {
+                            await warningMsg.delete();
+                        } catch (err) {
+                            console.error('Error deleting warning message:', err);
+                        }
                     }, 5000);
+
                     return;
                 }
             } catch (error) {
-                console.error('One Word Story Error:', error);
+                console.error('Error checking one word story:', error);
             }
         }
 
+        // Check for blacklist management command
         const blacklistCommandHandled = await handleBlacklistCommand(message);
         if (blacklistCommandHandled) return;
 
@@ -64,7 +67,9 @@ module.exports = {
                 if (lastStickyMessageId) {
                     try {
                         const oldMessage = await message.channel.messages.fetch(lastStickyMessageId);
-                        if (oldMessage) await oldMessage.delete();
+                        if (oldMessage) {
+                            await oldMessage.delete();
+                        }
                     } catch (error) {
                         console.error('Error deleting old sticky message:', error);
                     }
@@ -79,8 +84,14 @@ module.exports = {
             }
         }
 
+        // Track donation messages from Dank Memer bot
+        const DANK_MEMER_BOT_ID = '270904126974590976';
+        const TRANSACTION_CHANNEL_ID = '833246120389902356';
+
+        // Forward to donation tracker
         await donationTracker.execute(client, message);
 
+        // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {
             try {
                 await message.react('<:upvote:1303963379945181224>');
@@ -160,6 +171,7 @@ module.exports = {
             }
         }
 
+        // Mute role update command
         if (message.content.startsWith('!muterole update')) {
             const eventChannelIds = [
                 '1296077996435832902',
@@ -180,6 +192,9 @@ module.exports = {
                         const channel = await message.guild.channels.fetch(channelId);
                         if (channel) {
                             await channel.permissionOverwrites.edit(mutedRoleId, { ViewChannel: null, SendMessages: null });
+                            console.log(`Updated permissions for muted role in channel: ${channel.id}`);
+                        } else {
+                            console.log(`Channel not found: ${channelId}`);
                         }
                     }
                     await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
@@ -196,6 +211,7 @@ module.exports = {
         if (!message.content.startsWith(prefix)) {
             if (!message.guild) return;
             try {
+                // Skip highlight checking if the message author is a bot
                 if (!message.author.bot) {
                     await checkMessageForHighlights(client, message);
                 }
@@ -250,5 +266,124 @@ module.exports = {
             console.error(`Error executing command ${commandName}:`, error);
             await message.reply('There was an error trying to execute that command!').catch(console.error);
         }
-    }
+    },
 };
+
+// Function to handle chatbot DMs
+async function handleChatbotDM(client, message) {
+    const userId = message.author.id;
+    
+    // Initialize conversation history for this user if it doesn't exist
+    if (!conversationHistory.has(userId)) {
+        conversationHistory.set(userId, []);
+    }
+    
+    const userHistory = conversationHistory.get(userId);
+    
+    // Add user message to history
+    userHistory.push({
+        role: 'user',
+        content: message.content
+    });
+    
+    // Maintain history within limits
+    if (userHistory.length > MAX_HISTORY_LENGTH * 2) { // *2 because each exchange has 2 messages
+        userHistory.splice(0, 2); // Remove oldest exchange (user + assistant)
+    }
+    
+    // Send typing indicator to show the bot is "thinking"
+    await message.channel.sendTyping();
+    
+    try {
+        // Add system message at the beginning for context
+        const conversationWithSystem = [
+            {
+                role: 'system',
+                content: 'You are a helpful assistant for a Discord server. Be friendly, concise, and helpful. Keep responses under 2000 characters to fit in Discord messages.'
+            },
+            ...userHistory
+        ];
+        
+        // Make API call to OpenAI
+        const response = await openai.createChatCompletion({
+            model: 'gpt-3.5-turbo',
+            messages: conversationWithSystem,
+            max_tokens: 1000,
+            temperature: 0.7,
+        });
+        
+        // Get the response text
+        const responseText = response.data.choices[0].message.content.trim();
+        
+        // Add bot response to conversation history
+        userHistory.push({
+            role: 'assistant',
+            content: responseText
+        });
+        
+        // Split long messages if needed (Discord has 2000 character limit)
+        if (responseText.length <= 2000) {
+            await message.reply(responseText);
+        } else {
+            // Split into chunks
+            const chunks = splitMessage(responseText);
+            for (const chunk of chunks) {
+                await message.channel.send(chunk);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error with OpenAI API:', error);
+        
+        // Check if it's specifically an API key issue
+        if (error.response && error.response.status === 401) {
+            await message.reply("I'm having trouble connecting to my brain. Please ask the server admin to check my API key configuration.");
+        } else {
+            await message.reply("Sorry, I'm having trouble processing your request right now. Please try again later.");
+        }
+    }
+}
+
+// Helper function to split messages that exceed Discord's character limit
+function splitMessage(text, maxLength = 1990) {
+    const chunks = [];
+    let currentChunk = '';
+    
+    // Split by paragraphs to try to keep content coherent
+    const paragraphs = text.split('\n');
+    
+    for (const paragraph of paragraphs) {
+        // If adding this paragraph would exceed the limit
+        if (currentChunk.length + paragraph.length + 1 > maxLength) {
+            // If the current chunk isn't empty, push it
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk);
+                currentChunk = '';
+            }
+            
+            // If the paragraph itself is too long, split it
+            if (paragraph.length > maxLength) {
+                const words = paragraph.split(' ');
+                for (const word of words) {
+                    if (currentChunk.length + word.length + 1 > maxLength) {
+                        chunks.push(currentChunk);
+                        currentChunk = word + ' ';
+                    } else {
+                        currentChunk += word + ' ';
+                    }
+                }
+            } else {
+                currentChunk = paragraph + '\n';
+            }
+        } else {
+            currentChunk += paragraph + '\n';
+        }
+    }
+    
+    // Don't forget the last chunk
+    if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
+    }
+    
+    return chunks;
+}
