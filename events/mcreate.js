@@ -4,22 +4,76 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
+const { OpenAI } = require('openai');
 
 let lastStickyMessageId = null;
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// For conversation history
+const conversationHistory = new Map();
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // Handle DM messages (echo back what user says)
+        // Handle DM messages with OpenAI
         if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
             
             try {
-                // Using the proven working method from dmtest command
-                await message.author.send(`You said: "${message.content}"`);
-                console.log(`Successfully sent DM response to ${message.author.tag}`);
+                // Initialize conversation history if it doesn't exist
+                if (!conversationHistory.has(message.author.id)) {
+                    conversationHistory.set(message.author.id, [
+                        {
+                            role: "system",
+                            content: "You are a helpful assistant in a Discord DM conversation. Keep responses concise and friendly."
+                        }
+                    ]);
+                }
+
+                const userMessages = conversationHistory.get(message.author.id);
+                userMessages.push({ role: "user", content: message.content });
+
+                // Limit conversation history to last 6 messages to prevent token overflow
+                if (userMessages.length > 6) {
+                    userMessages.splice(1, userMessages.length - 6);
+                }
+
+                // Create chat completion with OpenAI
+                const response = await openai.chat.completions.create({
+                    model: "gpt-3.5-turbo",
+                    messages: userMessages,
+                    max_tokens: 500,
+                    temperature: 0.7
+                });
+
+                const aiResponse = response.choices[0].message.content;
+                userMessages.push({ role: "assistant", content: aiResponse });
+                
+                // Split response if it's too long for Discord
+                if (aiResponse.length > 2000) {
+                    const parts = [];
+                    for (let i = 0; i < aiResponse.length; i += 2000) {
+                        parts.push(aiResponse.substring(i, i + 2000));
+                    }
+                    for (const part of parts) {
+                        await message.author.send(part);
+                    }
+                } else {
+                    await message.author.send(aiResponse);
+                }
+                
+                console.log(`Successfully sent AI response to ${message.author.tag}`);
             } catch (error) {
-                console.error(`Failed to send DM response: ${error.message}`);
+                console.error(`Failed to send AI response: ${error.message}`);
+                try {
+                    await message.author.send("Sorry, I encountered an error processing your message. Please try again later.");
+                } catch (sendError) {
+                    console.error(`Also failed to send error message: ${sendError.message}`);
+                }
             }
             return;
         }
@@ -161,7 +215,7 @@ module.exports = {
             }
         }
 
-        // Mute role update command - Fixed with proper function declaration
+        // Mute role update command
         if (message.content.startsWith('!muterole update') && message.guild) {
             const eventChannelIds = [
                 '1296077996435832902',
