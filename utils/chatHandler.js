@@ -1,22 +1,19 @@
-﻿// utils/chatHandler.js
+require('dotenv').config();
 const { EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-// Store conversation history in memory with backup to file system
 class ChatMemory {
     constructor() {
         this.memoryPath = path.join(__dirname, '../data/chatMemory.json');
-        // Create directory if it doesn't exist
         const dir = path.dirname(this.memoryPath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
         this.memory = this.loadMemory();
-        this.specialUserID = '747048507856388096'; // Nikita's user ID
+        this.specialUserID = '747048507856388096';
 
-        // Ensure special user profile exists with personalized settings
         if (!this.memory[this.specialUserID]) {
             this.memory[this.specialUserID] = {
                 isSpecialUser: true,
@@ -66,22 +63,16 @@ class ChatMemory {
 
     addMessage(userId, userMessage, botResponse) {
         const userMemory = this.getUserMemory(userId);
-
-        // Add new message to history
         userMemory.conversationHistory.push({
             timestamp: Date.now(),
             user: userMessage,
             bot: botResponse
         });
-
-        // Keep history size manageable (last 20 messages)
         if (userMemory.conversationHistory.length > 20) {
             userMemory.conversationHistory = userMemory.conversationHistory.slice(-20);
         }
-
         userMemory.lastSeen = Date.now();
         userMemory.messageCount += 1;
-
         this.saveMemory();
     }
 
@@ -95,9 +86,8 @@ class ChatHandler {
     constructor(apiKey) {
         this.apiKey = apiKey;
         this.memory = new ChatMemory();
-        this.specialUserID = '747048507856388096'; // Nikita's user ID
+        this.specialUserID = '747048507856388096';
         this.personalInfo = {
-            // This contains all the specific details about Nikita
             name: "Nikki",
             fullName: "Nikita Mahajan",
             location: "Gurgaon",
@@ -107,15 +97,14 @@ class ChatHandler {
             career: "Studying to become a lawyer",
             likes: [
                 "GTA Vice City vibes",
-                "Simulator games (House Flipper, Sims 4, House Party, Stardew Valley, Cooking Simulator)",
+                "Simulator games",
                 "GTA San Andreas",
                 "Following server rules",
-                "Keeping records clean",
                 "Ruskin Bond stories",
                 "Food (Sandesh, thick jalebi, chole bhature, momos)",
                 "Maggi (nostalgic), but prefers Shin Ramyun",
                 "Fanta",
-                "Doki Doki Literature Club (especially Monika's manipulation and the plot)",
+                "Doki Doki Literature Club",
                 "The goldfishcev emote",
                 "Bingewatching shows",
                 "Rainy days",
@@ -130,7 +119,7 @@ class ChatHandler {
                 "Skeletons and zombies",
                 "Snakes",
                 "Drugs and alcohol",
-                "WASD movement controls in games (prefers arrow keys)",
+                "WASD movement controls in games",
                 "Mathematics",
                 "Excessive Discord pings",
                 "Aging"
@@ -139,95 +128,43 @@ class ChatHandler {
     }
 
     buildSpecialUserPrompt() {
-        return `
-You are a friendly Discord bot having a private conversation with Nikki (Nikita Mahajan). 
-
-IMPORTANT USER DETAILS:
-- She prefers to be called Nikki, not her full name (Nikita Mahajan)
-- She's from Gurgaon and is studying to become a lawyer
-- She was previously an admin in the Discord server, working her way up from staff → trial mod → mod → admin before resigning
-- She was the 2160th member to join the server
-- She has a boyfriend named Anders in Sweden who goes by "Cev"
-
-CONVERSATIONAL STYLE:
-- Use proper grammar and punctuation (she appreciates this)
-- Occasionally use her favorite emote <a:goldfishcev:897805888524525579> when appropriate
-- Be friendly and somewhat casual, but respectful
-- Reference her interests naturally in conversation when relevant
-- Show empathy about her dislike of aging
-
-THINGS SHE LIKES (to reference occasionally):
-- GTA Vice City vibes and San Andreas
-- Simulator games (House Flipper, Sims 4, House Party, Stardew Valley, Cooking Simulator)
-- Stories by Ruskin Bond
-- Foods: Sandesh, thick jalebi, chole bhature, momos, Shin Ramyun (prefers over Maggi)
-- Fanta
-- Doki Doki Literature Club (especially Monika's character and the plot twists)
-- Binge-watching shows
-- Rainy days
-- Ice cream
-- Creating Discord embeds
-- "I fall in love too easily" playlist
-- Doctor Who
-- Following rules and keeping records organized
-
-THINGS SHE DISLIKES (avoid or be understanding about):
-- Skeletons and zombies
-- Snakes
-- Drugs and alcohol
-- WASD controls in games (she prefers arrow keys)
-- Mathematics
-- Excessive Discord pings
-- The concept of aging
-
-Keep responses thoughtful but concise. If she mentions any of her interests, engage meaningfully about them. If she mentions dislikes, be understanding.
-`;
+        return `You are a friendly Discord bot having a private conversation with Nikki (Nikita Mahajan). 
+        IMPORTANT USER DETAILS:
+        - She prefers to be called Nikki
+        - She's from Gurgaon and is studying to become a lawyer
+        - She was previously an admin in the Discord server
+        CONVERSATIONAL STYLE:
+        - Use proper grammar and punctuation
+        - Occasionally use her favorite emote <a:goldfishcev:897805888524525579>
+        - Be friendly and somewhat casual, but respectful`;
     }
 
     buildGenericUserPrompt() {
-        return `
-You are a friendly Discord bot having a private conversation. 
-
-Be helpful, friendly, and engaging. Keep responses concise but informative.
-Use proper grammar and maintain a conversational tone.
-`;
+        return `You are a friendly Discord bot having a private conversation. 
+        Be helpful, friendly, and engaging. Keep responses concise but informative.`;
     }
 
     async generateResponse(userId, message) {
         const isSpecialUser = userId === this.specialUserID;
         const systemPrompt = isSpecialUser ? this.buildSpecialUserPrompt() : this.buildGenericUserPrompt();
-
-        // Get recent message history
         const recentMessages = this.memory.getRecentMessages(userId, 5);
 
         try {
-            // Validate the API key before making the request
             if (!this.apiKey || this.apiKey.trim() === '') {
                 console.error('OpenAI API key is missing or invalid');
-                return "Sorry, my configuration is incomplete. Please notify the server admin about this issue.";
+                return "Sorry, my configuration is incomplete.";
             }
 
             const messages = [
                 { role: "system", content: systemPrompt }
             ];
 
-            // Add conversation history
             recentMessages.forEach(exchange => {
                 messages.push({ role: "user", content: exchange.user });
                 messages.push({ role: "assistant", content: exchange.bot });
             });
 
-            // Add current message
             messages.push({ role: "user", content: message });
-
-            // Log request details for debugging (excluding the API key)
-            console.log(`[${new Date().toISOString()}] Making OpenAI API request for user ${userId}`);
-            console.log('Request payload:', JSON.stringify({
-                model: "gpt-3.5-turbo",
-                messages: messages.map(m => ({ role: m.role, content: m.content.substring(0, 50) + (m.content.length > 50 ? '...' : '') })),
-                max_tokens: 500,
-                temperature: 0.7
-            }, null, 2));
 
             const response = await axios.post(
                 'https://api.openai.com/v1/chat/completions',
@@ -242,89 +179,54 @@ Use proper grammar and maintain a conversational tone.
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`
                     },
-                    timeout: 10000 // 10 seconds timeout
+                    timeout: 10000
                 }
             );
 
             const aiResponse = response.data.choices[0].message.content;
-            console.log(`[${new Date().toISOString()}] Received successful response from OpenAI API`);
-
-            // Store this conversation
             this.memory.addMessage(userId, message, aiResponse);
-
             return aiResponse;
 
         } catch (error) {
-            // Detailed error logging
-            console.error(`[${new Date().toISOString()}] Error generating AI response:`, error.message);
-
+            console.error(`Error generating AI response:`, error.message);
             if (error.response) {
-                // The request was made and the server responded with a status code
-                // that falls out of the range of 2xx
-                console.error('API Error Status:', error.response.status);
-                console.error('API Error Data:', JSON.stringify(error.response.data, null, 2));
-
-                // Return specific error message based on status code
                 if (error.response.status === 401) {
-                    return "My access key seems to be invalid. Please notify the server admin about this authentication issue.";
+                    return "My access key seems to be invalid.";
                 } else if (error.response.status === 429) {
-                    return "I've reached my thinking limit for now. Please try again in a minute or two.";
+                    return "I've reached my thinking limit for now.";
                 } else if (error.response.status >= 500) {
-                    return "The AI service is experiencing issues right now. Please try again later.";
+                    return "The AI service is experiencing issues.";
                 }
-            } else if (error.request) {
-                // The request was made but no response was received
-                console.error('No response received from API');
-                return "I can't seem to reach my thinking service right now. Please check your internet connection and try again.";
-            } else {
-                // Something happened in setting up the request that triggered an Error
-                console.error('Error setting up request:', error.message);
             }
-
-            return "I'm having trouble connecting to my thinking circuits right now. Could you try again in a moment?";
+            return "I'm having trouble connecting right now.";
         }
     }
 
     async handleDM(client, message) {
-        if (message.author.bot) return; // Ignore messages from bots
+        if (message.author.bot) return;
 
         try {
-            // Show typing indicator
             await message.channel.sendTyping();
-
-            // Check if it's our special user
             const isSpecialUser = message.author.id === this.specialUserID;
-
-            console.log(`[${new Date().toISOString()}] Received DM from ${isSpecialUser ? 'special user' : 'user'} ${message.author.tag} (${message.author.id}): ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`);
-
-            // Generate AI response
             const response = await this.generateResponse(message.author.id, message.content);
 
-            // For the special user, sometimes add a cute reaction
             if (isSpecialUser && Math.random() > 0.7) {
                 try {
-                    // Try to react with their favorite emote
-                    const emoteId = "897805888524525579"; // The goldfishcev emote ID
-                    const emote = client.emojis.cache.get(emoteId) ||
-                        "❤️"; // Fallback to a heart if emote not found
+                    const emoteId = "897805888524525579";
+                    const emote = client.emojis.cache.get(emoteId) || "❤️";
                     await message.react(emote);
                 } catch (err) {
-                    console.error(`[${new Date().toISOString()}] Error adding reaction:`, err.message);
-                    // Silently fail if reaction doesn't work
+                    console.error(`Error adding reaction:`, err.message);
                 }
             }
 
-            // Send the response
-            console.log(`[${new Date().toISOString()}] Sending response to ${message.author.tag}: ${response.substring(0, 50)}${response.length > 50 ? '...' : ''}`);
             await message.reply(response);
-
         } catch (error) {
-            console.error(`[${new Date().toISOString()}] Error handling DM:`, error.message);
-            await message.reply("I'm having a bit of a glitch right now. Please try again in a moment.");
+            console.error(`Error handling DM:`, error.message);
+            await message.reply("I'm having a bit of a glitch right now.");
         }
     }
 
-    // Method to test API connection
     async testOpenAIConnection() {
         try {
             const response = await axios.post(
@@ -339,25 +241,22 @@ Use proper grammar and maintain a conversational tone.
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`
                     },
-                    timeout: 5000 // 5 seconds timeout
+                    timeout: 5000
                 }
             );
-
             return {
                 success: true,
                 message: "Successfully connected to OpenAI API"
             };
         } catch (error) {
             let errorMessage = "Unknown error testing OpenAI connection";
-
             if (error.response) {
-                errorMessage = `API responded with status ${error.response.status}: ${JSON.stringify(error.response.data)}`;
+                errorMessage = `API responded with status ${error.response.status}`;
             } else if (error.request) {
                 errorMessage = "No response received from OpenAI API";
             } else {
                 errorMessage = `Request setup error: ${error.message}`;
             }
-
             return {
                 success: false,
                 message: errorMessage
@@ -366,25 +265,31 @@ Use proper grammar and maintain a conversational tone.
     }
 }
 
-// Singleton instance
 let handler = null;
 
 module.exports = {
-    initialize: (apiKey) => {
+    initialize: () => {
+        const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
-            throw new Error("OpenAI API key is required to initialize ChatHandler");
+            throw new Error("OPENAI_API_KEY not found in .env");
         }
         handler = new ChatHandler(apiKey);
         return handler;
     },
     getInstance: () => {
         if (!handler) {
-            throw new Error("ChatHandler not initialized. Call initialize() with an API key first.");
+            throw new Error("ChatHandler not initialized");
         }
         return handler;
     },
-    // Export test connection method to be called directly
-    testConnection: async (apiKey) => {
+    testConnection: async () => {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+            return {
+                success: false,
+                message: "OPENAI_API_KEY not found in .env"
+            };
+        }
         const tempHandler = new ChatHandler(apiKey);
         return await tempHandler.testOpenAIConnection();
     }
