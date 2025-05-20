@@ -1,3 +1,7 @@
+// events/messageCreate.js
+// This is a modified version of your existing messageCreate.js event handler
+// Only adding the DM chat functionality
+
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
@@ -10,6 +14,32 @@ let lastStickyMessageId = null;
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
+        // Handle DM chat requests first - this is the new section
+        if (!message.guild && !message.author.bot) {
+            // This is a DM from a user to the bot
+            try {
+                // Import the chat handler
+                const chatHandler = require('../utils/chatHandler').getInstance();
+
+                // Process the message with the chat handler
+                await chatHandler.handleDM(client, message);
+
+                // Exit early as this is a DM and shouldn't go through regular command processing
+                return;
+            } catch (error) {
+                console.error('Error handling DM chat:', error);
+
+                // Try to respond with error message if chat handler fails
+                try {
+                    await message.reply("I'm having technical difficulties at the moment. Please try again later!");
+                } catch (innerError) {
+                    console.error('Error sending error response:', innerError);
+                }
+
+                return;
+            }
+        }
+
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
             try {

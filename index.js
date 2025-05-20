@@ -66,6 +66,12 @@ const loadEvents = () => {
 // Load commands and events
 loadCommands();
 loadEvents();
+try {
+    const chatHandler = require('./utils/chatHandler').initialize('YOUR_OPENAI_API_KEY');
+    console.log('ChatHandler initialized successfully');
+} catch (error) {
+    console.error('Failed to initialize ChatHandler:', error);
+}
 
 // Client ready handler
 client.once('ready', () => {
