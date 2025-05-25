@@ -1,3 +1,26 @@
 {
-    "users": []
+    "users": [
+        {
+            "userId": "1310637533163425833",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1748160917,
+            "muteEndTime": 1748161015,
+            "button_clicked": true,
+            "issuerId": "1310637533163425833",
+            "muteChainId": "chain_1748160917911_ksjioh",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "469441317831835648",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1748160952,
+            "muteEndTime": 1748161017,
+            "button_clicked": false,
+            "issuerId": "893684030724259850",
+            "muteChainId": "chain_1748160952254_mpnwqd",
+            "usedRiskInChain": false
+        }
+    ]
 }
