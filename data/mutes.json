@@ -5,11 +5,11 @@
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
             "muteStartTime": 1748435328,
-            "muteEndTime": 1748435395,
-            "button_clicked": false,
+            "muteEndTime": 1748435432,
+            "button_clicked": true,
             "issuerId": "756374124149997588",
             "muteChainId": "chain_1748435328406_xvicx2",
-            "usedRiskInChain": false
+            "usedRiskInChain": true
         }
     ]
 }
