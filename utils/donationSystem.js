@@ -9,6 +9,10 @@ const TRANSACTION_CHANNEL_ID = '833246120389902356';
 const DANK_MEMER_BOT_ID = '270904126974590976';
 const ACTIVITY_CHANNEL_ID = '1327928516662005770';
 
+// Add the missing tier requirements (you'll need to set these to your actual values)
+const TIER_1_REQUIREMENT = 35000000; // 35 million - adjust as needed
+const TIER_2_REQUIREMENT = 75000000; // 75 million - adjust as needed
+
 // Data paths
 const usersFilePath = path.join(__dirname, '../data/users.json');
 const statsFilePath = path.join(__dirname, '../data/stats.json');
@@ -165,12 +169,15 @@ async function processDonation(client, message, donationAmount, donorId) {
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const member = await guild.members.fetch(donorId).catch(() => null);
 
+    // Get the current tier based on actual roles (not stored data)
+    const currentTier = member?.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
+        (member?.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
+
     if (!usersData[donorId]) {
         usersData[donorId] = {
             totalDonated: donationAmount,
             weeklyDonated: donationAmount,
-            currentTier: member?.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                (member?.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0),
+            currentTier: currentTier,
             status: 'good',
             missedAmount: 0,
             lastDonation: new Date().toISOString()
@@ -179,16 +186,16 @@ async function processDonation(client, message, donationAmount, donorId) {
         usersData[donorId].totalDonated += donationAmount;
         usersData[donorId].weeklyDonated += donationAmount;
         usersData[donorId].lastDonation = new Date().toISOString();
-        usersData[donorId].currentTier = member?.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-            (member?.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0);
+        // Update the current tier based on actual roles
+        usersData[donorId].currentTier = currentTier;
     }
 
     statsData.totalDonations += donationAmount;
     saveStatsData();
     saveUsersData();
 
-    const requirement = usersData[donorId].currentTier === 2 ?
-        TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+    // Calculate requirement based on actual current tier (not stored tier)
+    const requirement = currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
 
     const donationEmbed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650> New Donation')

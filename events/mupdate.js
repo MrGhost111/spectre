@@ -190,7 +190,6 @@ async function weeklyReset(client) {
             }
         } catch (dataLoadError) {
             console.error('[RESET] Error loading data files:', dataLoadError);
-            // Consider notifying admins here
         }
 
         const guild = await client.guilds.fetch(client.guilds.cache.first().id);
@@ -219,7 +218,7 @@ async function weeklyReset(client) {
                         weeklyDonated: 0,
                         totalDonated: 0,
                         currentTier: hasTier2 ? 2 : 1,
-                        lastDonation: new Date().toISOString() // Adding default timestamp
+                        lastDonation: new Date().toISOString()
                     };
                 }
             }
@@ -434,6 +433,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             .map(donation => `/dono add user: <@${donation.id}> amount: ${formatNumber(Math.floor(donation.donated * 1.25))}`)
             .join('\n');
 
+        // Create admin summary embed with weekly stats included
         const summaryEmbed = new EmbedBuilder()
             .setTitle('<:lbtest:1064919048242090054> Weekly Reset Summary')
             .setColor('#4c00b0')
@@ -444,8 +444,24 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             value: `Total Weekly Donations: ⏣ ${formatNumber(weeklyDonations)}\nTotal Server Donations: ⏣ ${formatNumber(statsData.totalDonations)}`
         });
 
-        // Add the same weekly stats embed fields to the summary embed
-        summaryEmbed.addFields([...weeklyStatsEmbed.data.fields]);
+        // Add the weekly stats fields to the admin summary (same as announcement)
+        if (tier2Users.length > 0) {
+            summaryEmbed.addFields({
+                name: '<:streak:1064909945373458522> Tier 2 Weekly Performance',
+                value: tier2Users.map((user, index) =>
+                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                ).join('\n') || 'None'
+            });
+        }
+
+        if (tier1Users.length > 0) {
+            summaryEmbed.addFields({
+                name: '<:YJ_streak:1259258046924853421> Tier 1 Weekly Performance',
+                value: tier1Users.map((user, index) =>
+                    `\`${index + 1}.\` <@${user.id}> ⏣ ${formatNumber(user.weeklyDonated)}/${formatNumber(user.requirement)}`
+                ).join('\n') || 'None'
+            });
+        }
 
         if (summary.demotions.length > 0) {
             summaryEmbed.addFields({
@@ -472,9 +488,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             });
         }
 
-        if (summary.demotions.length > 0 || summary.promotions.length > 0 || tier2DonationsList) {
-            await adminChannel.send({ embeds: [summaryEmbed] });
-        }
+        // Always send the summary to admin channel (includes weekly stats now)
+        await adminChannel.send({ embeds: [summaryEmbed] });
 
         // ISOLATED SECTION 3: Data Saving
         try {
@@ -491,11 +506,26 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             }
         }
 
-        // ISOLATED SECTION 4: Status Board Update
+        // ISOLATED SECTION 4: Activity Board Update (Delete old and send new)
         try {
-            console.log('[RESET] Updating status board');
+            console.log('[RESET] Updating activity board - deleting old and sending new');
+            const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
+
+            // Delete old status board message
+            const messages = await activityChannel.messages.fetch({ limit: 10 });
+            const oldStatusMessage = messages.find(m =>
+                m.author.id === client.user.id &&
+                m.embeds[0]?.title?.includes('Weekly Donations Leaderboard')
+            );
+
+            if (oldStatusMessage) {
+                await oldStatusMessage.delete();
+                console.log('[RESET] Deleted old status board message');
+            }
+
+            // Send fresh status board
             await updateStatusBoard(client);
-            console.log('[RESET] Status board updated successfully');
+            console.log('[RESET] Sent new status board message');
         } catch (statusError) {
             console.error('[RESET] Error updating status board:', statusError);
             try {
@@ -518,6 +548,11 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
         return false;
     }
 }
+
+
+
+
+
 module.exports = {
     name: Events.MessageUpdate,
     weeklyReset,
