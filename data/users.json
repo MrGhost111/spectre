@@ -1,7 +1,7 @@
 {
   "753491023208120321": {
     "totalDonated": 2100001188,
-    "weeklyDonated": 170000002,
+    "weeklyDonated": 0,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
@@ -26,7 +26,7 @@
   },
   "560093267497189396": {
     "totalDonated": 330000000,
-    "weeklyDonated": 70000000,
+    "weeklyDonated": 0,
     "currentTier": 1,
     "status": "good",
     "missedAmount": 0,
@@ -43,7 +43,7 @@
   },
   "770190440237367316": {
     "totalDonated": 315000000,
-    "weeklyDonated": 35000000,
+    "weeklyDonated": 0,
     "currentTier": 1,
     "status": "warned",
     "missedAmount": 35000000,
@@ -51,7 +51,7 @@
   },
   "908974287464054854": {
     "totalDonated": 350000035,
-    "weeklyDonated": 35000035,
+    "weeklyDonated": 0,
     "currentTier": 1,
     "status": "good",
     "missedAmount": 0,
@@ -60,7 +60,7 @@
   },
   "827983414308241448": {
     "totalDonated": 700000000,
-    "weeklyDonated": 70000000,
+    "weeklyDonated": 0,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
@@ -69,7 +69,7 @@
   },
   "1310637533163425833": {
     "totalDonated": 540100013,
-    "weeklyDonated": 70000003,
+    "weeklyDonated": 0,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
@@ -78,7 +78,7 @@
   },
   "396375243117166593": {
     "totalDonated": 210000001,
-    "weeklyDonated": 35000001,
+    "weeklyDonated": 0,
     "currentTier": 1,
     "status": "good",
     "missedAmount": 0,
@@ -96,23 +96,15 @@
   },
   "736599653373706262": {
     "totalDonated": 201000000,
-    "weeklyDonated": 47000000,
+    "weeklyDonated": 0,
     "missedAmount": 0,
     "status": "good",
     "lastDonation": "2025-05-31T19:56:06.175Z",
     "currentTier": 1
   },
-  "635547489730166784": {
-    "totalDonated": 70000000,
-    "weeklyDonated": 0,
-    "missedAmount": 0,
-    "status": "good",
-    "lastDonation": "2025-05-11T15:23:22.704Z",
-    "currentTier": 1
-  },
   "747048507856388096": {
     "totalDonated": 105000001,
-    "weeklyDonated": 35000000,
+    "weeklyDonated": 0,
     "missedAmount": 0,
     "status": "good",
     "lastDonation": "2025-05-25T10:14:33.407Z",
