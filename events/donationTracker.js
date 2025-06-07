@@ -48,7 +48,6 @@ async function getWeeklyStats(client) {
             if (!usersData[memberId]) {
                 usersData[memberId] = {
                     weeklyDonated: 0,
-                    missedAmount: 0,
                     status: 'good',
                     totalDonated: 0,
                     currentTier: hasTier2 ? 2 : 1
@@ -58,13 +57,11 @@ async function getWeeklyStats(client) {
 
         const userData = usersData[memberId] || {
             weeklyDonated: 0,
-            missedAmount: 0,
             status: 'good'
         };
 
-        const requirement = hasTier2 ?
-            TIER_2_REQUIREMENT :
-            TIER_1_REQUIREMENT + (userData.missedAmount || 0);
+        // Use base requirements only (no more missedAmount tolerance)
+        const requirement = hasTier2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
 
         if (hasTier2) {
             tier2Users.push({
@@ -154,16 +151,19 @@ async function confirmDonation(client, message, donorId, donationAmount) {
     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
     const member = await guild.members.fetch(donorId);
 
+    // Check user's current tier based on their roles
+    const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+    const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+    const currentTier = hasTier2 ? 2 : hasTier1 ? 1 : 0;
+
     // Ensure user exists in users.json
     if (!usersData[donorId]) {
         usersData[donorId] = {
             totalDonated: 0,
             weeklyDonated: 0,
-            missedAmount: 0,
             status: 'good',
             lastDonation: new Date().toISOString(),
-            currentTier: member.roles.cache.has(TIER_2_ROLE_ID) ? 2 :
-                member.roles.cache.has(TIER_1_ROLE_ID) ? 1 : 0
+            currentTier: currentTier
         };
     }
 
@@ -171,15 +171,16 @@ async function confirmDonation(client, message, donorId, donationAmount) {
     usersData[donorId].totalDonated += donationAmount;
     usersData[donorId].weeklyDonated += donationAmount;
     usersData[donorId].lastDonation = new Date().toISOString();
+    usersData[donorId].currentTier = currentTier; // Update current tier based on actual roles
     statsData.totalDonations += donationAmount;
 
     // Save updated data
     fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
     fs.writeFileSync(statsFilePath, JSON.stringify(statsData, null, 2));
 
-    // Determine their weekly progress after donation
-    const requirement = usersData[donorId].currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
-    const weeklyProgress = `${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement + usersData[donorId].missedAmount)}`;
+    // Determine their weekly progress after donation - use base requirements only
+    const requirement = currentTier === 2 ? TIER_2_REQUIREMENT : TIER_1_REQUIREMENT;
+    const weeklyProgress = `${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`;
 
     // Send confirmation embed
     const donationEmbed = new EmbedBuilder()

@@ -169,6 +169,9 @@ async function updateStatusBoard(client) {
         return { tier1Users: [], tier2Users: [] };
     }
 }
+
+
+
 async function weeklyReset(client) {
     try {
         console.log('[RESET] Starting weekly reset process');
@@ -205,6 +208,7 @@ async function weeklyReset(client) {
         let topDonors = [];
         let topDonation = 0;
         let weeklyDonations = 0;
+        const tier1Donations = [];
         const tier2Donations = [];
 
         const members = await guild.members.fetch();
@@ -221,6 +225,13 @@ async function weeklyReset(client) {
                         lastDonation: new Date().toISOString()
                     };
                 }
+            }
+
+            if (hasTier1 && !hasTier2 && usersData[memberId]?.weeklyDonated > 0) {
+                tier1Donations.push({
+                    id: memberId,
+                    donated: usersData[memberId].weeklyDonated
+                });
             }
 
             if (hasTier2 && usersData[memberId]?.weeklyDonated > 0) {
@@ -428,10 +439,22 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             await announcementChannel.send({ embeds: [promotionEmbed] });
         }
 
-        const tier2DonationsList = tier2Donations
+        // Create donation syntaxes for both tiers
+        const donationSyntaxes = [];
+
+        // Add Tier 1 donations (no multiplier)
+        tier1Donations
             .filter(donation => donation.donated > 0)
-            .map(donation => `/dono add user: <@${donation.id}> amount: ${formatNumber(Math.floor(donation.donated * 1.25))}`)
-            .join('\n');
+            .forEach(donation => {
+                donationSyntaxes.push(`/dono add user: ${donation.id} amount: ${formatNumber(donation.donated)}`);
+            });
+
+        // Add Tier 2 donations (1.25x multiplier)
+        tier2Donations
+            .filter(donation => donation.donated > 0)
+            .forEach(donation => {
+                donationSyntaxes.push(`/dono add user: ${donation.id} amount: ${formatNumber(Math.floor(donation.donated * 1.25))}`);
+            });
 
         // Create admin summary embed with weekly stats included
         const summaryEmbed = new EmbedBuilder()
@@ -481,15 +504,23 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
             });
         }
 
-        if (tier2DonationsList) {
-            summaryEmbed.addFields({
-                name: '<:purpledot:860074414853586984> Tier 2 Donations List (1.25x)',
-                value: tier2DonationsList
-            });
-        }
-
-        // Always send the summary to admin channel (includes weekly stats now)
+        // Send the main summary embed
         await adminChannel.send({ embeds: [summaryEmbed] });
+
+        // Send donation syntaxes in a separate embed if there are any
+        if (donationSyntaxes.length > 0) {
+            const donationEmbed = new EmbedBuilder()
+                .setTitle('<:purpledot:860074414853586984> Donation Logging Syntaxes')
+                .setColor('#4c00b0')
+                .setDescription('Use these commands to log donations:\n*Tier 1: Original amount | Tier 2: 1.25x multiplier*')
+                .addFields({
+                    name: 'Commands',
+                    value: donationSyntaxes.join('\n')
+                })
+                .setTimestamp();
+
+            await adminChannel.send({ embeds: [donationEmbed] });
+        }
 
         // ISOLATED SECTION 3: Data Saving
         try {
