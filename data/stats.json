@@ -2,9 +2,9 @@
     "users": [
         {
             "userId": "753491023208120321",
-            "totalUses": 355,
+            "totalUses": 356,
             "successes": 299,
-            "fails": 56
+            "fails": 57
         },
         {
             "userId": "946265224250540054",
@@ -68,8 +68,8 @@
         },
         {
             "userId": "693463277442826240",
-            "totalUses": 25,
-            "successes": 19,
+            "totalUses": 26,
+            "successes": 20,
             "fails": 6
         },
         {
