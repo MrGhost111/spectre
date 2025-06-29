@@ -60,7 +60,8 @@ module.exports = {
             { id: '1028256279124250624', limit: 5 },
             { id: '1038106794200932512', limit: 5 },
             { id: '1038888209440067604', limit: 5 },
-            { id: '783032959350734868', limit: 10 }
+            { id: '783032959350734868', limit: 10 },
+            { id: '1349716423706148894', limit: 15 }
         ];
 
         const roleThresholds = roles.map(role => {
@@ -102,7 +103,8 @@ function calculateMaxFriends(rolesCache) {
             { id: '1028256279124250624', limit: 5 },
             { id: '1038106794200932512', limit: 5 },
             { id: '1038888209440067604', limit: 5 },
-            { id: '783032959350734868', limit: 10 }
+            { id: '783032959350734868', limit: 10 },
+            { id: '1349716423706148894', limit: 15 },
     ];
 
     let totalLimit = 0;

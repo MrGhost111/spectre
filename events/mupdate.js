@@ -388,9 +388,8 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                         const demotionEmbed = new EmbedBuilder()
                             .setTitle('<:xmark:934659388386451516> Weekly Requirement Not Met')
                             .setColor('#ff0000')
-                            .setDescription(`You missed this week's Tier 2 requirement by ⏣ ${formatNumber(TIER_2_REQUIREMENT - userData.weeklyDonated)}.\n\nYou have been demoted to Tier 1. Your new requirement for next week will be ⏣ ${formatNumber(TIER_1_REQUIREMENT)}.`)
+                            .setDescription(`You didn't meet this week's Tier 2 requirement.\n\nYou have been demoted to Tier 1 and will start fresh with the standard Tier 1 requirement of ⏣ ${formatNumber(TIER_1_REQUIREMENT)}.`)
                             .setTimestamp();
-
                         await member.send({ embeds: [demotionEmbed] });
                     } catch (error) {
                         console.error(`Failed to send demotion DM to ${userId}`);
@@ -412,7 +411,7 @@ You can now send your new requirements in <#${TRANSACTION_CHANNEL_ID}> according
                         const demotionEmbed = new EmbedBuilder()
                             .setTitle('<:xmark:934659388386451516> Weekly Requirement Not Met')
                             .setColor('#ff0000')
-                            .setDescription(`You missed this week's Tier 1 requirement by ⏣ ${formatNumber(TIER_1_REQUIREMENT - userData.weeklyDonated)}.\n\nYou have been removed from the Money Makers team. If you wish to rejoin then please wait for a week and then dm faiz`)
+                            .setDescription(`You missed Tier 1 requirement by ⏣ ${formatNumber(TIER_1_REQUIREMENT - userData.weeklyDonated)}.\n\nYou have been removed from the Money Makers team. If you wish to rejoin, please wait for a week and then DM faiz to restart at Tier 1.`)
                             .setTimestamp();
 
                         await member.send({ embeds: [demotionEmbed] });
