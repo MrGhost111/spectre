@@ -2,7 +2,7 @@ const fs = require('fs');
 const dataPath = './data/channels.json';
 
 module.exports = {
-    name: 'test',
+    name: 'myc',
     async execute(message, args) {
         const requiredRoles = [
             '768448955804811274', '768449168297033769', '946729964328337408',
@@ -21,10 +21,7 @@ module.exports = {
         try {
             const data = fs.readFileSync(dataPath, 'utf8');
             channels = JSON.parse(data);
-
-            if (typeof channels !== 'object' || channels === null) {
-                throw new Error('Channels data is not an object');
-            }
+            if (typeof channels !== 'object' || channels === null) throw new Error();
         } catch (error) {
             console.error('Error reading channels data:', error);
             return message.reply({
@@ -69,7 +66,7 @@ module.exports = {
 
             const currentFriendsCount = userChannel.friends.length;
 
-            const channelInfo = {
+            await message.reply({
                 flags: 32768,
                 components: [
                     {
@@ -78,19 +75,22 @@ module.exports = {
                         components: [
                             {
                                 type: 10,
-                                content:
-                                    `**Channel:** <#${userChannel.channelId}>\n` +
-                                    `**Owner:** <@${message.author.id}>\n` +
-                                    `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n` +
-                                    `**Invited Friends:** ${currentFriendsCount} / ${maxFriends}`
+                                content: `**Channel:** <#${userChannel.channelId}>\n**Owner:** <@${message.author.id}>`
                             },
+                            { type: 10, content: '\u200B' },
+                            {
+                                type: 10,
+                                content: `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n**Invited Friends:** ${currentFriendsCount} / ${maxFriends}`
+                            },
+                            { type: 10, content: '\u200B' },
                             {
                                 type: 10,
                                 content: `**Role Thresholds:**\n${roleThresholds}`
                             },
+                            { type: 10, content: '\u200B' },
                             {
                                 type: 10,
-                                content: `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage the channel members**`
+                                content: `Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage the channel members`
                             },
                             {
                                 type: 1,
@@ -116,9 +116,7 @@ module.exports = {
                         ]
                     }
                 ]
-            };
-
-            await message.reply(channelInfo);
+            });
 
         } else {
             await message.reply({
@@ -157,7 +155,6 @@ function calculateMaxFriends(member) {
         '1038888209440067604': 5, '783032959350734868': 10, '1349716423706148894': 5
     };
 
-    return Object.entries(roleLimits).reduce((sum, [roleId, limit]) => {
-        return member.roles.cache.has(roleId) ? sum + limit : sum;
-    }, 0);
+    return Object.entries(roleLimits).reduce((sum, [id, limit]) =>
+        member.roles.cache.has(id) ? sum + limit : sum, 0);
 }
