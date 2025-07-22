@@ -581,5 +581,15 @@
       "users": [],
       "channels": []
     }
+  },
+  "693463277442826240": {
+    "words": [
+      "itachi"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
+      "channels": []
+    }
   }
 }
