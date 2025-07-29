@@ -13655,7 +13655,21 @@
       "action": "remove",
       "amount": 1,
       "timestamp": 1753629058590
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1753804648630
+    },
+    {
+      "userId": "784764536673796126",
+      "action": "add",
+      "amount": 1,
+      "timestamp": 1753804653292
     }
   ],
-  "weekly": {}
+  "weekly": {
+    "784764536673796126": 2
+  }
 }
