@@ -12,13 +12,13 @@
             "usedRiskInChain": false
         },
         {
-            "userId": "1310637533163425833",
+            "userId": "740108592283385868",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1754469602,
-            "muteEndTime": 1754469645,
+            "muteStartTime": 1754469663,
+            "muteEndTime": 1754469749,
             "button_clicked": false,
-            "issuerId": "740108592283385868",
+            "issuerId": "1310637533163425833",
             "muteChainId": "chain_1754469602127_eibijg",
             "usedRiskInChain": false
         }
