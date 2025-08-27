@@ -16,10 +16,21 @@
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
             "muteStartTime": 1756295279,
-            "muteEndTime": 1756295338,
-            "button_clicked": false,
+            "muteEndTime": 1756295389,
+            "button_clicked": true,
             "issuerId": "784764536673796126",
             "muteChainId": "chain_1756295279192_shuff7",
+            "usedRiskInChain": true
+        },
+        {
+            "userId": "740108592283385868",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1756295313,
+            "muteEndTime": 1756295374,
+            "button_clicked": false,
+            "issuerId": "515646431059640330",
+            "muteChainId": "chain_1756295313428_jw3nh2",
             "usedRiskInChain": false
         }
     ]
