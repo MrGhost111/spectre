@@ -8,6 +8,10 @@ const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 
 // Role configurations
 const ROLE_CONFIGS = {
+    special: {
+        roles: ['1349716423706148894'], // Special role with 80% luck
+        luck: 80
+    },
     tier1: {
         roles: ['866641313754251297', '1038106794200932512', '866641299355861022', '946729964328337408', '1038888209440067604'],
         luck: 75
@@ -28,6 +32,7 @@ const ROLE_CONFIGS = {
 
 const BOOSTER_ROLES = ['713452411720827013', '721331975847411754', '721020858818232343', '1038888209440067604'];
 const REQUIRED_ROLES = [
+    ...ROLE_CONFIGS.special.roles,
     ...ROLE_CONFIGS.tier1.roles,
     ...ROLE_CONFIGS.tier2.roles,
     ...ROLE_CONFIGS.tier3.roles,
@@ -82,7 +87,7 @@ function calculateLuck(member) {
 
     let luck = 0;
 
-    // Check tier roles
+    // Check tier roles (including special role)
     for (const tier of Object.values(ROLE_CONFIGS)) {
         if (tier.roles.some(roleId => member.roles.cache.has(roleId))) {
             luck = tier.luck;
@@ -148,7 +153,7 @@ async function getMemberFromUser(guild, userId) {
 
 module.exports = {
     name: 'stfu',
-    aliases: ['shut','quiet','chill', 'fuck you shut up for a minute'],
+    aliases: ['shut', 'quiet', 'chill', 'fuck you shut up for a minute'],
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     async execute(message) {
         try {
@@ -193,6 +198,16 @@ module.exports = {
 
             if (targetUser.bot) {
                 return message.channel.send("You can't use this command on a bot smh");
+            }
+
+            // Check if target is already muted
+            const targetMember = await getMemberFromUser(message.guild, targetUser.id);
+            if (!targetMember) {
+                return message.channel.send('Could not find the target user in this server.');
+            }
+
+            if (targetMember.roles.cache.has(MUTED_ROLE_ID)) {
+                return message.channel.send(`${targetUser.username} is already muted.`);
             }
 
             // Check if target was recently muted
