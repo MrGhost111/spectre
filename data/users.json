@@ -65,5 +65,12 @@
     "status": "good",
     "lastDonation": "2025-09-11T05:57:38.708Z",
     "currentTier": 1
+  },
+  "730401940311244880": {
+    "totalDonated": 35000000,
+    "weeklyDonated": 35000000,
+    "status": "good",
+    "lastDonation": "2025-09-17T21:16:15.555Z",
+    "currentTier": 1
   }
 }
