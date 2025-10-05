@@ -1,7 +1,7 @@
 {
   "753491023208120321": {
     "totalDonated": 3710601258,
-    "weeklyDonated": 150000000,
+    "weeklyDonated": 0,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
@@ -34,7 +34,7 @@
   },
   "827983414308241448": {
     "totalDonated": 1645000000,
-    "weeklyDonated": 35000000,
+    "weeklyDonated": 0,
     "currentTier": 1,
     "status": "good",
     "missedAmount": 0,
@@ -43,7 +43,7 @@
   },
   "396375243117166593": {
     "totalDonated": 1660000071,
-    "weeklyDonated": 70000000,
+    "weeklyDonated": 0,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
@@ -61,14 +61,14 @@
   },
   "908974287464054854": {
     "totalDonated": 315000000,
-    "weeklyDonated": 35000000,
+    "weeklyDonated": 0,
     "status": "good",
     "lastDonation": "2025-10-02T03:49:43.033Z",
     "currentTier": 1
   },
   "730401940311244880": {
     "totalDonated": 5140000000,
-    "weeklyDonated": 70000000,
+    "weeklyDonated": 0,
     "status": "good",
     "lastDonation": "2025-09-30T11:33:11.306Z",
     "currentTier": 2
