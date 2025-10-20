@@ -20,8 +20,8 @@
       "772348411093319692": {
         "username": "cr7py",
         "joinTime": 1760981160790,
-        "leaveTime": null,
-        "status": "active",
+        "leaveTime": 1760992393041,
+        "status": "left",
         "rank": null
       },
       "651279417213190146": {
@@ -47,6 +47,7 @@
       }
     },
     "statusMessageId": "1429883369541337119",
-    "startTime": 1760981160787
+    "startTime": 1760981160787,
+    "winnerMessageId": "1429930480811249804"
   }
 }
