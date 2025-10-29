@@ -15,12 +15,12 @@
             "userId": "740108592283385868",
             "guildId": "673970118744735764",
             "roleId": "673978861335085107",
-            "muteStartTime": 1761741725,
-            "muteEndTime": 1761741845,
-            "button_clicked": false,
+            "muteStartTime": 1761741748,
+            "muteEndTime": 1761742588,
+            "button_clicked": true,
             "issuerId": "515646431059640330",
             "muteChainId": "chain_1761741720877_l8g7l8",
-            "usedRiskInChain": false
+            "usedRiskInChain": true
         }
     ]
 }
