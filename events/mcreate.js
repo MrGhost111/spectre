@@ -9,23 +9,24 @@ require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// AI Command Parser using OpenAI
+// AI Command Parser using Hugging Face Inference Providers (NEW API)
 async function parseCommandWithAI(userMessage) {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
-    if (!OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY not found in .env file');
+    if (!HF_API_KEY) {
+        throw new Error('HUGGINGFACE_API_KEY not found in .env file');
     }
 
     try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Using the NEW Hugging Face Inference Providers API
+        const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${HF_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: 'gpt-4o-mini',
+                model: 'mistralai/Mistral-7B-Instruct-v0.2',
                 messages: [
                     {
                         role: 'system',
@@ -39,20 +40,21 @@ Respond in this exact format:
 {"understood": true, "intent": "brief description of what user wants", "confidence": "high/medium/low"}`
                     }
                 ],
-                temperature: 0.3,
-                max_tokens: 150
+                max_tokens: 150,
+                temperature: 0.3
             })
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(`OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+            const errorText = await response.text();
+            throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
-        console.log('OpenAI Response:', data);
+        console.log('Hugging Face Response:', data);
 
-        const aiResponse = data.choices[0].message.content.trim();
+        // Extract the AI's response
+        const aiResponse = data.choices?.[0]?.message?.content || '';
 
         // Try to parse JSON from response
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -63,7 +65,7 @@ Respond in this exact format:
         // Fallback
         return {
             understood: true,
-            intent: aiResponse,
+            intent: aiResponse || 'Processing your request',
             confidence: 'medium'
         };
 
@@ -92,7 +94,7 @@ module.exports = {
                 };
 
                 const embed = new EmbedBuilder()
-                    .setColor('#00ff00')
+                    .setColor('#FFD21E')
                     .setTitle('🤖 AI Command Parser Test')
                     .addFields(
                         { name: 'Your Message', value: `\`${userCommand}\`` },
@@ -102,7 +104,7 @@ module.exports = {
                             value: `${parsedResult.understood ? '✅ Understood' : '❌ Not Understood'} ${confidenceEmoji[parsedResult.confidence] || ''} ${parsedResult.confidence || ''}`
                         }
                     )
-                    .setFooter({ text: 'Powered by OpenAI GPT-4o-mini' })
+                    .setFooter({ text: 'Powered by Hugging Face Inference Providers' })
                     .setTimestamp();
 
                 await message.reply({ embeds: [embed] });
@@ -111,13 +113,22 @@ module.exports = {
                 console.error('AI Test Error:', error);
 
                 let errorMessage = error.message;
-                if (error.message.includes('401')) {
-                    errorMessage = 'Invalid API Key! Check your OPENAI_API_KEY in .env file';
+                let troubleshooting = '**Troubleshooting:**\n';
+
+                if (error.message.includes('503')) {
+                    errorMessage = 'Model is loading... Try again in 20-30 seconds!';
+                    troubleshooting += '- Wait 20-30 seconds for the model to load\n- First request after idle time takes longer';
+                } else if (error.message.includes('401') || error.message.includes('403')) {
+                    errorMessage = 'Invalid API Key! Check your HUGGINGFACE_API_KEY in .env file';
+                    troubleshooting += '- Make sure HUGGINGFACE_API_KEY is set correctly\n- Get your key from: https://huggingface.co/settings/tokens';
                 } else if (error.message.includes('429')) {
-                    errorMessage = 'Rate limit exceeded or no credits. Check your OpenAI account';
+                    errorMessage = 'Rate limit exceeded. Try upgrading to HF PRO ($9/month) for higher limits';
+                    troubleshooting += '- Free tier: ~100 requests/hour\n- PRO tier: Much higher limits';
+                } else {
+                    troubleshooting += '- Check your HUGGINGFACE_API_KEY in .env file\n- Verify internet connection\n- Try again in a few seconds';
                 }
 
-                await message.reply(`❌ **AI Test Failed**\n\`\`\`${errorMessage}\`\`\`\n\n**Troubleshooting:**\n- Make sure OPENAI_API_KEY is set in your .env file\n- Check if your OpenAI API key is valid\n- Verify you have credits in your OpenAI account`);
+                await message.reply(`❌ **AI Test Failed**\n\`\`\`${errorMessage}\`\`\`\n\n${troubleshooting}`);
             }
 
             return; // Stop here for testing
