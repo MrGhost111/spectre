@@ -16,6 +16,22 @@ const AI_COMMAND_DEFINITIONS = [
             'grant me administrator'
         ]
     },
+    {
+        name: 'unmute',
+        aliases: ['removemute', 'unsilence'],
+        description: 'Remove muted role from a user (restricted access)',
+        keywords: ['unmute', 'remove mute', 'unsilence', 'unmuted', 'take off mute', 'lift mute'],
+        requiredParams: [],
+        examples: [
+            'unmute @user',
+            'unmute me',
+            'remove mute from john',
+            'unsilence that person',
+            'take the mute off',
+            'unmute the user I replied to',
+            'unmute this guy'
+        ]
+    },
     // Add more commands here as we integrate them
 ];
 
