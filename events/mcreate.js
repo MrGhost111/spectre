@@ -29,13 +29,37 @@ module.exports = {
 
                 console.log('AI Parsed Command:', parsedResult);
 
-                // If command was successfully identified
-                if (parsedResult.success && parsedResult.command !== 'unknown') {
-                    // Load the command from text-commands folder
+                // Check if multiple commands were detected
+                if (parsedResult.multipleCommands && parsedResult.commands.length > 0) {
+                    let executedCount = 0;
+                    let failedCount = 0;
+
+                    for (const commandInfo of parsedResult.commands) {
+                        const command = client.textCommands.get(commandInfo.command);
+
+                        if (command) {
+                            try {
+                                await command.execute(message, commandInfo.args || []);
+                                executedCount++;
+                            } catch (error) {
+                                console.error(`Error executing ${commandInfo.command}:`, error);
+                                failedCount++;
+                            }
+                        } else {
+                            failedCount++;
+                        }
+                    }
+
+                    if (failedCount > 0) {
+                        await message.reply(`✅ Executed ${executedCount} command(s), but ${failedCount} failed.`);
+                    }
+                    // Don't send success message if all commands executed (they handle their own responses)
+
+                } else if (parsedResult.success && parsedResult.command !== 'unknown') {
+                    // Single command execution (existing logic)
                     const command = client.textCommands.get(parsedResult.command);
 
                     if (command) {
-                        // Execute the command
                         await command.execute(message, []);
                     } else {
                         await message.reply(`✅ I understood you want to use \`${parsedResult.command}\`, but that command isn't loaded yet.`);

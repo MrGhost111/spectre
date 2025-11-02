@@ -1,4 +1,4 @@
-const { HfInference } = require('@huggingface/inference');
+﻿const { HfInference } = require('@huggingface/inference');
 require('dotenv').config();
 
 // Define all AI-parseable commands with their metadata
@@ -28,8 +28,7 @@ const AI_COMMAND_DEFINITIONS = [
             'remove mute from john',
             'unsilence that person',
             'take the mute off',
-            'unmute the user I replied to',
-            'unmute this guy'
+            'unmute the user I replied to'
         ]
     },
     {
@@ -47,7 +46,19 @@ const AI_COMMAND_DEFINITIONS = [
             'make them shut up'
         ]
     },
-    // Add more commands here as we integrate them
+    {
+        name: 'resetcd',
+        aliases: ['resetcooldown', 'cdrest'],
+        description: 'Reset your stfu command cooldown',
+        keywords: ['reset', 'cooldown', 'cd', 'reset cooldown', 'clear cooldown'],
+        requiredParams: [],
+        examples: [
+            'reset my cooldown',
+            'reset cd',
+            'clear my cooldown',
+            'resetcd'
+        ]
+    }
 ];
 
 class AICommandParser {
@@ -56,7 +67,7 @@ class AICommandParser {
     }
 
     /**
-     * Parse natural language message to extract command and parameters
+     * Parse natural language message to extract command(s) and parameters
      */
     async parseCommand(userMessage, context = {}) {
         try {
@@ -67,7 +78,7 @@ class AICommandParser {
                 examples: cmd.examples
             }));
 
-            const prompt = `You are a Discord bot command parser. Analyze the user's message and determine which command they want to execute.
+            const prompt = `You are a Discord bot command parser. Analyze the user's message and determine which command(s) they want to execute.
 
 Available commands:
 ${JSON.stringify(commandList, null, 2)}
@@ -75,16 +86,34 @@ ${JSON.stringify(commandList, null, 2)}
 User message: "${userMessage}"
 
 Rules:
-1. Match the user's intent to ONE command from the list above
-2. If no command matches, return {"command": "unknown"}
-3. Respond with ONLY valid JSON, nothing else
+1. If the user wants to execute ONE command, return single command format
+2. If the user wants to execute MULTIPLE commands (using "and", "then", etc.), return multiple commands format
+3. Commands should be executed in the order they appear in the message
+4. If no command matches, return {"command": "unknown"}
+5. Respond with ONLY valid JSON, nothing else
 
-Response format:
+Single command response format:
 {
   "command": "command_name",
   "confidence": "high/medium/low",
   "reasoning": "brief explanation"
-}`;
+}
+
+Multiple commands response format:
+{
+  "multipleCommands": true,
+  "commands": [
+    {"command": "command_name_1", "order": 1},
+    {"command": "command_name_2", "order": 2}
+  ],
+  "confidence": "high/medium/low",
+  "reasoning": "brief explanation"
+}
+
+Examples:
+- "reset cd and mute john" → multiple commands: resetcd first, then stfu
+- "mute this guy" → single command: stfu
+- "reset my cooldown then shut up @user" → multiple commands: resetcd first, then stfu`;
 
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -92,7 +121,7 @@ Response format:
                     { role: "system", content: "You are a command parser. Respond only with JSON." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 200,
+                max_tokens: 300,
                 temperature: 0.2
             });
 
@@ -102,7 +131,28 @@ Response format:
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
 
-                // Validate the command exists
+                // Handle multiple commands
+                if (parsed.multipleCommands && parsed.commands) {
+                    // Validate all commands exist
+                    const validCommands = parsed.commands
+                        .filter(cmdInfo => {
+                            const commandDef = AI_COMMAND_DEFINITIONS.find(cmd =>
+                                cmd.name === cmdInfo.command
+                            );
+                            return commandDef !== undefined;
+                        })
+                        .sort((a, b) => (a.order || 0) - (b.order || 0)); // Sort by order
+
+                    if (validCommands.length > 0) {
+                        return {
+                            ...parsed,
+                            commands: validCommands,
+                            success: true
+                        };
+                    }
+                }
+
+                // Handle single command
                 const commandDef = AI_COMMAND_DEFINITIONS.find(cmd => cmd.name === parsed.command);
                 if (commandDef) {
                     return {
@@ -119,7 +169,6 @@ Response format:
                 reasoning: 'Could not match to any command',
                 success: false
             };
-
         } catch (error) {
             console.error('AI Parsing Error:', error);
             throw error;
