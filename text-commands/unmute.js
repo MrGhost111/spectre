@@ -11,16 +11,21 @@ module.exports = {
 
         let userToUnmute = null;
 
-        // Priority 1: Check if a user is mentioned or ID/username provided in args
-        if (args.length > 0) {
-            userToUnmute = message.mentions.users.first() ||
-                message.guild.members.cache.find(member =>
-                    member.user.username.toLowerCase() === args.join(' ').toLowerCase() ||
-                    member.id === args[0]
-                );
+        // Priority 1: Check for mentioned users in the original message
+        if (message.mentions.users.size > 0) {
+            // Get the first mentioned user (excluding the bot itself if mentioned)
+            userToUnmute = message.mentions.users.filter(user => !user.bot).first();
         }
 
-        // Priority 2: Check if replying to someone
+        // Priority 2: Check if args provided (for traditional command usage with username/ID)
+        if (!userToUnmute && args.length > 0) {
+            userToUnmute = message.guild.members.cache.find(member =>
+                member.user.username.toLowerCase() === args.join(' ').toLowerCase() ||
+                member.id === args[0]
+            )?.user;
+        }
+
+        // Priority 3: Check if replying to someone
         if (!userToUnmute && message.reference) {
             try {
                 const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -32,7 +37,7 @@ module.exports = {
             }
         }
 
-        // Priority 3: If no user specified and no reply, unmute the command author
+        // Priority 4: If no user specified and no reply, unmute the command author
         if (!userToUnmute) {
             userToUnmute = message.author;
         }
