@@ -32,6 +32,21 @@ const AI_COMMAND_DEFINITIONS = [
             'unmute this guy'
         ]
     },
+    {
+        name: 'stfu',
+        aliases: ['shut', 'quiet', 'chill', 'silence', 'mute'],
+        description: 'Attempt to mute a user with luck-based system (requires specific roles)',
+        keywords: ['stfu', 'shut', 'quiet', 'chill', 'silence', 'mute', 'shut up', 'be quiet', 'stop talking'],
+        requiredParams: [],
+        examples: [
+            'stfu @user',
+            'shut up john',
+            'mute that person',
+            'tell them to be quiet',
+            'silence this guy',
+            'make them shut up'
+        ]
+    },
     // Add more commands here as we integrate them
 ];
 

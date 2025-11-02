@@ -99,8 +99,6 @@ function calculateLuck(member) {
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
-    // Removed streak bonus code here
-
     const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
 
@@ -155,7 +153,7 @@ module.exports = {
     name: 'stfu',
     aliases: ['shut', 'quiet', 'chill', 'fuck you shut up for a minute'],
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
-    async execute(message) {
+    async execute(message, args) {
         try {
             // Check required roles
             if (!REQUIRED_ROLES.some(roleId => message.member.roles.cache.has(roleId))) {
@@ -171,20 +169,42 @@ module.exports = {
                 return message.channel.send(`You can use it again at <t:${userCooldown.endTime}:t> (<t:${userCooldown.endTime}:R>)`);
             }
 
-            // Get target user
+            // Get target user with improved detection
             const targetUser = await (async () => {
-                if (message.reference) {
-                    const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                    return repliedMessage.author;
-                }
-                const mentionedUser = message.mentions.users.first();
+                // Priority 1: Check for mentioned users
+                const mentionedUser = message.mentions.users.filter(user => !user.bot).first();
                 if (mentionedUser) return mentionedUser;
 
-                const userArg = message.content.split(' ')[1];
-                if (userArg) {
-                    const member = await getMemberFromUser(message.guild, userArg);
-                    if (member) return member.user;
+                // Priority 2: Check if replying to someone
+                if (message.reference) {
+                    try {
+                        const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                        if (repliedMessage && !repliedMessage.author.bot) {
+                            return repliedMessage.author;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching replied message:', error);
+                    }
                 }
+
+                // Priority 3: Check args for user ID or username
+                if (args.length > 0) {
+                    const userArg = args.join(' '); // Join all args to handle multi-word usernames
+
+                    // Try to fetch by ID first
+                    if (/^\d{17,19}$/.test(args[0])) {
+                        const member = await getMemberFromUser(message.guild, args[0]);
+                        if (member) return member.user;
+                    }
+
+                    // Try to find by username (case-insensitive)
+                    const memberByUsername = message.guild.members.cache.find(member =>
+                        member.user.username.toLowerCase() === userArg.toLowerCase() ||
+                        member.displayName.toLowerCase() === userArg.toLowerCase()
+                    );
+                    if (memberByUsername) return memberByUsername.user;
+                }
+
                 return null;
             })();
 
@@ -325,7 +345,7 @@ module.exports = {
             await message.channel.send({ embeds: [embed], components: [actionRow] });
 
             // Update cooldown
-            const cooldownEnd = currentTime + 3600; // 
+            const cooldownEnd = currentTime + 3600;
             const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
             if (cooldownIndex !== -1) {
                 cooldowns.users[cooldownIndex].endTime = cooldownEnd;
