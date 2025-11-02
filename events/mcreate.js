@@ -9,79 +9,67 @@ require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// AI Command Parser using Hugging Face
+// AI Command Parser using OpenAI
 async function parseCommandWithAI(userMessage) {
-    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-    if (!HF_API_KEY) {
-        throw new Error('HUGGINGFACE_API_KEY not found in .env file');
+    if (!OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY not found in .env file');
     }
 
     try {
-        const response = await fetch(
-            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
-            {
-                headers: {
-                    "Authorization": `Bearer ${HF_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                method: "POST",
-                body: JSON.stringify({
-                    inputs: `You are a command parser. Extract the command intent from this message and respond with ONLY a JSON object, nothing else.
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a command parser. Respond ONLY with valid JSON, no other text. Extract the user\'s intent from their message.'
+                    },
+                    {
+                        role: 'user',
+                        content: `Parse this message and respond with JSON: "${userMessage}"
 
-User message: "${userMessage}"
-
-Respond with JSON in this exact format:
-{"understood": true, "message": "describe what you think the user wants"}
-
-Examples:
-User: "hey can you help me with something" -> {"understood": true, "message": "User is asking for general help"}
-User: "snipe 3 messages" -> {"understood": true, "message": "User wants to see 3 deleted messages"}
-User: "add user1 and user2 to my channel" -> {"understood": true, "message": "User wants to add 2 users to their channel"}
-
-Now parse: "${userMessage}"`,
-                    parameters: {
-                        max_new_tokens: 200,
-                        temperature: 0.3,
-                        return_full_text: false
+Respond in this exact format:
+{"understood": true, "intent": "brief description of what user wants", "confidence": "high/medium/low"}`
                     }
-                }),
-            }
-        );
+                ],
+                temperature: 0.3,
+                max_tokens: 150
+            })
+        });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
         }
 
-        const result = await response.json();
-        console.log('Raw HF Response:', result);
+        const data = await response.json();
+        console.log('OpenAI Response:', data);
 
-        if (result.error) {
-            throw new Error(`API Error: ${result.error}`);
-        }
+        const aiResponse = data.choices[0].message.content.trim();
 
-        // Extract the generated text
-        let generatedText = result[0]?.generated_text || result.generated_text || '';
-
-        // Try to find JSON in the response
-        const jsonMatch = generatedText.match(/\{[^}]+\}/);
+        // Try to parse JSON from response
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             return JSON.parse(jsonMatch[0]);
         }
 
-        // Fallback if no JSON found
+        // Fallback
         return {
             understood: true,
-            message: "I'm processing your request: " + generatedText.substring(0, 100)
+            intent: aiResponse,
+            confidence: 'medium'
         };
 
     } catch (error) {
         console.error('AI Parsing Error:', error);
-        return {
-            understood: false,
-            message: `Error: ${error.message}`
-        };
+        throw error;
     }
 }
 
@@ -97,22 +85,39 @@ module.exports = {
 
                 const parsedResult = await parseCommandWithAI(userCommand);
 
+                const confidenceEmoji = {
+                    'high': '🟢',
+                    'medium': '🟡',
+                    'low': '🔴'
+                };
+
                 const embed = new EmbedBuilder()
                     .setColor('#00ff00')
                     .setTitle('🤖 AI Command Parser Test')
                     .addFields(
-                        { name: 'Your Message', value: userCommand },
-                        { name: 'AI Understanding', value: parsedResult.message || 'No response' },
-                        { name: 'Status', value: parsedResult.understood ? '✅ Understood' : '❌ Not Understood' }
+                        { name: 'Your Message', value: `\`${userCommand}\`` },
+                        { name: 'AI Understanding', value: parsedResult.intent || 'No response' },
+                        {
+                            name: 'Status',
+                            value: `${parsedResult.understood ? '✅ Understood' : '❌ Not Understood'} ${confidenceEmoji[parsedResult.confidence] || ''} ${parsedResult.confidence || ''}`
+                        }
                     )
-                    .setFooter({ text: 'This is a test response from Hugging Face API' })
+                    .setFooter({ text: 'Powered by OpenAI GPT-4o-mini' })
                     .setTimestamp();
 
                 await message.reply({ embeds: [embed] });
 
             } catch (error) {
                 console.error('AI Test Error:', error);
-                await message.reply(`❌ **AI Test Failed**\n\`\`\`${error.message}\`\`\`\n\nCheck your HUGGINGFACE_API_KEY in .env file!`);
+
+                let errorMessage = error.message;
+                if (error.message.includes('401')) {
+                    errorMessage = 'Invalid API Key! Check your OPENAI_API_KEY in .env file';
+                } else if (error.message.includes('429')) {
+                    errorMessage = 'Rate limit exceeded or no credits. Check your OpenAI account';
+                }
+
+                await message.reply(`❌ **AI Test Failed**\n\`\`\`${errorMessage}\`\`\`\n\n**Troubleshooting:**\n- Make sure OPENAI_API_KEY is set in your .env file\n- Check if your OpenAI API key is valid\n- Verify you have credits in your OpenAI account`);
             }
 
             return; // Stop here for testing
