@@ -5,11 +5,12 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
+const { HfInference } = require('@huggingface/inference');
 require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// AI Command Parser using Hugging Face Inference Providers (NEW API)
+// AI Command Parser using Hugging Face Inference Providers (Correct Method)
 async function parseCommandWithAI(userMessage) {
     const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
@@ -18,43 +19,31 @@ async function parseCommandWithAI(userMessage) {
     }
 
     try {
-        // Using the NEW Hugging Face Inference Providers API
-        const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${HF_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'mistralai/Mistral-7B-Instruct-v0.2',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are a command parser. Respond ONLY with valid JSON, no other text. Extract the user\'s intent from their message.'
-                    },
-                    {
-                        role: 'user',
-                        content: `Parse this message and respond with JSON: "${userMessage}"
+        // Using the official Hugging Face Inference SDK
+        const hf = new HfInference(HF_API_KEY);
 
-Respond in this exact format:
-{"understood": true, "intent": "brief description of what user wants", "confidence": "high/medium/low"}`
-                    }
-                ],
-                max_tokens: 150,
-                temperature: 0.3
-            })
+        const response = await hf.chatCompletion({
+            model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a command parser. Respond ONLY with valid JSON, no other text."
+                },
+                {
+                    role: "user",
+                    content: `Parse this message and respond with JSON in this format: {"understood": true, "intent": "what user wants", "confidence": "high/medium/low"}
+
+Message: "${userMessage}"`
+                }
+            ],
+            max_tokens: 150,
+            temperature: 0.3
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
-        console.log('Hugging Face Response:', data);
+        console.log('Hugging Face Response:', response);
 
         // Extract the AI's response
-        const aiResponse = data.choices?.[0]?.message?.content || '';
+        const aiResponse = response.choices[0].message.content;
 
         // Try to parse JSON from response
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -120,12 +109,15 @@ module.exports = {
                     troubleshooting += '- Wait 20-30 seconds for the model to load\n- First request after idle time takes longer';
                 } else if (error.message.includes('401') || error.message.includes('403')) {
                     errorMessage = 'Invalid API Key! Check your HUGGINGFACE_API_KEY in .env file';
-                    troubleshooting += '- Make sure HUGGINGFACE_API_KEY is set correctly\n- Get your key from: https://huggingface.co/settings/tokens';
+                    troubleshooting += '- Make sure HUGGINGFACE_API_KEY is set correctly\n- Get your key from: https://huggingface.co/settings/tokens\n- Make sure "Make calls to Inference Providers" is enabled';
                 } else if (error.message.includes('429')) {
-                    errorMessage = 'Rate limit exceeded. Try upgrading to HF PRO ($9/month) for higher limits';
-                    troubleshooting += '- Free tier: ~100 requests/hour\n- PRO tier: Much higher limits';
+                    errorMessage = 'Rate limit exceeded. Try again in a few minutes.';
+                    troubleshooting += '- Free tier: limited requests per hour\n- Wait a few minutes and try again\n- PRO tier ($9/month) has higher limits';
+                } else if (error.message.includes('Cannot find module')) {
+                    errorMessage = 'Missing @huggingface/inference package!';
+                    troubleshooting += '- Run: npm install @huggingface/inference\n- Then restart your bot';
                 } else {
-                    troubleshooting += '- Check your HUGGINGFACE_API_KEY in .env file\n- Verify internet connection\n- Try again in a few seconds';
+                    troubleshooting += '- Check your HUGGINGFACE_API_KEY in .env file\n- Verify internet connection\n- Try again in a few seconds\n- Make sure you have: npm install @huggingface/inference';
                 }
 
                 await message.reply(`❌ **AI Test Failed**\n\`\`\`${errorMessage}\`\`\`\n\n${troubleshooting}`);
