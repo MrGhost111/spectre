@@ -2,9 +2,9 @@
     "users": [
         {
             "userId": "753491023208120321",
-            "totalUses": 412,
-            "successes": 338,
-            "fails": 74
+            "totalUses": 480,
+            "successes": 403,
+            "fails": 77
         },
         {
             "userId": "946265224250540054",
@@ -14,15 +14,15 @@
         },
         {
             "userId": "733798791601455154",
-            "totalUses": 43,
-            "successes": 31,
+            "totalUses": 47,
+            "successes": 35,
             "fails": 12
         },
         {
             "userId": "784764536673796126",
-            "totalUses": 102,
-            "successes": 85,
-            "fails": 17
+            "totalUses": 144,
+            "successes": 119,
+            "fails": 25
         },
         {
             "userId": "770190440237367316",
@@ -32,27 +32,27 @@
         },
         {
             "userId": "736599653373706262",
-            "totalUses": 121,
-            "successes": 105,
-            "fails": 16
+            "totalUses": 143,
+            "successes": 120,
+            "fails": 23
         },
         {
             "userId": "747048507856388096",
-            "totalUses": 29,
-            "successes": 22,
-            "fails": 7
+            "totalUses": 42,
+            "successes": 32,
+            "fails": 10
         },
         {
             "userId": "691693416664531085",
-            "totalUses": 111,
-            "successes": 80,
-            "fails": 31
+            "totalUses": 160,
+            "successes": 122,
+            "fails": 38
         },
         {
             "userId": "682122261758869504",
-            "totalUses": 92,
-            "successes": 61,
-            "fails": 31
+            "totalUses": 112,
+            "successes": 74,
+            "fails": 38
         },
         {
             "userId": "756374124149997588",
@@ -62,14 +62,14 @@
         },
         {
             "userId": "730401940311244880",
-            "totalUses": 42,
-            "successes": 31,
-            "fails": 11
+            "totalUses": 49,
+            "successes": 37,
+            "fails": 12
         },
         {
             "userId": "693463277442826240",
-            "totalUses": 53,
-            "successes": 37,
+            "totalUses": 55,
+            "successes": 39,
             "fails": 16
         },
         {
@@ -86,21 +86,21 @@
         },
         {
             "userId": "827983414308241448",
-            "totalUses": 40,
-            "successes": 31,
+            "totalUses": 43,
+            "successes": 34,
             "fails": 9
         },
         {
             "userId": "760774606721646605",
-            "totalUses": 5,
-            "successes": 3,
+            "totalUses": 8,
+            "successes": 6,
             "fails": 2
         },
         {
             "userId": "786612324588060713",
-            "totalUses": 19,
-            "successes": 16,
-            "fails": 3
+            "totalUses": 30,
+            "successes": 26,
+            "fails": 4
         },
         {
             "userId": "737010955233394792",
@@ -110,9 +110,9 @@
         },
         {
             "userId": "777037380367417344",
-            "totalUses": 83,
-            "successes": 58,
-            "fails": 25
+            "totalUses": 97,
+            "successes": 66,
+            "fails": 31
         },
         {
             "userId": "1171210338117632000",
@@ -122,21 +122,21 @@
         },
         {
             "userId": "560093267497189396",
-            "totalUses": 29,
-            "successes": 24,
+            "totalUses": 33,
+            "successes": 28,
             "fails": 5
         },
         {
             "userId": "515646431059640330",
-            "totalUses": 30,
-            "successes": 23,
-            "fails": 7
+            "totalUses": 83,
+            "successes": 67,
+            "fails": 16
         },
         {
             "userId": "631092568246976513",
-            "totalUses": 35,
-            "successes": 26,
-            "fails": 9
+            "totalUses": 94,
+            "successes": 74,
+            "fails": 20
         },
         {
             "userId": "802556469575942164",
@@ -152,8 +152,8 @@
         },
         {
             "userId": "345597856041926666",
-            "totalUses": 1,
-            "successes": 0,
+            "totalUses": 2,
+            "successes": 1,
             "fails": 1
         },
         {
@@ -164,9 +164,9 @@
         },
         {
             "userId": "740108592283385868",
-            "totalUses": 269,
-            "successes": 229,
-            "fails": 40
+            "totalUses": 422,
+            "successes": 350,
+            "fails": 72
         },
         {
             "userId": "667269787818131456",
@@ -188,9 +188,9 @@
         },
         {
             "userId": "705687251950239774",
-            "totalUses": 8,
-            "successes": 5,
-            "fails": 3
+            "totalUses": 17,
+            "successes": 13,
+            "fails": 4
         },
         {
             "userId": "950713854613155890",
@@ -200,21 +200,21 @@
         },
         {
             "userId": "1310637533163425833",
-            "totalUses": 48,
-            "successes": 36,
-            "fails": 12
+            "totalUses": 82,
+            "successes": 62,
+            "fails": 20
         },
         {
             "userId": "772715627089100831",
-            "totalUses": 4,
+            "totalUses": 5,
             "successes": 1,
-            "fails": 3
+            "fails": 4
         },
         {
             "userId": "826115461623054336",
-            "totalUses": 7,
-            "successes": 5,
-            "fails": 2
+            "totalUses": 75,
+            "successes": 61,
+            "fails": 14
         },
         {
             "userId": "1193260295565611120",
@@ -224,9 +224,9 @@
         },
         {
             "userId": "706310256954966086",
-            "totalUses": 42,
-            "successes": 35,
-            "fails": 7
+            "totalUses": 63,
+            "successes": 52,
+            "fails": 11
         },
         {
             "userId": "918097380291772416",
@@ -236,27 +236,27 @@
         },
         {
             "userId": "893684030724259850",
-            "totalUses": 2,
+            "totalUses": 3,
             "successes": 1,
-            "fails": 1
+            "fails": 2
         },
         {
             "userId": "932458730304442399",
-            "totalUses": 16,
-            "successes": 9,
-            "fails": 7
+            "totalUses": 23,
+            "successes": 14,
+            "fails": 9
         },
         {
             "userId": "985142302148292619",
-            "totalUses": 4,
-            "successes": 3,
+            "totalUses": 7,
+            "successes": 6,
             "fails": 1
         },
         {
             "userId": "829267404890439740",
-            "totalUses": 6,
-            "successes": 5,
-            "fails": 1
+            "totalUses": 14,
+            "successes": 9,
+            "fails": 5
         },
         {
             "userId": "563623938580676609",
@@ -284,8 +284,8 @@
         },
         {
             "userId": "969159230974222336",
-            "totalUses": 2,
-            "successes": 1,
+            "totalUses": 4,
+            "successes": 3,
             "fails": 1
         },
         {
@@ -296,27 +296,27 @@
         },
         {
             "userId": "580287786712563723",
-            "totalUses": 11,
-            "successes": 6,
-            "fails": 5
+            "totalUses": 18,
+            "successes": 12,
+            "fails": 6
         },
         {
             "userId": "817678194920390687",
-            "totalUses": 9,
-            "successes": 6,
+            "totalUses": 10,
+            "successes": 7,
             "fails": 3
         },
         {
             "userId": "743149570480930856",
-            "totalUses": 2,
-            "successes": 2,
+            "totalUses": 3,
+            "successes": 3,
             "fails": 0
         },
         {
             "userId": "770593236129284126",
-            "totalUses": 33,
-            "successes": 26,
-            "fails": 7
+            "totalUses": 43,
+            "successes": 34,
+            "fails": 9
         },
         {
             "userId": "743429269207646299",
@@ -335,7 +335,25 @@
             "totalUses": 2,
             "successes": 2,
             "fails": 0
+        },
+        {
+            "userId": "641393276670181415",
+            "totalUses": 3,
+            "successes": 3,
+            "fails": 0
+        },
+        {
+            "userId": "1089275337633972306",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
+        },
+        {
+            "userId": "777720333028294707",
+            "totalUses": 3,
+            "successes": 1,
+            "fails": 2
         }
     ],
-    "totalDonations": 25631744506
+    "totalDonations": 34329744506
 }

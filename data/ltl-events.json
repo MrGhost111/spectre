@@ -3,102 +3,51 @@
     "status": "active",
     "logChannelId": "944924520647643156",
     "participants": {
-      "621379895104372757": {
-        "username": "m4ck3r3l",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745232640799,
+      "1310637533163425833": {
+        "username": "just1gamer35",
+        "joinTime": 1760981160790,
+        "leaveTime": 1760985667699,
         "status": "left",
         "rank": null
       },
-      "918097380291772416": {
-        "username": "isaiahah",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745177141512,
+      "290842661139644426": {
+        "username": "ryugohugo",
+        "joinTime": 1760981160790,
+        "leaveTime": 1761005740574,
         "status": "left",
         "rank": null
       },
-      "682122261758869504": {
-        "username": "skitty8428",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745197361912,
+      "772348411093319692": {
+        "username": "cr7py",
+        "joinTime": 1760981160790,
+        "leaveTime": 1760992393041,
         "status": "left",
         "rank": null
       },
-      "932458730304442399": {
-        "username": "the_evalizer",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745182889500,
+      "651279417213190146": {
+        "username": "samoosa",
+        "joinTime": 1760981160790,
+        "leaveTime": 1760985992054,
         "status": "left",
         "rank": null
       },
-      "534057021524279297": {
-        "username": "jiawensx",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745176822602,
+      "982992584022573070": {
+        "username": "atharv08332",
+        "joinTime": 1760981160790,
+        "leaveTime": 1760982925578,
         "status": "left",
         "rank": null
       },
-      "753091612300542014": {
-        "username": "satan9003",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745178192372,
-        "status": "left",
-        "rank": null
-      },
-      "635547489730166784": {
-        "username": "f7shgang",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745259708995,
-        "status": "left",
-        "rank": null
-      },
-      "396375243117166593": {
-        "username": "saradon03",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745182588518,
-        "status": "left",
-        "rank": null
-      },
-      "854277273553076236": {
-        "username": "talk_sick",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745185031915,
-        "status": "left",
-        "rank": null
-      },
-      "946265224250540054": {
-        "username": "nathing_0",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745215254614,
-        "status": "left",
-        "rank": null
-      },
-      "1150654237961895938": {
-        "username": "bigsmokez2989",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745190309774,
-        "status": "left",
-        "rank": null,
-        "lastStateUpdate": 1745181583326
-      },
-      "1021537331129352213": {
-        "username": "moontiel_",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745238379543,
-        "status": "left",
-        "rank": null,
-        "lastStateUpdate": 1745238240851
-      },
-      "692365024336805888": {
-        "username": "gdlnoob",
-        "joinTime": 1745176682676,
-        "leaveTime": 1745259741554,
+      "784764536673796126": {
+        "username": "purplephoenix.",
+        "joinTime": 1760981160790,
+        "leaveTime": 1760990582962,
         "status": "left",
         "rank": null
       }
     },
-    "statusMessageId": "1363594583631593615",
-    "startTime": 1745176682675,
-    "winnerMessageId": "1363942820670603517"
+    "statusMessageId": "1429883369541337119",
+    "startTime": 1760981160787,
+    "winnerMessageId": "1429930480811249804"
   }
 }
