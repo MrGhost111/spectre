@@ -5,125 +5,73 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
-const { HfInference } = require('@huggingface/inference');
+const aiCommandParser = require('../utils/aiCommandParser');
 require('dotenv').config();
 
 let lastStickyMessageId = null;
 
-// AI Command Parser using Hugging Face Inference Providers (Correct Method)
-async function parseCommandWithAI(userMessage) {
-    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-
-    if (!HF_API_KEY) {
-        throw new Error('HUGGINGFACE_API_KEY not found in .env file');
-    }
-
-    try {
-        // Using the official Hugging Face Inference SDK
-        const hf = new HfInference(HF_API_KEY);
-
-        const response = await hf.chatCompletion({
-            model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a command parser. Respond ONLY with valid JSON, no other text."
-                },
-                {
-                    role: "user",
-                    content: `Parse this message and respond with JSON in this format: {"understood": true, "intent": "what user wants", "confidence": "high/medium/low"}
-
-Message: "${userMessage}"`
-                }
-            ],
-            max_tokens: 150,
-            temperature: 0.3
-        });
-
-        console.log('Hugging Face Response:', response);
-
-        // Extract the AI's response
-        const aiResponse = response.choices[0].message.content;
-
-        // Try to parse JSON from response
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
-        }
-
-        // Fallback
-        return {
-            understood: true,
-            intent: aiResponse || 'Processing your request',
-            confidence: 'medium'
-        };
-
-    } catch (error) {
-        console.error('AI Parsing Error:', error);
-        throw error;
-    }
-}
-
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // TEST: AI Command Parser (triggered by "spectre" prefix)
+        // AI NATURAL LANGUAGE COMMANDS (triggered by "spectre" prefix)
         if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
             const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
 
             try {
                 await message.channel.sendTyping();
 
-                const parsedResult = await parseCommandWithAI(userCommand);
+                // Parse the natural language command with AI
+                const parsedResult = await aiCommandParser.parseCommand(userCommand, {
+                    channelId: message.channel.id,
+                    userId: message.author.id,
+                    guildId: message.guild?.id
+                });
 
-                const confidenceEmoji = {
-                    'high': '🟢',
-                    'medium': '🟡',
-                    'low': '🔴'
-                };
+                console.log('AI Parsed Command:', parsedResult);
 
-                const embed = new EmbedBuilder()
-                    .setColor('#FFD21E')
-                    .setTitle('🤖 AI Command Parser Test')
-                    .addFields(
-                        { name: 'Your Message', value: `\`${userCommand}\`` },
-                        { name: 'AI Understanding', value: parsedResult.intent || 'No response' },
-                        {
-                            name: 'Status',
-                            value: `${parsedResult.understood ? '✅ Understood' : '❌ Not Understood'} ${confidenceEmoji[parsedResult.confidence] || ''} ${parsedResult.confidence || ''}`
-                        }
-                    )
-                    .setFooter({ text: 'Powered by Hugging Face Inference Providers' })
-                    .setTimestamp();
+                // If command was successfully identified
+                if (parsedResult.success && parsedResult.command !== 'unknown') {
+                    // Load the command from text-commands folder
+                    const command = client.textCommands.get(parsedResult.command);
 
-                await message.reply({ embeds: [embed] });
-
-            } catch (error) {
-                console.error('AI Test Error:', error);
-
-                let errorMessage = error.message;
-                let troubleshooting = '**Troubleshooting:**\n';
-
-                if (error.message.includes('503')) {
-                    errorMessage = 'Model is loading... Try again in 20-30 seconds!';
-                    troubleshooting += '- Wait 20-30 seconds for the model to load\n- First request after idle time takes longer';
-                } else if (error.message.includes('401') || error.message.includes('403')) {
-                    errorMessage = 'Invalid API Key! Check your HUGGINGFACE_API_KEY in .env file';
-                    troubleshooting += '- Make sure HUGGINGFACE_API_KEY is set correctly\n- Get your key from: https://huggingface.co/settings/tokens\n- Make sure "Make calls to Inference Providers" is enabled';
-                } else if (error.message.includes('429')) {
-                    errorMessage = 'Rate limit exceeded. Try again in a few minutes.';
-                    troubleshooting += '- Free tier: limited requests per hour\n- Wait a few minutes and try again\n- PRO tier ($9/month) has higher limits';
-                } else if (error.message.includes('Cannot find module')) {
-                    errorMessage = 'Missing @huggingface/inference package!';
-                    troubleshooting += '- Run: npm install @huggingface/inference\n- Then restart your bot';
+                    if (command) {
+                        // Execute the command
+                        await command.execute(message, []);
+                    } else {
+                        await message.reply(`✅ I understood you want to use \`${parsedResult.command}\`, but that command isn't loaded yet.`);
+                    }
                 } else {
-                    troubleshooting += '- Check your HUGGINGFACE_API_KEY in .env file\n- Verify internet connection\n- Try again in a few seconds\n- Make sure you have: npm install @huggingface/inference';
+                    // Command not recognized
+                    const embed = new EmbedBuilder()
+                        .setColor('#ff9900')
+                        .setTitle('🤔 Command Not Recognized')
+                        .setDescription(`I couldn't match your request to any available command.`)
+                        .addFields(
+                            { name: 'What you said', value: `\`${userCommand}\`` },
+                            { name: 'Confidence', value: parsedResult.confidence || 'low' }
+                        )
+                        .setFooter({ text: 'Try rephrasing or use traditional commands with ,' })
+                        .setTimestamp();
+
+                    await message.reply({ embeds: [embed] });
                 }
 
-                await message.reply(`❌ **AI Test Failed**\n\`\`\`${errorMessage}\`\`\`\n\n${troubleshooting}`);
+            } catch (error) {
+                console.error('AI Command Error:', error);
+
+                let errorMessage = error.message;
+                if (error.message.includes('503')) {
+                    errorMessage = 'Model is loading... Try again in 20 seconds!';
+                } else if (error.message.includes('401') || error.message.includes('403')) {
+                    errorMessage = 'API key issue. Contact bot owner.';
+                } else if (error.message.includes('429')) {
+                    errorMessage = 'Too many requests. Try again in a minute.';
+                }
+
+                await message.reply(`❌ **Error**: ${errorMessage}`);
             }
 
-            return; // Stop here for testing
+            return; // Stop processing after handling AI command
         }
 
         // Handle DM messages (use Hugging Face API instead of echo)
