@@ -73,6 +73,21 @@ const AI_COMMAND_DEFINITIONS = [
             'add these people to channel'
         ]
     }
+    ,
+    {
+        name: 'removefriends',
+        aliases: ['removechannel', 'removevc', 'removepeople', 'removefriend', 'kickfriend'],
+        description: 'Remove friends from your donor voice channel',
+        keywords: ['remove', 'kick', 'friends', 'channel', 'vc', 'voice', 'people', 'revoke access', 'take away'],
+        requiredParams: [],
+        examples: [
+            'remove @user1 @user2 from my channel',
+            'remove friends from vc',
+            'kick john and sarah from my channel',
+            'revoke @user access to my vc',
+            'remove these people from channel'
+        ]
+    }
 ];
 
 class AICommandParser {
