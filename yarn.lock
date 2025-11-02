@@ -196,6 +196,24 @@
     protobufjs "^7.2.5"
     yargs "^17.7.2"
 
+"@huggingface/inference@^4.13.0":
+  version "4.13.0"
+  resolved "https://registry.npmjs.org/@huggingface/inference/-/inference-4.13.0.tgz"
+  integrity sha512-oqBHbYoLHpNlEUJp/MG28gCR0JOUmLi9iKKd0oJfTAgTqaDSLhoCsIdS1XfLHbT/CrzZch33cARTR3bO4q/2yQ==
+  dependencies:
+    "@huggingface/jinja" "^0.5.1"
+    "@huggingface/tasks" "^0.19.58"
+
+"@huggingface/jinja@^0.5.1":
+  version "0.5.1"
+  resolved "https://registry.npmjs.org/@huggingface/jinja/-/jinja-0.5.1.tgz"
+  integrity sha512-yUZLld4lrM9iFxHCwFQ7D1HW2MWMwSbeB7WzWqFYDWK+rEb+WldkLdAJxUPOmgICMHZLzZGVcVjFh3w/YGubng==
+
+"@huggingface/tasks@^0.19.58":
+  version "0.19.61"
+  resolved "https://registry.npmjs.org/@huggingface/tasks/-/tasks-0.19.61.tgz"
+  integrity sha512-n7K4ml+lQAHB89OCIh8e/bPeOcACz94IMUW6U1BkjpScNW4HZy9E/m/nF05wU/m4OA6VNaLhgHAYoPoGLPE06A==
+
 "@humanfs/core@^0.19.1":
   version "0.19.1"
   resolved "https://registry.npmjs.org/@humanfs/core/-/core-0.19.1.tgz"
