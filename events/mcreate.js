@@ -5,21 +5,127 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
-require('dotenv').config(); // Make sure dotenv is properly set up
+require('dotenv').config();
 
 let lastStickyMessageId = null;
+
+// AI Command Parser using Hugging Face
+async function parseCommandWithAI(userMessage) {
+    const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
+
+    if (!HF_API_KEY) {
+        throw new Error('HUGGINGFACE_API_KEY not found in .env file');
+    }
+
+    try {
+        const response = await fetch(
+            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
+            {
+                headers: {
+                    "Authorization": `Bearer ${HF_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                method: "POST",
+                body: JSON.stringify({
+                    inputs: `You are a command parser. Extract the command intent from this message and respond with ONLY a JSON object, nothing else.
+
+User message: "${userMessage}"
+
+Respond with JSON in this exact format:
+{"understood": true, "message": "describe what you think the user wants"}
+
+Examples:
+User: "hey can you help me with something" -> {"understood": true, "message": "User is asking for general help"}
+User: "snipe 3 messages" -> {"understood": true, "message": "User wants to see 3 deleted messages"}
+User: "add user1 and user2 to my channel" -> {"understood": true, "message": "User wants to add 2 users to their channel"}
+
+Now parse: "${userMessage}"`,
+                    parameters: {
+                        max_new_tokens: 200,
+                        temperature: 0.3,
+                        return_full_text: false
+                    }
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Hugging Face API error: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('Raw HF Response:', result);
+
+        if (result.error) {
+            throw new Error(`API Error: ${result.error}`);
+        }
+
+        // Extract the generated text
+        let generatedText = result[0]?.generated_text || result.generated_text || '';
+
+        // Try to find JSON in the response
+        const jsonMatch = generatedText.match(/\{[^}]+\}/);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+
+        // Fallback if no JSON found
+        return {
+            understood: true,
+            message: "I'm processing your request: " + generatedText.substring(0, 100)
+        };
+
+    } catch (error) {
+        console.error('AI Parsing Error:', error);
+        return {
+            understood: false,
+            message: `Error: ${error.message}`
+        };
+    }
+}
 
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
+        // TEST: AI Command Parser (triggered by "spectre" prefix)
+        if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
+            const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
+
+            try {
+                await message.channel.sendTyping();
+
+                const parsedResult = await parseCommandWithAI(userCommand);
+
+                const embed = new EmbedBuilder()
+                    .setColor('#00ff00')
+                    .setTitle('🤖 AI Command Parser Test')
+                    .addFields(
+                        { name: 'Your Message', value: userCommand },
+                        { name: 'AI Understanding', value: parsedResult.message || 'No response' },
+                        { name: 'Status', value: parsedResult.understood ? '✅ Understood' : '❌ Not Understood' }
+                    )
+                    .setFooter({ text: 'This is a test response from Hugging Face API' })
+                    .setTimestamp();
+
+                await message.reply({ embeds: [embed] });
+
+            } catch (error) {
+                console.error('AI Test Error:', error);
+                await message.reply(`❌ **AI Test Failed**\n\`\`\`${error.message}\`\`\`\n\nCheck your HUGGINGFACE_API_KEY in .env file!`);
+            }
+
+            return; // Stop here for testing
+        }
+
         // Handle DM messages (use Hugging Face API instead of echo)
         if (!message.guild && !message.author.bot) {
             console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
-            
+
             try {
                 // Let the user know the bot is "thinking"
                 await message.channel.sendTyping();
-                
+
                 // Check for reset command
                 if (message.content.toLowerCase() === '!reset') {
                     const reset = huggingFaceApi.resetConversation(message.author.id);
@@ -30,10 +136,10 @@ module.exports = {
                     }
                     return;
                 }
-                
+
                 // Get response from Hugging Face
                 const chatbotResponse = await huggingFaceApi.getChatbotResponse(message.author.id, message.content);
-                
+
                 // Send the response
                 await message.author.send(chatbotResponse);
                 console.log(`Successfully sent chatbot response to ${message.author.tag}`);
@@ -200,7 +306,7 @@ module.exports = {
 
             try {
                 await message.channel.send('Waiting for Carl...');
-                
+
                 setTimeout(async () => {
                     try {
                         for (const channelId of eventChannelIds) {
