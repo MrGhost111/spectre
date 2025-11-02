@@ -1,18 +1,13 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField, Colors } = require('discord.js');
+﻿const { EmbedBuilder, PermissionsBitField, Colors } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('addfriends')
-        .setDescription('Add friends to your channel')
-        .addUserOption(option => option.setName('friend1').setDescription('First friend to add').setRequired(true))
-        .addUserOption(option => option.setName('friend2').setDescription('Second friend to add'))
-        .addUserOption(option => option.setName('friend3').setDescription('Third friend to add'))
-        .addUserOption(option => option.setName('friend4').setDescription('Fourth friend to add'))
-        .addUserOption(option => option.setName('friend5').setDescription('Fifth friend to add')),
-    async execute(interaction) {
+    name: 'addfriends',
+    aliases: ['addchannel', 'addvc', 'addpeople', 'addfriend'],
+    description: 'Add friends to your donor voice channel',
+    async execute(message, args) {
         const responses = [];
         const addedUsers = [];
 
@@ -23,108 +18,161 @@ module.exports = {
         }
 
         // Find user's channel
-        const userChannel = channelsData[interaction.user.id];
+        const userChannel = channelsData[message.author.id];
         if (!userChannel) {
-            await interaction.reply({ content: "You don't own a channel.", ephemeral: true });
-            return;
+            return message.reply("You don't own a channel.");
         }
 
-        const channel = interaction.guild.channels.cache.get(userChannel.channelId);
+        const channel = message.guild.channels.cache.get(userChannel.channelId);
         if (!channel) {
-            await interaction.reply({ content: "Channel not found.", ephemeral: true });
-            return;
+            return message.reply("Channel not found.");
         }
 
-        // Collect friends from options
-        const userOptions = [
-            interaction.options.getUser('friend1'),
-            interaction.options.getUser('friend2'),
-            interaction.options.getUser('friend3'),
-            interaction.options.getUser('friend4'),
-            interaction.options.getUser('friend5')
-        ].filter(user => user !== null);
+        // Collect users to add with priority-based detection
+        const usersToAdd = [];
+
+        // Priority 1: Get mentioned users
+        if (message.mentions.users.size > 0) {
+            message.mentions.users.forEach(user => {
+                if (!user.bot && user.id !== message.author.id) {
+                    usersToAdd.push(user);
+                }
+            });
+        }
+
+        // Priority 2: Check if replying to someone (add them if no mentions)
+        if (usersToAdd.length === 0 && message.reference) {
+            try {
+                const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                if (repliedMessage && !repliedMessage.author.bot && repliedMessage.author.id !== message.author.id) {
+                    usersToAdd.push(repliedMessage.author);
+                }
+            } catch (error) {
+                console.error('Error fetching replied message:', error);
+            }
+        }
+
+        // Priority 3: Parse args for usernames/IDs (if no mentions and no reply)
+        if (usersToAdd.length === 0 && args.length > 0) {
+            // Filter out common words
+            const commonWords = ['to', 'my', 'channel', 'vc', 'and', 'the', 'in'];
+            const filteredArgs = args.filter(arg => !commonWords.includes(arg.toLowerCase()));
+
+            for (const arg of filteredArgs) {
+                // Try to find by ID
+                if (/^\d{17,19}$/.test(arg)) {
+                    try {
+                        const member = await message.guild.members.fetch(arg);
+                        if (member && !member.user.bot && member.id !== message.author.id) {
+                            usersToAdd.push(member.user);
+                        }
+                    } catch (error) {
+                        console.error(`Failed to fetch user by ID ${arg}:`, error);
+                    }
+                }
+                // Try to find by username or display name
+                else {
+                    const member = message.guild.members.cache.find(m =>
+                        (m.user.username.toLowerCase() === arg.toLowerCase() ||
+                            m.displayName.toLowerCase() === arg.toLowerCase()) &&
+                        !m.user.bot &&
+                        m.id !== message.author.id
+                    );
+                    if (member) {
+                        usersToAdd.push(member.user);
+                    }
+                }
+            }
+        }
+
+        // Check if any users were found
+        if (usersToAdd.length === 0) {
+            return message.reply("Please mention users or provide their usernames/IDs to add to your channel.");
+        }
 
         // Calculate the max friends limit
-        const maxFriends = calculateMaxFriends(interaction.member);
+        const maxFriends = calculateMaxFriends(message.member);
+        const currentFriends = userChannel.friends ? userChannel.friends.length : 0;
+        const availableSlots = maxFriends - currentFriends;
 
-        // Check if adding these users would exceed the limit
-        if (userChannel.friends.length + userOptions.length > maxFriends) {
-            await interaction.reply({ content: `You have exceeded your friend limit of ${maxFriends}.`, ephemeral: true });
-            return;
+        // Check if user has reached their limit
+        if (availableSlots <= 0) {
+            return message.reply(`You have reached your friend limit of ${maxFriends}. Remove some friends first.`);
+        }
+
+        // Limit users to available slots (prioritize first mentioned/found users)
+        let usersToProcess = usersToAdd.slice(0, availableSlots);
+        const skippedUsers = usersToAdd.slice(availableSlots);
+
+        if (skippedUsers.length > 0) {
+            responses.push(`⚠️ Only adding first ${availableSlots} user(s) due to limit (${availableSlots}/${maxFriends} slots available).`);
+        }
+
+        // Initialize friends array if it doesn't exist
+        if (!userChannel.friends) {
+            userChannel.friends = [];
         }
 
         // Process each user
-        for (const user of userOptions) {
-            if (user.bot) {
-                responses.push(`You cannot add bots.`);
-                continue;
-            }
-
-            if (interaction.user.id === user.id) {
-                responses.push(`You cannot add yourself.`);
-                continue;
-            }
-
-            if (!userChannel.friends) {
-                userChannel.friends = [];
-            }
-
+        for (const user of usersToProcess) {
+            // Check if user is already in friends list
             if (userChannel.friends.includes(user.id)) {
+                // Check if they have permission overwrites
                 if (channel.permissionOverwrites.cache.has(user.id)) {
                     responses.push(`<@${user.id}> is already in the channel.`);
                 } else {
+                    // Re-add permissions if they were removed
                     try {
                         await channel.permissionOverwrites.create(user.id, {
                             [PermissionsBitField.Flags.ViewChannel]: true,
                         });
                         addedUsers.push(user.id);
-                        responses.push(`Added <@${user.id}>.`);
+                        responses.push(`✅ Re-added <@${user.id}>.`);
                     } catch (error) {
                         console.error('Error creating permission overwrite:', error);
-                        responses.push(`Failed to add <@${user.id}>.`);
+                        responses.push(`❌ Failed to add <@${user.id}>.`);
                     }
                 }
             } else {
+                // Add new friend
                 userChannel.friends.push(user.id);
                 try {
                     await channel.permissionOverwrites.create(user.id, {
                         [PermissionsBitField.Flags.ViewChannel]: true,
                     });
                     addedUsers.push(user.id);
-                    responses.push(`Added <@${user.id}>.`);
+                    responses.push(`✅ Added <@${user.id}>.`);
                 } catch (error) {
                     console.error('Error creating permission overwrite:', error);
-                    responses.push(`Failed to add user <@${user.id}> to the channel.`);
-                }
-            }
-        }
-
-        // Ensure all friends in the list are in the channel
-        for (const friendId of userChannel.friends) {
-            if (!channel.permissionOverwrites.cache.has(friendId)) {
-                try {
-                    await channel.permissionOverwrites.create(friendId, {
-                        [PermissionsBitField.Flags.ViewChannel]: true,
-                    });
-                    responses.push(`Added <@${friendId}>.`);
-                } catch (error) {
-                    console.error('Error creating permission overwrite:', error);
-                    responses.push(`Failed to add user <@${friendId}> to the channel.`);
+                    responses.push(`❌ Failed to add <@${user.id}>.`);
+                    // Remove from friends list if permission creation failed
+                    userChannel.friends = userChannel.friends.filter(id => id !== user.id);
                 }
             }
         }
 
         // Save updated data to JSON file
-        channelsData[interaction.user.id] = userChannel;
+        channelsData[message.author.id] = userChannel;
         fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2), 'utf8');
+
+        // Add info about skipped users if any
+        if (skippedUsers.length > 0) {
+            const skippedNames = skippedUsers.map(u => u.username).join(', ');
+            responses.push(`\n⚠️ Skipped: ${skippedNames} (limit reached)`);
+        }
+
+        // Show current usage
+        const newFriendCount = userChannel.friends.length;
+        responses.push(`\n📊 Channel usage: ${newFriendCount}/${maxFriends} friends`);
 
         // Create embed with valid description
         const embed = new EmbedBuilder()
-            .setTitle('Add Friends')
+            .setTitle('Add Friends to Channel')
             .setDescription(responses.length > 0 ? responses.join('\n') : 'No changes made.')
-            .setColor(Colors.Green);
+            .setColor(addedUsers.length > 0 ? Colors.Green : Colors.Yellow)
+            .setFooter({ text: `Channel: ${channel.name}` });
 
-        await interaction.reply({ embeds: [embed] });
+        return message.reply({ embeds: [embed] });
     },
 };
 
@@ -138,7 +186,7 @@ function calculateMaxFriends(member) {
         '1028256279124250624': 5,
         '1038106794200932512': 5,
         '1038888209440067604': 5,
-        '783032959350734868' : 10,
+        '783032959350734868': 10,
     };
 
     let totalLimit = 0;

@@ -58,6 +58,20 @@ const AI_COMMAND_DEFINITIONS = [
             'clear my cooldown',
             'resetcd'
         ]
+    },
+    {
+        name: 'addfriends',
+        aliases: ['addchannel', 'addvc', 'addpeople', 'addfriend'],
+        description: 'Add friends to your donor voice channel',
+        keywords: ['add', 'friends', 'channel', 'vc', 'voice', 'people', 'invite', 'grant access'],
+        requiredParams: [],
+        examples: [
+            'add @user1 @user2 to my channel',
+            'add friends to vc',
+            'invite john and sarah to my channel',
+            'give @user access to my vc',
+            'add these people to channel'
+        ]
     }
 ];
 
