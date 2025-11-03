@@ -71,42 +71,120 @@ class AICodeExecutor {
      */
     async generateCode(userRequest, context = {}) {
         try {
-            const prompt = `You are a Discord.js bot code generator. Generate ONLY executable JavaScript code based on the user's request.
+            const prompt = `You are a Discord.js v14 bot code generator. Generate ONLY executable JavaScript code based on the user's request.
 
 **CRITICAL RULES:**
 1. Generate ONLY the function body code - NO function declarations, NO exports, NO comments
 2. Use ONLY these available objects:
    - message (Discord.js Message object)
    - guild (Discord.js Guild object)
-   - channel (Discord.js Channel object)
+   - channel (Discord.js Channel object - this is where you send messages!)
    - user (Discord.js User object)
    - client (Discord.js Client object)
    - entities (object with users, roles, channels arrays)
+   - EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits (ALREADY IMPORTED)
 3. Use async/await for all Discord operations
 4. Return a result object: { success: true/false, message: "response" }
 5. Handle all errors with try-catch
 6. DO NOT use: require(), import, process, fs, child_process, eval, Function
 7. DO NOT access environment variables or tokens
-8. Use discord.js v14 syntax
-9. For channel positioning: use channel.setPosition(number) where 0 is top
-10. For channel moving: use channel.setParent(categoryId) to change category
+8. ALWAYS close all braces properly - verify your code is syntactically complete
+
+**Discord.js v14 SYNTAX - USE THESE:**
+
+**Embeds (v14):**
+✅ new EmbedBuilder()
+❌ NOT: new MessageEmbed() or new Discord.MessageEmbed()
+
+**Buttons (v14):**
+✅ new ButtonBuilder().setCustomId('id').setLabel('Click').setStyle(ButtonStyle.Primary)
+✅ new ActionRowBuilder().addComponents(button)
+❌ NOT: MessageButton or MessageActionRow
+
+**Permissions (v14):**
+✅ PermissionFlagsBits.Administrator
+✅ PermissionFlagsBits.ManageChannels
+✅ member.permissions.has(PermissionFlagsBits.Administrator)
+❌ NOT: 'ADMINISTRATOR' strings or Permissions.FLAGS
+
+**Roles (v14):**
+✅ member.roles.add(roleId)
+✅ member.roles.remove(roleId)
+✅ member.roles.cache.has(roleId)
+❌ NOT: member.addRole() or member.removeRole()
+
+**Channels (v14):**
+✅ channel.setName('name')
+✅ channel.setPosition(number)
+✅ channel.setParent(categoryId)
+✅ channel.permissionOverwrites.edit(target, { ViewChannel: true })
+✅ guild.channels.cache.get(id) or guild.channels.fetch(id)
+❌ NOT: channel.updateOverwrite()
+
+**Messages (v14):**
+✅ channel.send({ content: 'text', embeds: [embed] })
+✅ message.reply({ content: 'text' })
+✅ channel.messages.fetch(messageId)
+❌ NOT: channel.send('text') without options object for complex messages
+
+**Members (v14):**
+✅ guild.members.cache.get(id) or guild.members.fetch(id)
+✅ member.timeout(duration, reason) // For timeout/mute
+✅ member.ban({ reason: 'reason' })
+✅ member.kick('reason')
+❌ NOT: member.ban('reason') with string directly
+
+**Voice (v14):**
+✅ member.voice.channel
+✅ member.voice.setChannel(channelId)
+✅ voiceChannel.members.size
+❌ NOT: member.voiceChannel
 
 **Available Context:**
 - Guild ID: ${context.guildId}
 - Channel ID: ${context.channelId}
 - User ID: ${context.userId}
+- Current channel object: 'channel' variable
 - Detected entities: ${JSON.stringify(context.entities || {})}
 
 **User Request:** ${userRequest}
 
-**Example Output Format:**
+**Example 1 - Send Embed:**
 try {
-    const targetChannel = guild.channels.cache.get('123456789');
-    await targetChannel.setPosition(0);
-    return { success: true, message: 'Channel moved to top' };
+    const embed = new EmbedBuilder()
+        .setTitle('Hello')
+        .setDescription('World')
+        .setColor('#00ff00');
+    await channel.send({ embeds: [embed] });
+    return { success: true, message: 'Embed sent' };
 } catch (error) {
     return { success: false, message: 'Error: ' + error.message };
 }
+
+**Example 2 - Give Role:**
+try {
+    const member = guild.members.cache.get('123456789');
+    const role = guild.roles.cache.get('987654321');
+    await member.roles.add(role);
+    return { success: true, message: 'Role added' };
+} catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+}
+
+**Example 3 - Edit Permissions:**
+try {
+    const targetChannel = guild.channels.cache.get('123456789');
+    const targetMember = guild.members.cache.get('987654321');
+    await targetChannel.permissionOverwrites.edit(targetMember, {
+        ViewChannel: true,
+        SendMessages: true
+    });
+    return { success: true, message: 'Permissions updated' };
+} catch (error) {
+    return { success: false, message: 'Error: ' + error.message };
+}
+
+IMPORTANT: Use ONLY v14 syntax. Generate COMPLETE, syntactically correct code. Count your braces!
 
 Generate the code now:`;
 
@@ -168,6 +246,15 @@ Generate the code now:`;
         }
 
         try {
+            // Import Discord.js v14 components
+            const {
+                EmbedBuilder,
+                ActionRowBuilder,
+                ButtonBuilder,
+                ButtonStyle,
+                PermissionFlagsBits
+            } = require('discord.js');
+
             // Create sandbox with limited scope
             const vm = new VM({
                 timeout: 5000, // 5 second timeout
@@ -178,6 +265,12 @@ Generate the code now:`;
                     user: message.author,
                     client: message.client,
                     entities: context.entities || {},
+                    // Discord.js v14 builders and enums
+                    EmbedBuilder,
+                    ActionRowBuilder,
+                    ButtonBuilder,
+                    ButtonStyle,
+                    PermissionFlagsBits,
                     console: {
                         log: (...args) => console.log('[Sandboxed Code]:', ...args),
                         error: (...args) => console.error('[Sandboxed Code Error]:', ...args)
