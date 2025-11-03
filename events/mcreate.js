@@ -6,6 +6,7 @@ const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
 const aiCommandParser = require('../utils/aiCommandParser');
+const enhancedAIParser = require('../utils/enhancedAICommandParser');
 require('dotenv').config();
 
 let lastStickyMessageId = null;
@@ -15,108 +16,117 @@ module.exports = {
     async execute(client, message) {
         // AI NATURAL LANGUAGE COMMANDS (triggered by "spectre" prefix)
         if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
-            const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
+            const userCommand = message.content.slice(8).trim();
 
             try {
                 await message.channel.sendTyping();
 
-                // Parse the natural language command with AI
-                const parsedResult = await aiCommandParser.parseCommand(userCommand, message, {
+                // Use enhanced parser that can handle both commands and code execution
+                const result = await enhancedAIParser.execute(userCommand, message, {
                     channelId: message.channel.id,
                     userId: message.author.id,
                     guildId: message.guild?.id
                 });
 
-                console.log('AI Parsed Command:', parsedResult);
+                console.log('Execution Result:', result);
 
-                // If it's just chat, use the chatbot
-                if (parsedResult.isChat) {
-                    try {
-                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                            message.author.id,
-                            userCommand
-                        );
-                        return message.reply(chatbotResponse);
-                    } catch (error) {
-                        console.error('Chatbot Error:', error);
-                        return message.reply("I'm having trouble processing that. Could you rephrase?");
+                // Handle code execution result
+                if (result.method === 'code_execution') {
+                    if (result.permissionRequired) {
+                        return message.reply('❌ You need Administrator permissions to use AI code execution.');
+                    }
+
+                    if (result.success) {
+                        // Show what was executed with a nice embed
+                        const embed = new EmbedBuilder()
+                            .setColor('#00ff00')
+                            .setTitle('✅ AI Code Executed')
+                            .setDescription(result.result?.message || 'Operation completed successfully')
+                            .addFields(
+                                { name: 'Your Request', value: `\`${result.request}\`` },
+                                {
+                                    name: '📝 Generated Code',
+                                    value: `\`\`\`javascript\n${result.generatedCode.slice(0, 400)}${result.generatedCode.length > 400 ? '...' : ''}\n\`\`\``
+                                }
+                            )
+                            .setFooter({ text: '⚠️ Code execution is restricted to admins' })
+                            .setTimestamp();
+
+                        return message.reply({ embeds: [embed] });
+                    } else {
+                        // Execution failed
+                        const errorEmbed = new EmbedBuilder()
+                            .setColor('#ff0000')
+                            .setTitle('❌ Execution Failed')
+                            .setDescription(result.error || 'Unknown error occurred')
+                            .setTimestamp();
+
+                        if (result.issues) {
+                            errorEmbed.addFields({
+                                name: 'Security Issues',
+                                value: result.issues.join('\n').slice(0, 1000)
+                            });
+                        }
+
+                        if (result.generatedCode) {
+                            errorEmbed.addFields({
+                                name: 'Generated Code',
+                                value: `\`\`\`javascript\n${result.generatedCode.slice(0, 400)}\n\`\`\``
+                            });
+                        }
+
+                        return message.reply({ embeds: [errorEmbed] });
                     }
                 }
 
-                // Get entities from the parsed result
-                const entities = parsedResult.entities || {};
-
-                // Check if multiple commands were detected
-                if (parsedResult.multipleCommands && parsedResult.commands.length > 0) {
-                    let executedCount = 0;
-                    let failedCount = 0;
-                    const responses = [];
-
-                    for (const commandInfo of parsedResult.commands) {
-                        const command = client.textCommands.get(commandInfo.command);
-
-                        if (command) {
-                            try {
-                                // Execute command and capture response
-                                await command.execute(message, [], entities);
-                                executedCount++;
-                            } catch (error) {
-                                console.error(`Error executing ${commandInfo.command}:`, error);
-                                responses.push(`❌ Failed to execute ${commandInfo.command}`);
-                                failedCount++;
-                            }
-                        } else {
-                            responses.push(`⚠️ Command ${commandInfo.command} not found`);
-                            failedCount++;
-                        }
-                    }
-
-                    // Only send summary if there were failures
-                    if (failedCount > 0) {
-                        const summary = `Executed ${executedCount} command(s)${failedCount > 0 ? `, ${failedCount} failed` : ''}.`;
-                        if (responses.length > 0) {
-                            await message.reply(`${summary}\n${responses.join('\n')}`);
-                        } else {
-                            await message.reply(summary);
-                        }
-                    }
-
-                } else if (parsedResult.success && parsedResult.command !== 'unknown') {
-                    // Single command execution
-                    const command = client.textCommands.get(parsedResult.command);
+                // Handle predefined command execution
+                if (result.method === 'predefined_command') {
+                    const command = client.textCommands.get(result.command);
 
                     if (command) {
                         try {
-                            await command.execute(message, [], entities);
+                            await command.execute(message, [], result.entities);
+
+                            // Optional: Send a subtle confirmation
+                            const embed = new EmbedBuilder()
+                                .setColor('#0099ff')
+                                .setDescription(`✅ Executed: \`${result.command}\``)
+                                .setFooter({ text: 'Using predefined command' })
+                                .setTimestamp();
+
+                            // Delete this after 5 seconds
+                            const confirmMsg = await message.reply({ embeds: [embed] });
+                            setTimeout(() => confirmMsg.delete().catch(() => { }), 5000);
+
                         } catch (error) {
-                            console.error(`Error executing ${parsedResult.command}:`, error);
+                            console.error(`Error executing ${result.command}:`, error);
                             await message.reply(`❌ Failed to execute command: ${error.message}`);
                         }
                     } else {
-                        await message.reply(`✅ I understood you want to use \`${parsedResult.command}\`, but that command isn't loaded yet.`);
+                        await message.reply(`✅ I understood you want to use \`${result.command}\`, but that command isn't loaded yet.`);
                     }
-                } else {
-                    // Command not recognized, try chat as fallback
-                    try {
-                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                            message.author.id,
-                            userCommand
-                        );
-                        return message.reply(chatbotResponse);
-                    } catch (error) {
-                        // If chat also fails, show error
-                        const embed = new EmbedBuilder()
-                            .setColor('#ff9900')
-                            .setTitle('🤔 Not Sure What You Mean')
-                            .setDescription(`I couldn't understand your request clearly.`)
-                            .addFields(
-                                { name: 'What you said', value: `\`${userCommand}\`` }
-                            )
-                            .setFooter({ text: 'Try being more specific or use traditional commands with ,' })
-                            .setTimestamp();
+                    return;
+                }
 
-                        await message.reply({ embeds: [embed] });
-                    }
+                // No command matched - try chatbot as fallback
+                try {
+                    const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                        message.author.id,
+                        userCommand
+                    );
+                    return message.reply(chatbotResponse);
+                } catch (error) {
+                    const embed = new EmbedBuilder()
+                        .setColor('#ff9900')
+                        .setTitle('🤔 Not Sure What You Mean')
+                        .setDescription(`I couldn't understand your request clearly.`)
+                        .addFields(
+                            { name: 'What you said', value: `\`${userCommand}\`` }
+                        )
+                        .setFooter({ text: 'Try being more specific or use traditional commands with ,' })
+                        .setTimestamp();
+
+                    await message.reply({ embeds: [embed] });
                 }
 
             } catch (error) {
@@ -134,7 +144,7 @@ module.exports = {
                 await message.reply(`❌ **Error**: ${errorMessage}`);
             }
 
-            return; // Stop processing after handling AI command
+            return;
         }
 
         // Handle DM messages (use Hugging Face API instead of echo)
