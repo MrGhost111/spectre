@@ -5,7 +5,6 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
-const aiCommandParser = require('../utils/aiCommandParser');
 const enhancedAIParser = require('../utils/enhancedAICommandParser');
 require('dotenv').config();
 
@@ -30,6 +29,20 @@ module.exports = {
 
                 console.log('Execution Result:', result);
 
+                // If it's just chat, use the chatbot
+                if (result.method === 'chat') {
+                    try {
+                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                            message.author.id,
+                            userCommand
+                        );
+                        return message.reply(chatbotResponse);
+                    } catch (error) {
+                        console.error('Chatbot Error:', error);
+                        return message.reply("I'm having trouble processing that. Could you rephrase?");
+                    }
+                }
+
                 // Handle code execution result
                 if (result.method === 'code_execution') {
                     if (result.permissionRequired) {
@@ -37,22 +50,12 @@ module.exports = {
                     }
 
                     if (result.success) {
-                        // Show what was executed with a nice embed
-                        const embed = new EmbedBuilder()
-                            .setColor('#00ff00')
-                            .setTitle('✅ AI Code Executed')
-                            .setDescription(result.result?.message || 'Operation completed successfully')
-                            .addFields(
-                                { name: 'Your Request', value: `\`${result.request}\`` },
-                                {
-                                    name: '📝 Generated Code',
-                                    value: `\`\`\`javascript\n${result.generatedCode.slice(0, 400)}${result.generatedCode.length > 400 ? '...' : ''}\n\`\`\``
-                                }
-                            )
-                            .setFooter({ text: '⚠️ Code execution is restricted to admins' })
-                            .setTimestamp();
-
-                        return message.reply({ embeds: [embed] });
+                        // Just send the result message, no embed
+                        if (result.result?.message) {
+                            return message.reply(result.result.message);
+                        }
+                        // If no message was returned, just react to show success
+                        return message.react('✅');
                     } else {
                         // Execution failed
                         const errorEmbed = new EmbedBuilder()
@@ -86,18 +89,6 @@ module.exports = {
                     if (command) {
                         try {
                             await command.execute(message, [], result.entities);
-
-                            // Optional: Send a subtle confirmation
-                            const embed = new EmbedBuilder()
-                                .setColor('#0099ff')
-                                .setDescription(`✅ Executed: \`${result.command}\``)
-                                .setFooter({ text: 'Using predefined command' })
-                                .setTimestamp();
-
-                            // Delete this after 5 seconds
-                            const confirmMsg = await message.reply({ embeds: [embed] });
-                            setTimeout(() => confirmMsg.delete().catch(() => { }), 5000);
-
                         } catch (error) {
                             console.error(`Error executing ${result.command}:`, error);
                             await message.reply(`❌ Failed to execute command: ${error.message}`);
@@ -144,7 +135,7 @@ module.exports = {
                 await message.reply(`❌ **Error**: ${errorMessage}`);
             }
 
-            return;
+            return; // Stop processing after handling AI command
         }
 
         // Handle DM messages (use Hugging Face API instead of echo)
