@@ -55,7 +55,7 @@ class DiscordEntityParser {
     /**
      * Fuzzy search for users
      */
-    fuzzySearchUser(query, guild) {
+    fuzzySearchUser(query, guild, minScore = 0.3) {
         const members = Array.from(guild.members.cache.values());
         const searchData = members.map(member => ({
             id: member.id,
@@ -66,20 +66,25 @@ class DiscordEntityParser {
         }));
 
         const fuse = new Fuse(searchData, {
-            keys: ['username', 'displayName', 'tag'],
+            keys: [
+                { name: 'username', weight: 2 },
+                { name: 'displayName', weight: 1.5 },
+                { name: 'tag', weight: 1 }
+            ],
             threshold: 0.4,
             includeScore: true
         });
 
         const results = fuse.search(query);
-        return results.length > 0 ? results[0].item.member : null;
+        // Only return if score is good enough
+        return results.length > 0 && results[0].score <= minScore ? results[0].item.member : null;
     }
 
     /**
      * Fuzzy search for roles
      */
-    fuzzySearchRole(query, guild) {
-        const roles = Array.from(guild.roles.cache.values());
+    fuzzySearchRole(query, guild, minScore = 0.3) {
+        const roles = Array.from(guild.roles.cache.values()).filter(r => r.name !== '@everyone');
         const searchData = roles.map(role => ({
             id: role.id,
             name: role.name,
@@ -93,13 +98,13 @@ class DiscordEntityParser {
         });
 
         const results = fuse.search(query);
-        return results.length > 0 ? results[0].item.role : null;
+        return results.length > 0 && results[0].score <= minScore ? results[0].item.role : null;
     }
 
     /**
      * Fuzzy search for channels
      */
-    fuzzySearchChannel(query, guild) {
+    fuzzySearchChannel(query, guild, minScore = 0.3) {
         const channels = Array.from(guild.channels.cache.values());
         const searchData = channels.map(channel => ({
             id: channel.id,
@@ -114,15 +119,28 @@ class DiscordEntityParser {
         });
 
         const results = fuse.search(query);
-        return results.length > 0 ? results[0].item.channel : null;
+        return results.length > 0 && results[0].score <= minScore ? results[0].item.channel : null;
+    }
+
+    /**
+     * Clean message content by removing trigger word and common words
+     */
+    cleanMessageContent(content) {
+        // Remove "spectre" trigger word (case insensitive)
+        let cleaned = content.replace(/^spectre\s+/i, '');
+
+        return cleaned;
     }
 
     /**
      * Extract all entities from a message with context-aware parsing
      */
     async parseMessage(message, context = {}) {
-        const content = message.content;
+        const originalContent = message.content;
+        // Clean the content first
+        const content = this.cleanMessageContent(originalContent);
         const guild = message.guild;
+
         const entities = {
             users: [],
             roles: [],
@@ -134,10 +152,10 @@ class DiscordEntityParser {
             }
         };
 
-        // Step 1: Extract mentions
-        const userMentions = [...content.matchAll(this.mentionRegex.user)];
-        const roleMentions = [...content.matchAll(this.mentionRegex.role)];
-        const channelMentions = [...content.matchAll(this.mentionRegex.channel)];
+        // Step 1: Extract mentions (these are explicit and highest priority)
+        const userMentions = [...originalContent.matchAll(this.mentionRegex.user)];
+        const roleMentions = [...originalContent.matchAll(this.mentionRegex.role)];
+        const channelMentions = [...originalContent.matchAll(this.mentionRegex.channel)];
 
         for (const match of userMentions) {
             const userId = match[1];
@@ -170,7 +188,7 @@ class DiscordEntityParser {
             }
         }
 
-        // Step 2: Extract raw IDs and detect their types
+        // Step 2: Extract raw IDs and detect their types (only from cleaned content)
         const words = content.split(/\s+/);
         for (const word of words) {
             if (this.idRegex.test(word)) {
@@ -189,45 +207,61 @@ class DiscordEntityParser {
             }
         }
 
-        // Step 3: Fuzzy search for names (skip common words)
-        const skipWords = ['to', 'from', 'the', 'in', 'and', 'or', 'a', 'an', 'my', 'your', 'their', 'this', 'that', 'add', 'remove', 'give', 'take'];
+        // Step 3: Fuzzy search for names (only from cleaned content, skip common words)
+        const skipWords = ['to', 'from', 'the', 'in', 'and', 'or', 'a', 'an', 'my', 'your', 'their', 'this', 'that', 'add', 'remove', 'give', 'take', 'role', 'user', 'channel'];
         const filteredWords = words.filter(w =>
             !skipWords.includes(w.toLowerCase()) &&
             !this.idRegex.test(w) &&
-            !w.match(/<[@#]/)
+            !w.match(/<[@#&]/) &&
+            w.length > 1 // Skip single characters
         );
 
-        for (const word of filteredWords) {
-            entities.raw.names.push(word);
+        // Build multi-word phrases for better matching
+        const phrases = [];
+        for (let i = 0; i < filteredWords.length; i++) {
+            // Single word
+            phrases.push(filteredWords[i]);
 
-            // Try fuzzy search for user
-            const user = this.fuzzySearchUser(word, guild);
-            if (user && !entities.users.find(u => u.id === user.id)) {
-                entities.users.push(user);
+            // Two word phrases
+            if (i < filteredWords.length - 1) {
+                phrases.push(`${filteredWords[i]} ${filteredWords[i + 1]}`);
             }
 
-            // Try fuzzy search for role
-            const role = this.fuzzySearchRole(word, guild);
-            if (role && !entities.roles.find(r => r.id === role.id)) {
-                entities.roles.push(role);
+            // Three word phrases
+            if (i < filteredWords.length - 2) {
+                phrases.push(`${filteredWords[i]} ${filteredWords[i + 1]} ${filteredWords[i + 2]}`);
+            }
+        }
+
+        // Search with phrases (longer phrases first for better accuracy)
+        const uniquePhrases = [...new Set(phrases)].sort((a, b) => b.split(' ').length - a.split(' ').length);
+
+        for (const phrase of uniquePhrases) {
+            entities.raw.names.push(phrase);
+
+            // Try fuzzy search for user (only if we don't have many users already)
+            if (entities.users.length < 3) {
+                const user = this.fuzzySearchUser(phrase, guild);
+                if (user && !entities.users.find(u => u.id === user.id)) {
+                    entities.users.push(user);
+                }
+            }
+
+            // Try fuzzy search for role (only if we don't have many roles already)
+            if (entities.roles.length < 3) {
+                const role = this.fuzzySearchRole(phrase, guild);
+                if (role && !entities.roles.find(r => r.id === role.id)) {
+                    entities.roles.push(role);
+                }
             }
 
             // Try fuzzy search for channel
-            const channel = this.fuzzySearchChannel(word, guild);
-            if (channel && !entities.channels.find(c => c.id === channel.id)) {
-                entities.channels.push(channel);
+            if (entities.channels.length < 2) {
+                const channel = this.fuzzySearchChannel(phrase, guild);
+                if (channel && !entities.channels.find(c => c.id === channel.id)) {
+                    entities.channels.push(channel);
+                }
             }
-        }
-
-        // Step 4: Use context to prioritize entities
-        if (context.expectUser && entities.users.length > 1) {
-            entities.users = [entities.users[0]];
-        }
-        if (context.expectRole && entities.roles.length > 1) {
-            entities.roles = [entities.roles[0]];
-        }
-        if (context.expectChannel && entities.channels.length > 1) {
-            entities.channels = [entities.channels[0]];
         }
 
         return entities;
@@ -250,19 +284,6 @@ class DiscordEntityParser {
 
         const context = contextMap[commandType] || {};
         const entities = await this.parseMessage(message, context);
-
-        // Reorder based on context
-        if (context.userFirst && entities.roles.length > 0 && entities.users.length > 0) {
-            // Swap if needed based on phrase analysis
-            const content = message.content.toLowerCase();
-            const roleIndex = content.indexOf(entities.roles[0].name.toLowerCase());
-            const userIndex = content.indexOf(entities.users[0].username.toLowerCase());
-
-            if (roleIndex !== -1 && userIndex !== -1 && roleIndex < userIndex) {
-                // Role comes before user, but command expects user first
-                // This is correct for "give role to user" pattern
-            }
-        }
 
         return entities;
     }

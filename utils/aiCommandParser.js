@@ -187,8 +187,14 @@ Respond with ONLY valid JSON:
                 };
             }
 
-            // Parse entities from the Discord message
+            // Parse entities from the Discord message (this will clean the message internally)
             const entities = await this.entityParser.parseMessage(message);
+
+            console.log('Parsed Entities:', {
+                users: entities.users.map(u => u.username),
+                roles: entities.roles.map(r => r.name),
+                channels: entities.channels.map(c => c.name)
+            });
 
             // Try to parse as command
             const commandList = AI_COMMAND_DEFINITIONS.map(cmd => ({
@@ -211,17 +217,17 @@ Detected entities:
 - Channels: ${entities.channels.map(c => c.name).join(', ') || 'none'}
 
 Context:
-- This is on Discord, a chat platform
-- Commands can involve users, roles, or channels
-- For "give/add role" commands: the role comes first, user second (e.g., "give moderator to john")
-- For "remove user from channel": user comes first, channel second
+- The word "spectre" is a trigger word and should NOT be considered as a user or role
+- For "give/remove role" commands: identify the role and user from detected entities
+- For "add/remove from channel": identify users and channels from detected entities
+- Multiple commands are separated by "and", "then", or similar conjunctions
 
 Rules:
-1. If the user wants ONE command, return single command format
+1. If ONE command, return single command format
 2. If MULTIPLE commands (using "and", "then"), return multiple commands format
 3. Commands execute in message order
 4. If no clear command, return {"command": "unknown"}
-5. For data queries, identify what data they're asking about
+5. Use the detected entities to understand what the command is acting on
 6. Respond with ONLY valid JSON
 
 Single command:
@@ -244,7 +250,7 @@ Multiple commands:
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a command parser. Respond only with JSON." },
+                    { role: "system", content: "You are a command parser. Respond only with JSON. Never consider 'spectre' as a user or role name." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 400,
