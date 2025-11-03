@@ -21,7 +21,7 @@ module.exports = {
                 await message.channel.sendTyping();
 
                 // Parse the natural language command with AI
-                const parsedResult = await aiCommandParser.parseCommand(userCommand, {
+                const parsedResult = await aiCommandParser.parseCommand(userCommand, message, {
                     channelId: message.channel.id,
                     userId: message.author.id,
                     guildId: message.guild?.id
@@ -29,55 +29,94 @@ module.exports = {
 
                 console.log('AI Parsed Command:', parsedResult);
 
+                // If it's just chat, use the chatbot
+                if (parsedResult.isChat) {
+                    try {
+                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                            message.author.id,
+                            userCommand
+                        );
+                        return message.reply(chatbotResponse);
+                    } catch (error) {
+                        console.error('Chatbot Error:', error);
+                        return message.reply("I'm having trouble processing that. Could you rephrase?");
+                    }
+                }
+
+                // Get entities from the parsed result
+                const entities = parsedResult.entities || {};
+
                 // Check if multiple commands were detected
                 if (parsedResult.multipleCommands && parsedResult.commands.length > 0) {
                     let executedCount = 0;
                     let failedCount = 0;
+                    const responses = [];
 
                     for (const commandInfo of parsedResult.commands) {
                         const command = client.textCommands.get(commandInfo.command);
 
                         if (command) {
                             try {
-                                await command.execute(message, commandInfo.args || []);
+                                // Execute command and capture response
+                                await command.execute(message, [], entities);
                                 executedCount++;
                             } catch (error) {
                                 console.error(`Error executing ${commandInfo.command}:`, error);
+                                responses.push(`❌ Failed to execute ${commandInfo.command}`);
                                 failedCount++;
                             }
                         } else {
+                            responses.push(`⚠️ Command ${commandInfo.command} not found`);
                             failedCount++;
                         }
                     }
 
+                    // Only send summary if there were failures
                     if (failedCount > 0) {
-                        await message.reply(`✅ Executed ${executedCount} command(s), but ${failedCount} failed.`);
+                        const summary = `Executed ${executedCount} command(s)${failedCount > 0 ? `, ${failedCount} failed` : ''}.`;
+                        if (responses.length > 0) {
+                            await message.reply(`${summary}\n${responses.join('\n')}`);
+                        } else {
+                            await message.reply(summary);
+                        }
                     }
-                    // Don't send success message if all commands executed (they handle their own responses)
 
                 } else if (parsedResult.success && parsedResult.command !== 'unknown') {
-                    // Single command execution (existing logic)
+                    // Single command execution
                     const command = client.textCommands.get(parsedResult.command);
 
                     if (command) {
-                        await command.execute(message, []);
+                        try {
+                            await command.execute(message, [], entities);
+                        } catch (error) {
+                            console.error(`Error executing ${parsedResult.command}:`, error);
+                            await message.reply(`❌ Failed to execute command: ${error.message}`);
+                        }
                     } else {
                         await message.reply(`✅ I understood you want to use \`${parsedResult.command}\`, but that command isn't loaded yet.`);
                     }
                 } else {
-                    // Command not recognized
-                    const embed = new EmbedBuilder()
-                        .setColor('#ff9900')
-                        .setTitle('🤔 Command Not Recognized')
-                        .setDescription(`I couldn't match your request to any available command.`)
-                        .addFields(
-                            { name: 'What you said', value: `\`${userCommand}\`` },
-                            { name: 'Confidence', value: parsedResult.confidence || 'low' }
-                        )
-                        .setFooter({ text: 'Try rephrasing or use traditional commands with ,' })
-                        .setTimestamp();
+                    // Command not recognized, try chat as fallback
+                    try {
+                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                            message.author.id,
+                            userCommand
+                        );
+                        return message.reply(chatbotResponse);
+                    } catch (error) {
+                        // If chat also fails, show error
+                        const embed = new EmbedBuilder()
+                            .setColor('#ff9900')
+                            .setTitle('🤔 Not Sure What You Mean')
+                            .setDescription(`I couldn't understand your request clearly.`)
+                            .addFields(
+                                { name: 'What you said', value: `\`${userCommand}\`` }
+                            )
+                            .setFooter({ text: 'Try being more specific or use traditional commands with ,' })
+                            .setTimestamp();
 
-                    await message.reply({ embeds: [embed] });
+                        await message.reply({ embeds: [embed] });
+                    }
                 }
 
             } catch (error) {
@@ -271,7 +310,7 @@ module.exports = {
             }
         }
 
-        // Mute role update command - Fixed with proper function declaration
+        // Mute role update command
         if (message.content.startsWith('!muterole update') && message.guild) {
             const eventChannelIds = [
                 '1296077996435832902',
