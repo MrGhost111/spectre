@@ -1,4 +1,4 @@
-const { VM } = require('vm2');
+﻿const { VM } = require('vm2');
 const { HfInference } = require('@huggingface/inference');
 require('dotenv').config();
 
@@ -131,6 +131,16 @@ Generate the code now:`;
             // Remove any async function wrappers
             generatedCode = generatedCode.replace(/^async\s+function\s*\([^)]*\)\s*\{/g, '');
             generatedCode = generatedCode.replace(/\}$/g, '');
+
+            // Fix incomplete code - count braces and add missing closing braces
+            const openBraces = (generatedCode.match(/\{/g) || []).length;
+            const closeBraces = (generatedCode.match(/\}/g) || []).length;
+            const missingBraces = openBraces - closeBraces;
+
+            if (missingBraces > 0) {
+                console.log(`⚠️ AI generated incomplete code. Adding ${missingBraces} missing closing brace(s)`);
+                generatedCode += '\n' + '}'.repeat(missingBraces);
+            }
 
             return {
                 code: generatedCode.trim(),
