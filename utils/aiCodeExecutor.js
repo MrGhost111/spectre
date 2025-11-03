@@ -71,6 +71,22 @@ class AICodeExecutor {
      */
     async generateCode(userRequest, context = {}) {
         try {
+            // Build context description
+            let contextDescription = `**Available Context:**
+- Guild ID: ${context.guildId}
+- Channel ID: ${context.channelId}
+- User ID: ${context.userId}
+- Current channel object: 'channel' variable
+- Detected entities: ${JSON.stringify(context.entities || {})}`;
+
+            // Add reply context if available
+            if (context.replyContext && context.replyContext.hasReply) {
+                contextDescription += `
+- REPLIED MESSAGE: User replied to ${context.replyContext.repliedUser.username} (ID: ${context.replyContext.repliedUser.id})
+- Replied message content: "${context.replyContext.repliedContent?.slice(0, 200)}"
+- If request mentions "this person", "them", "that user", it refers to ${context.replyContext.repliedUser.username}`;
+            }
+
             const prompt = `You are a Discord.js v14 bot code generator. Generate ONLY executable JavaScript code based on the user's request.
 
 **CRITICAL RULES:**
