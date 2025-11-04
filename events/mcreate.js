@@ -5,6 +5,8 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const spectreAI = require('../utils/spectreAI');
+const huggingFaceApi = require('../utils/huggingFaceApi');
+
 require('dotenv').config();
 
 
