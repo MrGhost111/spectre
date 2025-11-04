@@ -1,4 +1,3 @@
-// JavaScript source code
 const spectreAI = require('../utils/spectreAI');
 
 module.exports = {
@@ -7,12 +6,10 @@ module.exports = {
         // Handle slash commands
         if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
-
             if (!command) {
                 console.error(`No command matching ${interaction.commandName} was found.`);
                 return;
             }
-
             try {
                 await command.execute(interaction);
             } catch (error) {
