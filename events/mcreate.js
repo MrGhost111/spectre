@@ -4,7 +4,6 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const huggingFaceApi = require('../utils/huggingFaceApi');
 const spectreAI = require('../utils/spectreAI');
 require('dotenv').config();
 
