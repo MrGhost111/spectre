@@ -35,7 +35,7 @@ module.exports = {
                         console.error('Chatbot Error:', error);
                         return message.reply("I'm having trouble processing that. Could you rephrase?");
                     }
-                } else if (result.type === 'confirmation_pending') {
+                } else if (result.type === 'confirmation_pending')  {
                     // Confirmation message already sent
                     return;
                 } else if (result.type === 'success') {
