@@ -1,5 +1,6 @@
 ﻿const { VM } = require('vm2');
 const { HfInference } = require('@huggingface/inference');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 require('dotenv').config();
 
 class AICodeExecutor {
@@ -27,6 +28,9 @@ class AICodeExecutor {
 
         // Owner ID for admin-only code execution
         this.ownerId = '753491023208120321';
+
+        // Store pending confirmations
+        this.pendingConfirmations = new Map();
     }
 
     /**
@@ -36,6 +40,25 @@ class AICodeExecutor {
         // Only owner or users with Administrator permission
         return userId === this.ownerId ||
             message.member?.permissions.has('Administrator');
+    }
+
+    /**
+     * Determine if action requires confirmation
+     */
+    requiresConfirmation(code) {
+        const dangerousActions = [
+            /\.ban\s*\(/gi,
+            /\.kick\s*\(/gi,
+            /\.timeout\s*\(/gi,
+            /\.delete\s*\(/gi,
+            /roles\.add.*Administrator/gi,
+            /PermissionFlagsBits\.Administrator/gi,
+            /\.setPermissions.*Administrator/gi,
+            /channel\.delete/gi,
+            /role\.delete/gi,
+        ];
+
+        return dangerousActions.some(pattern => pattern.test(code));
     }
 
     /**
@@ -67,24 +90,98 @@ class AICodeExecutor {
     }
 
     /**
+     * Parse user intent to understand WHO the action targets
+     */
+    async parseUserIntent(userRequest, context) {
+        try {
+            const prompt = `You are analyzing a Discord bot command to determine WHO the action should target.
+
+**Discord Context Rules:**
+- "me", "myself", "I", "my" = THE PERSON WHO SENT THE COMMAND (Author ID: ${context.userId})
+- "you", "yourself", "your" = THE BOT (not a valid target for most actions)
+- Mentioned users (@User) = That specific user
+- "them", "this person", "that user" (with reply) = The person they replied to
+- Role names = That role
+- Channel names = That channel
+
+**User Request:** "${userRequest}"
+
+**Context:**
+- Command Author: User ID ${context.userId}
+- Replied to: ${context.replyContext?.hasReply ? context.replyContext.repliedUser.username + ' (ID: ' + context.replyContext.repliedUser.id + ')' : 'No one'}
+- Detected users: ${context.entities?.users?.map(u => u.username + ' (ID: ' + u.id + ')').join(', ') || 'none'}
+- Detected roles: ${context.entities?.roles?.map(r => r.name + ' (ID: ' + r.id + ')').join(', ') || 'none'}
+- Detected channels: ${context.entities?.channels?.map(c => c.name + ' (ID: ' + c.id + ')').join(', ') || 'none'}
+
+Respond with ONLY valid JSON:
+{
+  "targetType": "self" | "user" | "role" | "channel" | "bot" | "unknown",
+  "targetId": "the ID of the target",
+  "targetName": "human readable name",
+  "confidence": "high" | "medium" | "low",
+  "reasoning": "brief explanation"
+}
+
+Examples:
+- "give me admin role" -> {"targetType": "self", "targetId": "${context.userId}", "targetName": "yourself", "confidence": "high"}
+- "mute @john" -> {"targetType": "user", "targetId": "john's ID", "targetName": "@john", "confidence": "high"}
+- "mute this guy" (replied to someone) -> {"targetType": "user", "targetId": "replied user ID", "targetName": "the user you replied to"}`;
+
+            const response = await this.hf.chatCompletion({
+                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+                messages: [
+                    { role: "system", content: "You are an intent analyzer. Respond only with JSON." },
+                    { role: "user", content: prompt }
+                ],
+                max_tokens: 200,
+                temperature: 0.2
+            });
+
+            const aiResponse = response.choices[0].message.content;
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
+            }
+
+            return { targetType: 'unknown', confidence: 'low' };
+        } catch (error) {
+            console.error('Intent parsing error:', error);
+            return { targetType: 'unknown', confidence: 'low' };
+        }
+    }
+
+    /**
      * Generate code using AI based on user request
      */
     async generateCode(userRequest, context = {}) {
         try {
+            // Parse user intent first
+            const intent = await this.parseUserIntent(userRequest, context);
+            console.log('Parsed Intent:', intent);
+
             // Build context description
             let contextDescription = `**Available Context:**
 - Guild ID: ${context.guildId}
 - Channel ID: ${context.channelId}
-- User ID: ${context.userId}
+- Command Author ID: ${context.userId} (THIS IS WHO SENT THE COMMAND)
 - Current channel object: 'channel' variable
 - Detected entities: ${JSON.stringify(context.entities || {})}`;
 
             // Add reply context if available
             if (context.replyContext && context.replyContext.hasReply) {
                 contextDescription += `
-- REPLIED MESSAGE: User replied to ${context.replyContext.repliedUser.username} (ID: ${context.replyContext.repliedUser.id})
-- Replied message content: "${context.replyContext.repliedContent?.slice(0, 200)}"
-- If request mentions "this person", "them", "that user", it refers to ${context.replyContext.repliedUser.username}`;
+- REPLIED MESSAGE: User replied to ${context.replyContext.repliedUser.username} (ID: ${context.replyContext.repliedUser.id})`;
+            }
+
+            // Add intent information
+            if (intent.targetType !== 'unknown') {
+                contextDescription += `
+
+**CRITICAL: Target Analysis**
+- Action should target: ${intent.targetName} (${intent.targetType})
+- Target ID: ${intent.targetId}
+- Reasoning: ${intent.reasoning}`;
             }
 
             const prompt = `You are a Discord.js v14 bot code generator. Generate ONLY executable JavaScript code based on the user's request.
@@ -94,17 +191,37 @@ class AICodeExecutor {
 2. Use ONLY these available objects:
    - message (Discord.js Message object)
    - guild (Discord.js Guild object)
-   - channel (Discord.js Channel object - this is where you send messages!)
-   - user (Discord.js User object)
+   - channel (Discord.js Channel object)
+   - user (Discord.js User object - this is THE COMMAND AUTHOR)
    - client (Discord.js Client object)
    - entities (object with users, roles, channels arrays)
    - EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits (ALREADY IMPORTED)
 3. Use async/await for all Discord operations
-4. Return a result object: { success: true/false, message: "response" }
+4. ALWAYS return a detailed result object with EXACTLY what happened
 5. Handle all errors with try-catch
 6. DO NOT use: require(), import, process, fs, child_process, eval, Function
 7. DO NOT access environment variables or tokens
-8. ALWAYS close all braces properly - verify your code is syntactically complete
+8. ALWAYS close all braces properly
+
+**RETURN FORMAT (CRITICAL):**
+Always return an object with:
+{
+  success: true/false,
+  message: "DETAILED description of what happened to WHO",
+  action: "brief action name",
+  target: "who/what was affected",
+  details: {} // optional extra info
+}
+
+**Example: "give me admin role"**
+- Target: user (the command author, NOT someone else!)
+- Return: { success: true, message: "✅ Gave Administrator role to <@${context.userId}>", action: "role_add", target: "${context.userId}" }
+
+**IMPORTANT LIMITATIONS:**
+- Discord does NOT provide "last seen" or "last online" data through the API
+- Presence/status requires special intents and only shows CURRENT status
+- To track last seen, you need a custom database system
+- If user asks for "last seen/online", explain this limitation
 
 **Discord.js v14 SYNTAX - USE THESE:**
 
@@ -156,51 +273,30 @@ class AICodeExecutor {
 ✅ voiceChannel.members.size
 ❌ NOT: member.voiceChannel
 
-**Available Context:**
-- Guild ID: ${context.guildId}
-- Channel ID: ${context.channelId}
-- User ID: ${context.userId}
-- Current channel object: 'channel' variable
-- Detected entities: ${JSON.stringify(context.entities || {})}
+${contextDescription}
 
 **User Request:** ${userRequest}
 
-**Example 1 - Send Embed:**
+**Example 1 - "give me admin role":**
 try {
-    const embed = new EmbedBuilder()
-        .setTitle('Hello')
-        .setDescription('World')
-        .setColor('#00ff00');
-    await channel.send({ embeds: [embed] });
-    return { success: true, message: 'Embed sent' };
+    const targetMember = guild.members.cache.get('${context.userId}');
+    const adminRole = guild.roles.cache.find(r => r.name.toLowerCase().includes('admin'));
+    if (!adminRole) return { success: false, message: 'Could not find admin role', action: 'role_add', target: 'none' };
+    await targetMember.roles.add(adminRole);
+    return { success: true, message: \`✅ Gave \${adminRole.name} role to <@\${targetMember.id}>\`, action: 'role_add', target: targetMember.id };
 } catch (error) {
-    return { success: false, message: 'Error: ' + error.message };
+    return { success: false, message: 'Error: ' + error.message, action: 'role_add', target: 'unknown' };
 }
 
-**Example 2 - Give Role:**
+**Example 2 - "move channel to position 5":**
 try {
-    const member = guild.members.cache.get('123456789');
-    const role = guild.roles.cache.get('987654321');
-    await member.roles.add(role);
-    return { success: true, message: 'Role added' };
+    await channel.setPosition(5);
+    return { success: true, message: \`✅ Moved <#\${channel.id}> to position 5\`, action: 'channel_move', target: channel.id };
 } catch (error) {
-    return { success: false, message: 'Error: ' + error.message };
+    return { success: false, message: 'Error: ' + error.message, action: 'channel_move', target: channel.id };
 }
 
-**Example 3 - Edit Permissions:**
-try {
-    const targetChannel = guild.channels.cache.get('123456789');
-    const targetMember = guild.members.cache.get('987654321');
-    await targetChannel.permissionOverwrites.edit(targetMember, {
-        ViewChannel: true,
-        SendMessages: true
-    });
-    return { success: true, message: 'Permissions updated' };
-} catch (error) {
-    return { success: false, message: 'Error: ' + error.message };
-}
-
-IMPORTANT: Use ONLY v14 syntax. Generate COMPLETE, syntactically correct code. Count your braces!
+IMPORTANT: Generate COMPLETE, syntactically correct code. Always return detailed success/error messages with WHO/WHAT was affected!
 
 Generate the code now:`;
 
@@ -213,7 +309,7 @@ Generate the code now:`;
                     },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 800,
+                max_tokens: 1000,
                 temperature: 0.3
             });
 
@@ -238,7 +334,8 @@ Generate the code now:`;
 
             return {
                 code: generatedCode.trim(),
-                request: userRequest
+                request: userRequest,
+                intent
             };
 
         } catch (error) {
@@ -320,6 +417,24 @@ Generate the code now:`;
     }
 
     /**
+     * Create confirmation buttons for dangerous actions
+     */
+    createConfirmationButtons(confirmId) {
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`confirm_${confirmId}`)
+                    .setLabel('✅ Confirm')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId(`cancel_${confirmId}`)
+                    .setLabel('❌ Cancel')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+        return row;
+    }
+
+    /**
      * Main entry point: Generate and execute code for a user request
      */
     async handleRequest(userRequest, message, context = {}) {
@@ -334,24 +449,69 @@ Generate the code now:`;
 
         try {
             // Step 1: Generate code
-            await message.channel.sendTyping();
-
-            const { code, request } = await this.generateCode(userRequest, {
+            const { code, request, intent } = await this.generateCode(userRequest, {
                 ...context,
                 guildId: message.guild?.id,
                 channelId: message.channel.id,
-                userId: message.author.id
+                userId: message.author.id,
+                replyContext: context.replyContext
             });
 
             console.log('Generated Code:', code);
+            console.log('Parsed Intent:', intent);
 
-            // Step 2: Execute code
+            // Step 2: Check if confirmation is required
+            if (this.requiresConfirmation(code)) {
+                const confirmId = `${message.author.id}_${Date.now()}`;
+
+                this.pendingConfirmations.set(confirmId, {
+                    code,
+                    message,
+                    context,
+                    request,
+                    intent,
+                    timestamp: Date.now()
+                });
+
+                // Create confirmation embed
+                const embed = new EmbedBuilder()
+                    .setColor('#ff9900')
+                    .setTitle('⚠️ Confirmation Required')
+                    .setDescription('This action requires confirmation as it involves:')
+                    .addFields(
+                        { name: '📝 Your Request', value: `\`${request}\`` },
+                        { name: '🎯 Target', value: intent.targetName || 'Unknown' },
+                        { name: '⚡ Action Type', value: 'Potentially destructive operation' },
+                        { name: '⏰ Expires', value: '<t:' + Math.floor((Date.now() + 30000) / 1000) + ':R>' }
+                    )
+                    .setFooter({ text: 'You have 30 seconds to confirm' })
+                    .setTimestamp();
+
+                const buttons = this.createConfirmationButtons(confirmId);
+
+                // Auto-cancel after 30 seconds
+                setTimeout(() => {
+                    if (this.pendingConfirmations.has(confirmId)) {
+                        this.pendingConfirmations.delete(confirmId);
+                    }
+                }, 30000);
+
+                return {
+                    needsConfirmation: true,
+                    confirmId,
+                    embed,
+                    buttons
+                };
+            }
+
+            // Step 3: Execute code immediately (no confirmation needed)
             const executionResult = await this.executeCode(code, message, context);
 
             return {
                 ...executionResult,
                 generatedCode: code,
-                request
+                request,
+                intent
             };
 
         } catch (error) {
@@ -364,18 +524,80 @@ Generate the code now:`;
     }
 
     /**
+     * Handle confirmation button click
+     */
+    async handleConfirmation(interaction, confirmed) {
+        const confirmId = interaction.customId.replace('confirm_', '').replace('cancel_', '');
+        const pending = this.pendingConfirmations.get(confirmId);
+
+        if (!pending) {
+            return interaction.reply({ content: '❌ This confirmation has expired.', ephemeral: true });
+        }
+
+        // Check if the person clicking is the person who initiated
+        if (interaction.user.id !== pending.message.author.id) {
+            return interaction.reply({ content: '❌ Only the person who initiated this can confirm.', ephemeral: true });
+        }
+
+        this.pendingConfirmations.delete(confirmId);
+
+        if (!confirmed) {
+            await interaction.update({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor('#ff0000')
+                        .setTitle('❌ Cancelled')
+                        .setDescription('Action cancelled by user')
+                        .setTimestamp()
+                ],
+                components: []
+            });
+            return { cancelled: true };
+        }
+
+        // Execute the code
+        await interaction.update({
+            embeds: [
+                new EmbedBuilder()
+                    .setColor('#ffff00')
+                    .setTitle('⏳ Executing...')
+                    .setDescription('Please wait...')
+            ],
+            components: []
+        });
+
+        const executionResult = await this.executeCode(pending.code, pending.message, pending.context);
+
+        return {
+            ...executionResult,
+            generatedCode: pending.code,
+            request: pending.request,
+            intent: pending.intent,
+            interaction
+        };
+    }
+
+    /**
      * Test mode: Generate code but don't execute (for debugging)
      */
     async dryRun(userRequest, message, context = {}) {
         try {
-            const { code, request } = await this.generateCode(userRequest, context);
+            const { code, request, intent } = await this.generateCode(userRequest, {
+                ...context,
+                guildId: message.guild?.id,
+                channelId: message.channel.id,
+                userId: message.author.id,
+                replyContext: context.replyContext
+            });
             const validation = this.validateCode(code);
 
             return {
                 code,
                 request,
+                intent,
                 validation,
-                wouldExecute: validation.safe
+                wouldExecute: validation.safe,
+                needsConfirmation: this.requiresConfirmation(code)
             };
         } catch (error) {
             return {

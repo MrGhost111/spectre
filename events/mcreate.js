@@ -49,13 +49,39 @@ module.exports = {
                         return message.reply('❌ You need Administrator permissions to use AI code execution.');
                     }
 
+                    // Handle confirmation needed
+                    if (result.needsConfirmation) {
+                        return message.reply({
+                            embeds: [result.embed],
+                            components: [result.buttons]
+                        });
+                    }
+
                     if (result.success) {
-                        // Just send the result message, no embed
-                        if (result.result?.message) {
-                            return message.reply(result.result.message);
+                        // Create detailed result embed
+                        const resultEmbed = new EmbedBuilder()
+                            .setColor('#9b59b6') // Purple color
+                            .setTitle(result.result?.success ? '✅ Success' : '❌ Failed')
+                            .setDescription(result.result?.message || 'Operation completed')
+                            .setTimestamp();
+
+                        if (result.intent && result.intent.targetName) {
+                            resultEmbed.addFields({
+                                name: '🎯 Target',
+                                value: result.intent.targetName,
+                                inline: true
+                            });
                         }
-                        // If no message was returned, just react to show success
-                        return message.react('✅');
+
+                        if (result.result?.action) {
+                            resultEmbed.addFields({
+                                name: '⚡ Action',
+                                value: result.result.action.replace(/_/g, ' '),
+                                inline: true
+                            });
+                        }
+
+                        return message.reply({ embeds: [resultEmbed] });
                     } else {
                         // Execution failed
                         const errorEmbed = new EmbedBuilder()
