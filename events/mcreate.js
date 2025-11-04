@@ -35,7 +35,7 @@ module.exports = {
                         console.error('Chatbot Error:', error);
                         return message.reply("I'm having trouble processing that. Could you rephrase?");
                     }
-                } else if (result.type === 'confirmation_pending')  {
+                } else if (result.type === 'confirmation_pending') {
                     // Confirmation message already sent
                     return;
                 } else if (result.type === 'success') {
@@ -151,10 +151,6 @@ module.exports = {
         }
 
         // Track donation messages from Dank Memer bot
-        const DANK_MEMER_BOT_ID = '270904126974590976';
-        const TRANSACTION_CHANNEL_ID = '833246120389902356';
-
-        // Forward to donation tracker
         await donationTracker.execute(client, message);
 
         // Auto react for specific channel
@@ -276,6 +272,7 @@ module.exports = {
             }
         }
 
+        // Regular commands with , prefix
         const prefix = ',';
 
         if (!message.content.startsWith(prefix)) {
