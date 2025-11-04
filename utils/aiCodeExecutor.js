@@ -43,22 +43,34 @@ class AICodeExecutor {
     }
 
     /**
-     * Determine if action requires confirmation
+     * Determine if action requires confirmation (for safety, not permissions)
      */
-    requiresConfirmation(code) {
+    requiresConfirmation(code, intent) {
         const dangerousActions = [
-            /\.ban\s*\(/gi,
-            /\.kick\s*\(/gi,
-            /\.timeout\s*\(/gi,
-            /\.delete\s*\(/gi,
-            /roles\.add.*Administrator/gi,
-            /PermissionFlagsBits\.Administrator/gi,
-            /\.setPermissions.*Administrator/gi,
-            /channel\.delete/gi,
-            /role\.delete/gi,
+            { pattern: /\.ban\s*\(/gi, description: '⛔ Banning a user' },
+            { pattern: /\.kick\s*\(/gi, description: '👢 Kicking a user' },
+            { pattern: /\.timeout\s*\(/gi, description: '⏸️ Timing out a user' },
+            { pattern: /channel\.delete\s*\(/gi, description: '🗑️ Deleting a channel' },
+            { pattern: /role\.delete\s*\(/gi, description: '🗑️ Deleting a role' },
+            { pattern: /PermissionFlagsBits\.Administrator/gi, description: '👑 Granting Administrator permissions' },
+            { pattern: /PermissionFlagsBits\.ManageMessages/gi, description: '📝 Granting Manage Messages permissions' },
+            { pattern: /PermissionFlagsBits\.ManageRoles/gi, description: '🎭 Granting Manage Roles permissions' },
+            { pattern: /PermissionFlagsBits\.ManageChannels/gi, description: '📁 Granting Manage Channels permissions' },
+            { pattern: /PermissionFlagsBits\.ManageGuild/gi, description: '⚙️ Granting Manage Server permissions' },
+            { pattern: /PermissionFlagsBits\.BanMembers/gi, description: '🔨 Granting Ban Members permissions' },
+            { pattern: /PermissionFlagsBits\.KickMembers/gi, description: '👢 Granting Kick Members permissions' },
         ];
 
-        return dangerousActions.some(pattern => pattern.test(code));
+        const matched = dangerousActions.filter(action => action.pattern.test(code));
+
+        if (matched.length > 0) {
+            return {
+                needsConfirmation: true,
+                reasons: matched.map(m => m.description)
+            };
+        }
+
+        return { needsConfirmation: false, reasons: [] };
     }
 
     /**
