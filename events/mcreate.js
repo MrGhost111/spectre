@@ -5,7 +5,7 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const huggingFaceApi = require('../utils/huggingFaceApi');
-const enhancedAIParser = require('../utils/enhancedAICommandParser');
+const spectreAI = require('../utils/spectreAI');
 require('dotenv').config();
 
 let lastStickyMessageId = null;
@@ -13,27 +13,18 @@ let lastStickyMessageId = null;
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // AI NATURAL LANGUAGE COMMANDS (triggered by "spectre" prefix)
+        // SPECTRE AI - Natural Language Commands and Chat
         if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
-            const userCommand = message.content.slice(8).trim();
+            const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
 
             try {
                 await message.channel.sendTyping();
 
-                // Use enhanced parser that can handle both commands and code execution
-                const result = await enhancedAIParser.execute(userCommand, message, {
-                    channelId: message.channel.id,
-                    userId: message.author.id,
-                    guildId: message.guild?.id,
-                    currentChannelName: message.channel.name,
-                    currentCategoryId: message.channel.parentId,
-                    currentCategoryName: message.channel.parent?.name
-                });
+                // Process with Spectre AI
+                const result = await spectreAI.process(message, userCommand);
 
-                console.log('Execution Result:', result);
-
-                // If it's just chat, use the chatbot
-                if (result.method === 'chat') {
+                if (result.type === 'chat') {
+                    // Use regular chatbot for non-action messages
                     try {
                         const chatbotResponse = await huggingFaceApi.getChatbotResponse(
                             message.author.id,
@@ -44,113 +35,19 @@ module.exports = {
                         console.error('Chatbot Error:', error);
                         return message.reply("I'm having trouble processing that. Could you rephrase?");
                     }
-                }
-
-                // Handle code execution result
-                if (result.method === 'code_execution') {
-                    if (result.permissionRequired) {
-                        return message.reply('❌ You need Administrator permissions to use AI code execution.');
-                    }
-
-                    // Handle confirmation needed
-                    if (result.needsConfirmation) {
-                        return message.reply({
-                            embeds: [result.embed],
-                            components: [result.buttons]
-                        });
-                    }
-
-                    if (result.success) {
-                        // Create detailed result embed
-                        const resultEmbed = new EmbedBuilder()
-                            .setColor('#9b59b6') // Purple color
-                            .setTitle(result.result?.success ? '✅ Success' : '❌ Failed')
-                            .setDescription(result.result?.message || 'Operation completed')
-                            .setTimestamp();
-
-                        if (result.intent && result.intent.targetName) {
-                            resultEmbed.addFields({
-                                name: '🎯 Target',
-                                value: result.intent.targetName,
-                                inline: true
-                            });
-                        }
-
-                        if (result.result?.action) {
-                            resultEmbed.addFields({
-                                name: '⚡ Action',
-                                value: result.result.action.replace(/_/g, ' '),
-                                inline: true
-                            });
-                        }
-
-                        return message.reply({ embeds: [resultEmbed] });
-                    } else {
-                        // Execution failed
-                        const errorEmbed = new EmbedBuilder()
-                            .setColor('#ff0000')
-                            .setTitle('❌ Execution Failed')
-                            .setDescription(result.error || 'Unknown error occurred')
-                            .setTimestamp();
-
-                        if (result.issues) {
-                            errorEmbed.addFields({
-                                name: 'Security Issues',
-                                value: result.issues.join('\n').slice(0, 1000)
-                            });
-                        }
-
-                        if (result.generatedCode) {
-                            errorEmbed.addFields({
-                                name: 'Generated Code',
-                                value: `\`\`\`javascript\n${result.generatedCode.slice(0, 400)}\n\`\`\``
-                            });
-                        }
-
-                        return message.reply({ embeds: [errorEmbed] });
-                    }
-                }
-
-                // Handle predefined command execution
-                if (result.method === 'predefined_command') {
-                    const command = client.textCommands.get(result.command);
-
-                    if (command) {
-                        try {
-                            await command.execute(message, [], result.entities);
-                        } catch (error) {
-                            console.error(`Error executing ${result.command}:`, error);
-                            await message.reply(`❌ Failed to execute command: ${error.message}`);
-                        }
-                    } else {
-                        await message.reply(`✅ I understood you want to use \`${result.command}\`, but that command isn't loaded yet.`);
-                    }
+                } else if (result.type === 'confirmation_pending') {
+                    // Confirmation message already sent
                     return;
-                }
-
-                // No command matched - try chatbot as fallback
-                try {
-                    const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                        message.author.id,
-                        userCommand
-                    );
-                    return message.reply(chatbotResponse);
-                } catch (error) {
-                    const embed = new EmbedBuilder()
-                        .setColor('#ff9900')
-                        .setTitle('🤔 Not Sure What You Mean')
-                        .setDescription(`I couldn't understand your request clearly.`)
-                        .addFields(
-                            { name: 'What you said', value: `\`${userCommand}\`` }
-                        )
-                        .setFooter({ text: 'Try being more specific or use traditional commands with ,' })
-                        .setTimestamp();
-
-                    await message.reply({ embeds: [embed] });
+                } else if (result.type === 'success') {
+                    // Action completed successfully
+                    return message.reply(result.message);
+                } else if (result.type === 'error') {
+                    // Error occurred
+                    return message.reply(result.message);
                 }
 
             } catch (error) {
-                console.error('AI Command Error:', error);
+                console.error('Spectre AI Error:', error);
 
                 let errorMessage = error.message;
                 if (error.message.includes('503')) {
@@ -164,7 +61,7 @@ module.exports = {
                 await message.reply(`❌ **Error**: ${errorMessage}`);
             }
 
-            return; // Stop processing after handling AI command
+            return; // Stop processing after handling spectre command
         }
 
         // Handle DM messages (use Hugging Face API instead of echo)

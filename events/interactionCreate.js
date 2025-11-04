@@ -1,82 +1,40 @@
-﻿// JavaScript source code
-const { EmbedBuilder } = require('discord.js');
-const aiCodeExecutor = require('../utils/aiCodeExecutor');
+// JavaScript source code
+const spectreAI = require('../utils/spectreAI');
 
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
-        // Handle button interactions for AI code execution confirmations
-        if (interaction.isButton()) {
-            const customId = interaction.customId;
+        // Handle slash commands
+        if (interaction.isChatInputCommand()) {
+            const command = client.commands.get(interaction.commandName);
 
-            // Check if it's a confirmation button
-            if (customId.startsWith('confirm_') || customId.startsWith('cancel_')) {
-                const confirmed = customId.startsWith('confirm_');
+            if (!command) {
+                console.error(`No command matching ${interaction.commandName} was found.`);
+                return;
+            }
 
-                try {
-                    const result = await aiCodeExecutor.handleConfirmation(interaction, confirmed);
+            try {
+                await command.execute(interaction);
+            } catch (error) {
+                console.error(`Error executing ${interaction.commandName}`);
+                console.error(error);
 
-                    if (result.cancelled) {
-                        return; // Already handled in handleConfirmation
-                    }
-
-                    if (result.success) {
-                        // Create detailed result embed
-                        const resultEmbed = new EmbedBuilder()
-                            .setColor('#9b59b6') // Purple color
-                            .setTitle(result.result?.success ? '✅ Confirmed & Executed' : '❌ Execution Failed')
-                            .setDescription(result.result?.message || 'Operation completed')
-                            .setTimestamp();
-
-                        if (result.intent && result.intent.targetName) {
-                            resultEmbed.addFields({
-                                name: '🎯 Target',
-                                value: result.intent.targetName,
-                                inline: true
-                            });
-                        }
-
-                        if (result.result?.action) {
-                            resultEmbed.addFields({
-                                name: '⚡ Action',
-                                value: result.result.action.replace(/_/g, ' '),
-                                inline: true
-                            });
-                        }
-
-                        await interaction.editReply({ embeds: [resultEmbed], components: [] });
-                    } else {
-                        // Execution failed
-                        const errorEmbed = new EmbedBuilder()
-                            .setColor('#ff0000')
-                            .setTitle('❌ Execution Failed')
-                            .setDescription(result.error || 'Unknown error occurred')
-                            .setTimestamp();
-
-                        if (result.issues) {
-                            errorEmbed.addFields({
-                                name: 'Security Issues',
-                                value: result.issues.join('\n').slice(0, 1000)
-                            });
-                        }
-
-                        if (result.generatedCode) {
-                            errorEmbed.addFields({
-                                name: 'Generated Code',
-                                value: `\`\`\`javascript\n${result.generatedCode.slice(0, 400)}\n\`\`\``
-                            });
-                        }
-
-                        await interaction.editReply({ embeds: [errorEmbed], components: [] });
-                    }
-                } catch (error) {
-                    console.error('Error handling confirmation:', error);
-                    await interaction.reply({
-                        content: `❌ Error: ${error.message}`,
-                        ephemeral: true
-                    }).catch(() => { });
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+                } else {
+                    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
                 }
             }
         }
-    }
+
+        // Handle Spectre AI confirmation buttons
+        if (interaction.isButton()) {
+            const customId = interaction.customId;
+
+            if (customId.startsWith('confirm_')) {
+                const confirmed = customId.endsWith('_confirm');
+                await spectreAI.handleConfirmation(interaction, confirmed);
+            }
+        }
+    },
 };
