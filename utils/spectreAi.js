@@ -45,7 +45,7 @@ Chat examples:
 - "tell me a joke"
 
 Respond with ONLY: action OR chat`;
-
+ 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",

@@ -8,6 +8,7 @@ const huggingFaceApi = require('../utils/huggingFaceApi');
 const spectreAI = require('../utils/spectreAI');
 require('dotenv').config();
 
+
 let lastStickyMessageId = null;
 
 module.exports = {

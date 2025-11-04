@@ -1,5 +1,6 @@
 const spectreAI = require('../utils/spectreAI');
 
+
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
