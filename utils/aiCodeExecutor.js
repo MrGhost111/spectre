@@ -164,6 +164,85 @@ Examples:
     }
 
     /**
+     * Build comprehensive Discord context explanation for AI
+     */
+    buildDiscordContext(context) {
+        let contextExplanation = `**DISCORD CONTEXT - UNDERSTAND THIS FIRST:**
+
+**1. "THIS CHANNEL" / "HERE":**
+   - Means: channel (the channel where command was sent)
+   - Channel ID: ${context.channelId}
+   - Channel Name: ${context.currentChannelName || 'unknown'}
+   - Use: channel variable is already available
+
+**2. "THIS CATEGORY" / "THIS CATEGORY HERE":**
+   - Means: The category that contains the current channel
+   - Category ID: ${context.currentCategoryId || 'none (no parent)'}
+   - Use: channel.parentId OR channel.parent
+
+**3. "THIS USER" / "THIS PERSON" / "THEM":**`;
+
+        if (context.replyContext?.hasReply) {
+            contextExplanation += `
+   - User replied to: ${context.replyContext.repliedUser.username}
+   - User ID: ${context.replyContext.repliedUser.id}
+   - Means: The person they replied to
+   - Use: guild.members.cache.get('${context.replyContext.repliedUser.id}')`;
+        } else {
+            contextExplanation += `
+   - No reply detected
+   - If user says "this user" without context, ask for clarification OR assume they mean themselves`;
+        }
+
+        contextExplanation += `
+
+**4. "ME" / "MYSELF" / "MY" / "I":**
+   - Means: The command author (person who sent the command)
+   - User ID: ${context.userId}
+   - Use: user variable OR guild.members.cache.get('${context.userId}')
+
+**5. "THIS MESSAGE":**`;
+
+        if (context.replyContext?.hasReply) {
+            contextExplanation += `
+   - Message ID: ${context.replyContext.repliedMessage?.id}
+   - Content: "${context.replyContext.repliedContent?.slice(0, 100)}"
+   - Use: channel.messages.cache.get('${context.replyContext.repliedMessage?.id}')`;
+        } else {
+            contextExplanation += `
+   - No reply detected
+   - Cannot reference a message without replying to it`;
+        }
+
+        contextExplanation += `
+
+**6. DETECTED ENTITIES:**
+   - Users mentioned: ${context.entities?.users?.map(u => `${u.username} (${u.id})`).join(', ') || 'none'}
+   - Roles mentioned: ${context.entities?.roles?.map(r => `${r.name} (${r.id})`).join(', ') || 'none'}
+   - Channels mentioned: ${context.entities?.channels?.map(c => `${c.name} (${c.id})`).join(', ') || 'none'}
+
+**7. AVAILABLE VARIABLES (USE THESE DIRECTLY):**
+   - channel = Current channel where command was sent
+   - guild = The Discord server
+   - user = Command author
+   - message = The command message object
+   - client = Bot client
+   - entities = Object containing detected users/roles/channels
+
+**8. COMMON PHRASES TRANSLATION:**
+   - "in this category" = parent: channel.parentId
+   - "in here" = parent: channel.id (if channel is category) OR same channel
+   - "move this channel" = await channel.setPosition(X)
+   - "rename this" = await channel.setName('newname')
+   - "delete this channel" = await channel.delete()
+   - "give me X role" = await guild.members.cache.get('${context.userId}').roles.add(roleId)
+   - "mute this person" (with reply) = timeout the replied user
+`;
+
+        return contextExplanation;
+    }
+
+    /**
      * Generate code using AI based on user request
      */
     async generateCode(userRequest, context = {}) {
@@ -171,6 +250,9 @@ Examples:
             // Parse user intent first
             const intent = await this.parseUserIntent(userRequest, context);
             console.log('Parsed Intent:', intent);
+
+            // Build comprehensive Discord context
+            const discordContext = this.buildDiscordContext(context);
 
             // Build context description
             let contextDescription = `**Available Context:**
@@ -203,11 +285,11 @@ Examples:
 2. Use ONLY these available objects:
    - message (Discord.js Message object)
    - guild (Discord.js Guild object)
-   - channel (Discord.js Channel object)
+   - channel (Discord.js Channel object - THE CURRENT CHANNEL where command was used)
    - user (Discord.js User object - this is THE COMMAND AUTHOR)
    - client (Discord.js Client object)
    - entities (object with users, roles, channels arrays)
-   - EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits (ALREADY IMPORTED)
+   - EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, ChannelType (ALREADY IMPORTED)
 3. Use async/await for all Discord operations
 4. ALWAYS return a detailed result object with EXACTLY what happened
 5. Handle all errors with try-catch
@@ -265,12 +347,23 @@ Always return an object with:
 ❌ NOT: member.addRole() or member.removeRole()
 
 **Channels (v14):**
+✅ guild.channels.create({ name: 'channel-name', type: ChannelType.GuildText })
+✅ guild.channels.create({ name: 'voice', type: ChannelType.GuildVoice })  
+✅ guild.channels.create({ name: 'text', type: ChannelType.GuildText, parent: channel.parentId })
 ✅ channel.setName('name')
 ✅ channel.setPosition(number)
 ✅ channel.setParent(categoryId)
 ✅ channel.permissionOverwrites.edit(target, { ViewChannel: true })
 ✅ guild.channels.cache.get(id) or guild.channels.fetch(id)
 ❌ NOT: channel.updateOverwrite()
+❌ NOT: type: 'text' or type: 0 (use ChannelType enum!)
+
+**CRITICAL FOR CREATING CHANNELS:**
+- ALWAYS use ChannelType.GuildText for text channels
+- ALWAYS use ChannelType.GuildVoice for voice channels
+- ALWAYS use ChannelType.GuildCategory for categories
+- If user says "in this category", use: parent: channel.parentId
+- If user says "create channel named X", X is the name!
 
 **Messages (v14):**
 ✅ channel.send({ content: 'text', embeds: [embed] })
@@ -295,7 +388,7 @@ ${contextDescription}
 
 **User Request:** ${userRequest}
 
-**Example 1 - "give me admin role":**
+**Example 1 - "give me admin role" (NO PERMISSION CHECKS):**
 try {
     const targetMember = guild.members.cache.get('${context.userId}');
     const adminRole = guild.roles.cache.find(r => r.name.toLowerCase().includes('admin'));
@@ -306,7 +399,30 @@ try {
     return { success: false, message: 'Error: ' + error.message, action: 'role_add', target: 'unknown' };
 }
 
-**Example 2 - "move channel to position 5":**
+**Example 2 - "create a text channel called test" (CORRECT v14 SYNTAX):**
+try {
+    const newChannel = await guild.channels.create({
+        name: 'test',
+        type: ChannelType.GuildText
+    });
+    return { success: true, message: \`✅ Created text channel <#\${newChannel.id}>\`, action: 'channel_create', target: newChannel.id };
+} catch (error) {
+    return { success: false, message: 'Error: ' + error.message, action: 'channel_create', target: 'unknown' };
+}
+
+**Example 3 - "create a text channel named test in this category" (WITH PARENT):**
+try {
+    const newChannel = await guild.channels.create({
+        name: 'test',
+        type: ChannelType.GuildText,
+        parent: channel.parentId
+    });
+    return { success: true, message: \`✅ Created text channel <#\${newChannel.id}> in this category\`, action: 'channel_create', target: newChannel.id };
+} catch (error) {
+    return { success: false, message: 'Error: ' + error.message, action: 'channel_create', target: 'unknown' };
+}
+
+**Example 4 - "move channel to position 5":**
 try {
     await channel.setPosition(5);
     return { success: true, message: \`✅ Moved <#\${channel.id}> to position 5\`, action: 'channel_move', target: channel.id };
@@ -383,7 +499,8 @@ Generate the code now:`;
                 ActionRowBuilder,
                 ButtonBuilder,
                 ButtonStyle,
-                PermissionFlagsBits
+                PermissionFlagsBits,
+                ChannelType
             } = require('discord.js');
 
             // Create sandbox with limited scope
@@ -402,6 +519,7 @@ Generate the code now:`;
                     ButtonBuilder,
                     ButtonStyle,
                     PermissionFlagsBits,
+                    ChannelType,
                     console: {
                         log: (...args) => console.log('[Sandboxed Code]:', ...args),
                         error: (...args) => console.error('[Sandboxed Code Error]:', ...args)

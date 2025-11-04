@@ -24,7 +24,10 @@ module.exports = {
                 const result = await enhancedAIParser.execute(userCommand, message, {
                     channelId: message.channel.id,
                     userId: message.author.id,
-                    guildId: message.guild?.id
+                    guildId: message.guild?.id,
+                    currentChannelName: message.channel.name,
+                    currentCategoryId: message.channel.parentId,
+                    currentCategoryName: message.channel.parent?.name
                 });
 
                 console.log('Execution Result:', result);
