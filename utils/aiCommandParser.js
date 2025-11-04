@@ -46,68 +46,6 @@ const AI_COMMAND_DEFINITIONS = [
         description: 'Remove friends from your donor voice channel',
         keywords: ['remove', 'kick', 'friends', 'channel', 'vc', 'voice', 'people', 'revoke access', 'take away'],
         category: 'channel'
-    },
-    {
-        name: 'giverole',
-        aliases: ['addrole', 'assignrole', 'grantrole'],
-        description: 'Give a role to a user (requires permissions)',
-        keywords: ['give', 'add', 'assign', 'grant', 'role'],
-        category: 'moderation',
-        requiredEntities: ['user', 'role']
-    },
-    {
-        name: 'removerole',
-        aliases: ['takerole', 'striprole', 'revokerole'],
-        description: 'Remove a role from a user (requires permissions)',
-        keywords: ['remove', 'take', 'strip', 'revoke', 'role'],
-        category: 'moderation',
-        requiredEntities: ['user', 'role']
-    },
-    {
-        name: 'viewlock',
-        aliases: ['hideuser', 'blockview', 'restrictview'],
-        description: 'Prevent a user from viewing a channel',
-        keywords: ['viewlock', 'hide', 'block', 'restrict', 'view', 'prevent', 'cant see'],
-        category: 'moderation',
-        requiredEntities: ['user', 'channel']
-    },
-    {
-        name: 'addtochannel',
-        aliases: ['grantaccess', 'allowinchannel'],
-        description: 'Add user or role to channel permissions',
-        keywords: ['add', 'channel', 'grant', 'allow', 'access', 'permission'],
-        category: 'moderation',
-        requiredEntities: ['channel']
-    },
-    {
-        name: 'removefromchannel',
-        aliases: ['revokeaccess', 'denyinchannel'],
-        description: 'Remove user or role from channel permissions',
-        keywords: ['remove', 'channel', 'revoke', 'deny', 'access', 'permission'],
-        category: 'moderation',
-        requiredEntities: ['channel']
-    },
-    {
-        name: 'movechannel',
-        aliases: ['changecategory', 'relocate'],
-        description: 'Move a channel to a different category',
-        keywords: ['move', 'channel', 'category', 'relocate', 'change', 'position'],
-        category: 'moderation',
-        requiredEntities: ['channel']
-    },
-    {
-        name: 'createchannel',
-        aliases: ['newchannel', 'makechannel'],
-        description: 'Create a new channel',
-        keywords: ['create', 'new', 'make', 'channel'],
-        category: 'moderation'
-    },
-    {
-        name: 'getdata',
-        aliases: ['fetchdata', 'showdata', 'querydata'],
-        description: 'Query database information',
-        keywords: ['get', 'fetch', 'show', 'data', 'database', 'info', 'check', 'who allowed', 'when'],
-        category: 'utility'
     }
 ];
 
