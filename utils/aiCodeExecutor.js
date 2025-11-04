@@ -214,6 +214,8 @@ Examples:
 6. DO NOT use: require(), import, process, fs, child_process, eval, Function
 7. DO NOT access environment variables or tokens
 8. ALWAYS close all braces properly
+9. **DO NOT CHECK PERMISSIONS** - Just attempt the action. If it fails, the error will be caught.
+10. **NEVER use member.permissions.has()** or any permission checking - THE BOT WILL HANDLE THAT
 
 **RETURN FORMAT (CRITICAL):**
 Always return an object with:
@@ -228,6 +230,10 @@ Always return an object with:
 **Example: "give me admin role"**
 - Target: user (the command author, NOT someone else!)
 - Return: { success: true, message: "✅ Gave Administrator role to <@${context.userId}>", action: "role_add", target: "${context.userId}" }
+
+**IMPORTANT - DO NOT CHECK PERMISSIONS:**
+❌ BAD: if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return { success: false, message: "No perms" };
+✅ GOOD: Just do the action and let Discord API return an error if bot lacks permissions
 
 **IMPORTANT LIMITATIONS:**
 - Discord does NOT provide "last seen" or "last online" data through the API
@@ -472,8 +478,10 @@ Generate the code now:`;
             console.log('Generated Code:', code);
             console.log('Parsed Intent:', intent);
 
-            // Step 2: Check if confirmation is required
-            if (this.requiresConfirmation(code)) {
+            // Step 2: Check if confirmation is required (safety check, not permission check)
+            const confirmCheck = this.requiresConfirmation(code, intent);
+
+            if (confirmCheck.needsConfirmation) {
                 const confirmId = `${message.author.id}_${Date.now()}`;
 
                 this.pendingConfirmations.set(confirmId, {
@@ -485,18 +493,18 @@ Generate the code now:`;
                     timestamp: Date.now()
                 });
 
-                // Create confirmation embed
+                // Create confirmation embed with specific reasons
                 const embed = new EmbedBuilder()
                     .setColor('#ff9900')
                     .setTitle('⚠️ Confirmation Required')
-                    .setDescription('This action requires confirmation as it involves:')
+                    .setDescription('This action is potentially destructive:')
                     .addFields(
                         { name: '📝 Your Request', value: `\`${request}\`` },
-                        { name: '🎯 Target', value: intent.targetName || 'Unknown' },
-                        { name: '⚡ Action Type', value: 'Potentially destructive operation' },
+                        { name: '🎯 Target', value: intent.targetName || 'Unknown', inline: true },
+                        { name: '⚠️ Action Involves', value: confirmCheck.reasons.join('\n'), inline: false },
                         { name: '⏰ Expires', value: '<t:' + Math.floor((Date.now() + 30000) / 1000) + ':R>' }
                     )
-                    .setFooter({ text: 'You have 30 seconds to confirm' })
+                    .setFooter({ text: 'Click Confirm to proceed or Cancel to abort' })
                     .setTimestamp();
 
                 const buttons = this.createConfirmationButtons(confirmId);
@@ -512,7 +520,8 @@ Generate the code now:`;
                     needsConfirmation: true,
                     confirmId,
                     embed,
-                    buttons
+                    buttons,
+                    reasons: confirmCheck.reasons
                 };
             }
 
@@ -602,6 +611,7 @@ Generate the code now:`;
                 replyContext: context.replyContext
             });
             const validation = this.validateCode(code);
+            const confirmCheck = this.requiresConfirmation(code);
 
             return {
                 code,
@@ -609,7 +619,8 @@ Generate the code now:`;
                 intent,
                 validation,
                 wouldExecute: validation.safe,
-                needsConfirmation: this.requiresConfirmation(code)
+                needsConfirmation: confirmCheck.needsConfirmation,
+                confirmationReasons: confirmCheck.reasons
             };
         } catch (error) {
             return {
