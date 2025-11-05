@@ -1,6 +1,5 @@
 const spectreAI = require('../utils/spectreAI');
 
-
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -16,7 +15,6 @@ module.exports = {
             } catch (error) {
                 console.error(`Error executing ${interaction.commandName}`);
                 console.error(error);
-
                 if (interaction.replied || interaction.deferred) {
                     await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
                 } else {
@@ -28,7 +26,6 @@ module.exports = {
         // Handle Spectre AI confirmation buttons
         if (interaction.isButton()) {
             const customId = interaction.customId;
-
             if (customId.startsWith('confirm_')) {
                 const confirmed = customId.endsWith('_confirm');
                 await spectreAI.handleConfirmation(interaction, confirmed);
