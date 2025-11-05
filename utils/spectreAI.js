@@ -119,9 +119,9 @@ class SpectreAI {
     }
 
     /**
-     * Analyze request and generate code immediately
+     * Analyze request (without generating code yet)
      */
-    async analyzeAndGenerateCode(message, userMessage) {
+    async analyzeRequest(message, userMessage) {
         const contextInfo = await this.buildContextInfo(message);
         const repliedData = await this.getRepliedMessageData(message);
 
@@ -154,12 +154,17 @@ Your Task:
 1. Identify the ACTION (what to do)
 2. Identify TARGET entities (users, roles, channels, categories)
 3. Extract any PARAMETERS (names, values, settings)
-4. Understand context and pronouns correctly
+4. Describe detailed steps of what will happen
+5. Understand context and pronouns correctly
 
 Respond with ONLY valid JSON:
 {
   "action": "descriptive_action_name",
   "description": "Brief human readable description",
+  "detailedSteps": [
+    "Step 1: Specific action that will be taken",
+    "Step 2: Another specific action"
+  ],
   "entities": {
     "users": ["username1"],
     "roles": ["rolename1"],
@@ -203,71 +208,13 @@ Examples:
 
             const analysis = JSON.parse(jsonMatch[0]);
 
-            // Resolve entities first
+            // Resolve entities
             const resolved = await this.resolveEntities(analysis, message, repliedData);
 
-            // Generate code to see what will actually happen
-            const code = await this.generateCode(analysis, resolved, message, repliedData);
-
-            // Analyze code to extract detailed steps
-            const detailedSteps = await this.extractStepsFromCode(code, analysis, resolved);
-
-            analysis.detailedSteps = detailedSteps;
-            analysis.generatedCode = code;
-
-            return { analysis, resolved, code };
+            return { analysis, resolved, repliedData };
         } catch (error) {
             console.error('Request analysis error:', error);
             throw error;
-        }
-    }
-
-    /**
-     * Extract detailed steps from generated code
-     */
-    async extractStepsFromCode(code, analysis, resolved) {
-        const prompt = `Analyze this Discord.js code and extract EXACTLY what it will do in simple, clear steps.
-
-Code:
-\`\`\`javascript
-${code}
-\`\`\`
-
-Context:
-- Action: ${analysis.action}
-- Users: ${resolved.users.map(u => u.username).join(', ') || 'none'}
-- Roles: ${resolved.roles.map(r => r.name).join(', ') || 'none'}
-- Channels: ${resolved.channels.map(c => c.name).join(', ') || 'none'}
-
-Respond with a JSON array of specific steps. Be detailed and accurate.
-
-Example:
-["Create a text channel named 'general-chat'", "Set channel permissions for @Members to view and send messages", "Move channel to 'Community' category"]
-
-Generate the steps array now (ONLY the JSON array, no extra text):`;
-
-        try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    { role: "system", content: "Extract action steps from code. Respond only with JSON array." },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 400,
-                temperature: 0.1
-            });
-
-            const aiResponse = response.choices[0].message.content;
-            const arrayMatch = aiResponse.match(/\[[\s\S]*\]/);
-
-            if (arrayMatch) {
-                return JSON.parse(arrayMatch[0]);
-            }
-
-            return ["Execute the requested action"];
-        } catch (error) {
-            console.error('Step extraction error:', error);
-            return ["Execute the requested action"];
         }
     }
 
@@ -675,7 +622,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             analysis,
             resolved,
             message,
-            code: analysis.generatedCode,
+            repliedData,
             authorId: message.author.id,
             expiresAt: Date.now() + 60000,
             blocked: isBlocked,
@@ -743,8 +690,18 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
         await interaction.update({ embeds: [processingEmbed], components: [] });
 
         try {
-            // Execute the pre-generated code
-            const result = await this.executeCode(confirmData.code, confirmData.message);
+            // Generate code now (after confirmation)
+            const code = await this.generateCode(
+                confirmData.analysis,
+                confirmData.resolved,
+                confirmData.message,
+                confirmData.repliedData
+            );
+
+            console.log('Generated Code:', code);
+
+            // Execute the generated code
+            const result = await this.executeCode(code, confirmData.message);
 
             // Update confirmation to completed
             const completedEmbed = EmbedBuilder.from(originalEmbed)
@@ -814,8 +771,8 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
                 };
             }
 
-            // Analyze, generate code, and create confirmation
-            const { analysis, resolved } = await this.analyzeAndGenerateCode(message, userMessage);
+            // Analyze and create confirmation
+            const { analysis, resolved, repliedData } = await this.analyzeRequest(message, userMessage);
             await this.requestConfirmation(message, analysis, resolved);
 
             return { type: 'confirmation_pending' };
