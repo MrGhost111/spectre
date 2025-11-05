@@ -502,10 +502,10 @@ Generate the code now:`;
         setTimeout(() => {
             if (this.pendingConfirmations.has(confirmationId)) {
                 this.pendingConfirmations.delete(confirmationId);
-                const expiredEmbed = new EmbedBuilder()
-                    .setColor(Colors.Red)
-                    .setDescription('❌ Confirmation expired.');
-                confirmMsg.edit({ embeds: [expiredEmbed], components: [] }).catch(() => { });
+                // Keep the original embed but just disable buttons and update title
+                embed.setTitle('⏰ Confirmation Expired')
+                    .setColor(Colors.Red);
+                confirmMsg.edit({ embeds: [embed], components: [] }).catch(() => { });
             }
         }, 60000);
 
