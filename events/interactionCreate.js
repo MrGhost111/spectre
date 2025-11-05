@@ -1,4 +1,4 @@
-const spectreAI = require('../utils/spectreAI');
+﻿const spectreAI = require('../utils/spectreAI');
 
 module.exports = {
     name: 'interactionCreate',

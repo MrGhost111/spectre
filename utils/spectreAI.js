@@ -535,10 +535,22 @@ Generate the code now:`;
 
         this.pendingConfirmations.delete(confirmationId);
 
+        // CRITICAL: Extract original embed data properly
+        const originalEmbedData = interaction.message.embeds[0];
+
         if (!confirmed) {
+            // Recreate embed with all original data, only change title and color
             const cancelledEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setDescription('❌ Action cancelled.');
+                .setTitle('❌ Action Cancelled')
+                .setDescription(originalEmbedData.description)
+                .setFooter(originalEmbedData.footer);
+
+            // Add all original fields back
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                cancelledEmbed.addFields(originalEmbedData.fields);
+            }
+
             await interaction.update({ embeds: [cancelledEmbed], components: [] });
             return;
         }
@@ -546,15 +558,29 @@ Generate the code now:`;
         if (confirmData.blocked) {
             const blockedEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setDescription('❌ This action is blocked due to mass ping detection.');
+                .setTitle('❌ Action Blocked')
+                .setDescription(originalEmbedData.description)
+                .setFooter(originalEmbedData.footer);
+
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                blockedEmbed.addFields(originalEmbedData.fields);
+            }
+
             await interaction.update({ embeds: [blockedEmbed], components: [] });
             return;
         }
 
-        // Proceed with action
+        // Update to processing state - keep ALL original content
         const processingEmbed = new EmbedBuilder()
             .setColor(Colors.Yellow)
-            .setDescription('⏳ Processing...');
+            .setTitle('⏳ Processing Action...')
+            .setDescription(originalEmbedData.description)
+            .setFooter({ text: 'Please wait while the action is being executed...' });
+
+        if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+            processingEmbed.addFields(originalEmbedData.fields);
+        }
+
         await interaction.update({ embeds: [processingEmbed], components: [] });
 
         try {
@@ -562,18 +588,59 @@ Generate the code now:`;
             console.log('Generated Code:', code);
             const result = await this.executeCode(code, confirmData.message);
 
-            if (result && result.embed) {
-                await interaction.editReply({ embeds: [result.embed] });
-            } else {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(Colors.Red)
-                    .setDescription('❌ Action completed but no valid response returned.');
-                await interaction.editReply({ embeds: [errorEmbed] });
+            // Create completed embed with all original content
+            const completedEmbed = new EmbedBuilder()
+                .setColor(Colors.Green)
+                .setTitle('✅ Action Completed')
+                .setDescription(originalEmbedData.description);
+
+            // Add all original fields
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                completedEmbed.addFields(originalEmbedData.fields);
             }
+
+            // Add result at the end
+            if (result && result.embed) {
+                if (result.embed.data.description) {
+                    completedEmbed.addFields({
+                        name: '📊 Result',
+                        value: result.embed.data.description,
+                        inline: false
+                    });
+                }
+                if (result.embed.data.fields && result.embed.data.fields.length > 0) {
+                    completedEmbed.addFields(result.embed.data.fields);
+                }
+            } else {
+                completedEmbed.addFields({
+                    name: '📊 Result',
+                    value: 'Action completed but no valid response returned.',
+                    inline: false
+                });
+            }
+
+            completedEmbed.setFooter({ text: 'Action completed successfully' });
+
+            await interaction.editReply({ embeds: [completedEmbed] });
         } catch (error) {
+            // Create error embed with all original content
             const errorEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setDescription(`❌ Error: ${error.message}`);
+                .setTitle('❌ Action Failed')
+                .setDescription(originalEmbedData.description);
+
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                errorEmbed.addFields(originalEmbedData.fields);
+            }
+
+            errorEmbed.addFields({
+                name: '📊 Error',
+                value: error.message,
+                inline: false
+            });
+
+            errorEmbed.setFooter({ text: 'Action failed to execute' });
+
             await interaction.editReply({ embeds: [errorEmbed] });
         }
     }
