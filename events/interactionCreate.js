@@ -1,5 +1,4 @@
 ﻿const spectreAI = require('../utils/spectreAI');
-
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -22,7 +21,6 @@ module.exports = {
                 }
             }
         }
-
         // Handle Spectre AI confirmation buttons
         if (interaction.isButton()) {
             const customId = interaction.customId;
