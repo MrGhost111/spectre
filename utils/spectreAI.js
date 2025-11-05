@@ -746,11 +746,10 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             await interaction.editReply({ embeds: [errorEmbed] });
 
             // Send error details
-            const explanation = await this.explainError(error, confirmData.code);
             const errorOutputEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
                 .setTitle('❌ Error Details')
-                .setDescription(explanation)
+                .setDescription(error.message)
                 .setTimestamp();
 
             await confirmData.message.channel.send({ embeds: [errorOutputEmbed] });
