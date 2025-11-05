@@ -5,6 +5,7 @@ require('dotenv').config();
 
 class SpectreAI {
     constructor() {
+        console.log('🤖 SpectreAI instance created');
         this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
         this.entityResolver = entityResolver;
         this.pendingConfirmations = new Map();
@@ -520,7 +521,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
     /**
      * Create confirmation prompt
      */
-    async requestConfirmation(message, analysis, resolved) {
+    async requestConfirmation(message, analysis, resolved, repliedData) {
         const confirmationId = `confirm_${Date.now()}_${message.author.id}`;
 
         // Check for dangerous actions
@@ -618,6 +619,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
         const confirmMsg = await message.reply({ embeds: [embed], components: [row] });
 
+        // Store confirmation data with repliedData included
         this.pendingConfirmations.set(confirmationId, {
             analysis,
             resolved,
@@ -629,9 +631,13 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             confirmMsgId: confirmMsg.id
         });
 
+        console.log(`✅ Confirmation created: ${confirmationId}`);
+        console.log(`📊 Total pending confirmations: ${this.pendingConfirmations.size}`);
+
         setTimeout(() => {
             if (this.pendingConfirmations.has(confirmationId)) {
                 this.pendingConfirmations.delete(confirmationId);
+                console.log(`⏰ Confirmation expired: ${confirmationId}`);
                 embed.setTitle('⏰ Confirmation Expired').setColor(Colors.Red);
                 confirmMsg.edit({ embeds: [embed], components: [] }).catch(() => { });
             }
@@ -644,10 +650,28 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
      * Handle confirmation button clicks
      */
     async handleConfirmation(interaction, confirmed) {
-        const confirmationId = interaction.customId.replace('_confirm', '').replace('_cancel', '');
+        // Fix: Properly extract confirmation ID by removing both suffixes
+        const customId = interaction.customId;
+        const confirmationId = customId.replace(/_confirm$|_cancel$/, '');
+
+        console.log(`🔘 Button clicked: ${customId}`);
+        console.log(`🔑 Extracted confirmation ID: ${confirmationId}`);
+        console.log(`📋 Pending confirmations: [${Array.from(this.pendingConfirmations.keys()).join(', ')}]`);
+
         const confirmData = this.pendingConfirmations.get(confirmationId);
 
         if (!confirmData) {
+            console.log(`❌ Confirmation data not found for: ${confirmationId}`);
+            return interaction.reply({
+                embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription('❌ This confirmation has expired.')],
+                ephemeral: true
+            });
+        }
+
+        // Check if expired
+        if (Date.now() > confirmData.expiresAt) {
+            this.pendingConfirmations.delete(confirmationId);
+            console.log(`⏰ Confirmation expired: ${confirmationId}`);
             return interaction.reply({
                 embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription('❌ This confirmation has expired.')],
                 ephemeral: true
@@ -662,6 +686,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
         }
 
         this.pendingConfirmations.delete(confirmationId);
+        console.log(`🗑️ Confirmation removed: ${confirmationId}`);
 
         const originalEmbed = interaction.message.embeds[0];
 
@@ -691,6 +716,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
         try {
             // Generate code now (after confirmation)
+            console.log('🔧 Generating code...');
             const code = await this.generateCode(
                 confirmData.analysis,
                 confirmData.resolved,
@@ -698,9 +724,10 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
                 confirmData.repliedData
             );
 
-            console.log('Generated Code:', code);
+            console.log('📝 Generated Code:', code);
 
             // Execute the generated code
+            console.log('⚙️ Executing code...');
             const result = await this.executeCode(code, confirmData.message);
 
             // Update confirmation to completed
@@ -738,6 +765,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             }
 
         } catch (error) {
+            console.error('💥 Execution error:', error);
             const errorEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(Colors.Red)
                 .setTitle('❌ Action Failed')
@@ -772,7 +800,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
             // Analyze and create confirmation
             const { analysis, resolved, repliedData } = await this.analyzeRequest(message, userMessage);
-            await this.requestConfirmation(message, analysis, resolved);
+            await this.requestConfirmation(message, analysis, resolved, repliedData);
 
             return { type: 'confirmation_pending' };
 
