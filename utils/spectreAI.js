@@ -335,70 +335,101 @@ Examples:
      * Generate Discord.js v14 code with batching support
      */
     async generateCode(analysis, resolved, message, repliedData) {
+        // Build resolved entities with actual IDs for the prompt
+        const resolvedUserIds = resolved.users.map(u => u.id);
+        const resolvedRoleIds = resolved.roles.map(r => r.id);
+        const resolvedChannelIds = resolved.channels.map(c => c.id);
+
         const prompt = `Generate Discord.js v14 code to perform this action.
 
 Action: ${analysis.action}
 Description: ${analysis.description}
 
-Resolved Entities:
-- Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
-- Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
-- Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
-- Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+RESOLVED ENTITY IDs (use these exact IDs):
+- User IDs: [${resolvedUserIds.join(', ')}]
+- Role IDs: [${resolvedRoleIds.join(', ')}]
+- Channel IDs: [${resolvedChannelIds.join(', ')}]
 
 Parameters: ${JSON.stringify(analysis.parameters)}
 
-${repliedData ? `Replied Message Data:
-- Content: ${repliedData.content}
-- Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
-
-AVAILABLE VARIABLES (already defined, DO NOT redefine):
+AVAILABLE VARIABLES (already provided, DO NOT redefine):
 - message: The Discord message object
-- guild: The guild object (message.guild)
+- guild: The guild (message.guild)
 - client: The Discord client
-- channel: The channel object (message.channel)
-- PermissionFlagsBits: For permissions
-- ChannelType: For channel types
-- EmbedBuilder: For creating embeds
-- Colors: For embed colors
+- channel: Current channel (message.channel)
+- PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
 
-CRITICAL REQUIREMENTS:
-1. Use ONLY Discord.js v14+ syntax
-2. DO NOT use 'const guild = ' or 'const client = ' - they are already provided
-3. Access entities by their IDs using guild.channels.cache.get(id), guild.members.cache.get(id), guild.roles.cache.get(id)
-4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
-5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
-6. Each result object MUST have a description (required) and can have title and fields
-7. If description > 1024 chars, split into multiple result objects
-8. For batch operations (>30 items), process in batches of 25
-9. Mentions in embeds are ALLOWED (they don't ping) - use <@userId>, <@&roleId>, <#channelId>
-10. NEVER send plain text messages - only return results array
-11. Handle errors gracefully with try-catch
-12. Always return the results object even if action fails
+DISCORD.JS V14 SYNTAX RULES (CRITICAL):
+1. Get member: guild.members.cache.get(userId) or await guild.members.fetch(userId)
+2. Get channel: guild.channels.cache.get(channelId) - NO .isText() method exists
+3. Get role: guild.roles.cache.get(roleId)
+4. Member roles: member.roles.cache (Collection) - use .map(), .filter(), .has()
+5. Send to channel: channel.send({ content: 'text' }) or channel.send({ embeds: [embed] })
+6. NEVER use .isText(), .isTextBased() - just use the channel directly
+7. Check channel type: channel.type === ChannelType.GuildText
 
-Example structure:
+COMMON PATTERNS:
+\`\`\`javascript
+// Get user roles
+const member = guild.members.cache.get('userId');
+const roles = member.roles.cache
+    .filter(role => role.id !== guild.id) // exclude @everyone
+    .map(role => role.name)
+    .join(', ');
+
+// Send message to channel
+const targetChannel = guild.channels.cache.get('channelId');
+await targetChannel.send({ content: 'message' });
+
+// Assign role to user
+const member = guild.members.cache.get('userId');
+const role = guild.roles.cache.get('roleId');
+await member.roles.add(role);
+
+// List multiple things
+const items = array.map(item => \`- \${item}\`).join('\\n');
+\`\`\`
+
+RETURN FORMAT (REQUIRED):
+\`\`\`javascript
+{
+    success: true/false,
+    results: [
+        {
+            title: "Title here",
+            description: "Required description text"
+        }
+    ]
+}
+\`\`\`
+
+EXAMPLE CODE:
 \`\`\`javascript
 (async () => {
     try {
         const results = [];
         
-        // Example: Send a message
-        const targetChannel = guild.channels.cache.get('${message.channel.id}');
-        if (!targetChannel) {
+        // Get the member
+        const member = guild.members.cache.get('${resolvedUserIds[0] || 'userId'}');
+        if (!member) {
             return {
                 success: false,
                 results: [{
                     title: '❌ Error',
-                    description: 'Channel not found'
+                    description: 'User not found in server'
                 }]
             };
         }
         
-        await targetChannel.send('Hello!');
+        // Get roles (example)
+        const roleList = member.roles.cache
+            .filter(role => role.id !== guild.id)
+            .map(role => \`<@&\${role.id}>\`)
+            .join('\\n') || 'No roles';
         
         results.push({
-            title: '✅ Success',
-            description: 'Message sent successfully'
+            title: '👥 User Roles',
+            description: roleList
         });
         
         return { success: true, results };
@@ -414,17 +445,20 @@ Example structure:
 })();
 \`\`\`
 
-Generate the code now (wrap in async IIFE):`;
+NOW GENERATE THE CODE FOR THE ACTION ABOVE (use the exact entity IDs provided):`;
 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord.js v14 code generator. Generate only executable JavaScript code." },
+                    {
+                        role: "system",
+                        content: "You are a Discord.js v14 code generator. You MUST use Discord.js v14 syntax ONLY. NEVER use deprecated methods like .isText() or .isTextBased(). Always wrap code in (async () => { ... })(); format. Generate ONLY executable JavaScript code with proper error handling."
+                    },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 1500,
-                temperature: 0.3
+                max_tokens: 2000,
+                temperature: 0.1
             });
 
             const aiResponse = response.choices[0].message.content;
@@ -443,6 +477,36 @@ Generate the code now (wrap in async IIFE):`;
             console.error('Code generation error:', error);
             throw error;
         }
+    }
+
+    /**
+     * Validate and fix common Discord.js v14 issues in generated code
+     */
+    validateAndFixCode(code) {
+        let fixedCode = code;
+
+        // List of deprecated methods and their fixes
+        const deprecatedPatterns = [
+            { old: /\.isText\(\)/g, new: '.type === ChannelType.GuildText' },
+            { old: /\.isTextBased\(\)/g, new: '.type === ChannelType.GuildText' },
+            { old: /\.isDM\(\)/g, new: '.type === ChannelType.DM' },
+            { old: /\.isThread\(\)/g, new: '[ChannelType.PublicThread, ChannelType.PrivateThread].includes(channel.type)' },
+        ];
+
+        let hasChanges = false;
+        for (const pattern of deprecatedPatterns) {
+            if (pattern.old.test(fixedCode)) {
+                console.warn(`⚠️ Found deprecated pattern: ${pattern.old}`);
+                fixedCode = fixedCode.replace(pattern.old, pattern.new);
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges) {
+            console.log('✅ Automatically fixed deprecated Discord.js patterns');
+        }
+
+        return fixedCode;
     }
 
     /**
