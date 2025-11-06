@@ -352,54 +352,54 @@ ${repliedData ? `Replied Message Data:
 - Content: ${repliedData.content}
 - Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
 
-Context:
-- Message Channel ID: ${message.channel.id}
-- Message Guild ID: ${message.guild.id}
-- Message Author ID: ${message.author.id}
+AVAILABLE VARIABLES (already defined, DO NOT redefine):
+- message: The Discord message object
+- guild: The guild object (message.guild)
+- client: The Discord client
+- channel: The channel object (message.channel)
+- PermissionFlagsBits: For permissions
+- ChannelType: For channel types
+- EmbedBuilder: For creating embeds
+- Colors: For embed colors
 
 CRITICAL REQUIREMENTS:
 1. Use ONLY Discord.js v14+ syntax
-2. Use PermissionFlagsBits for permissions
-3. Use ChannelType enum for channel types
+2. DO NOT use 'const guild = ' or 'const client = ' - they are already provided
+3. Access entities by their IDs using guild.channels.cache.get(id), guild.members.cache.get(id), guild.roles.cache.get(id)
 4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
 5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
-6. Each result object can have title, description, and optional fields array
+6. Each result object MUST have a description (required) and can have title and fields
 7. If description > 1024 chars, split into multiple result objects
 8. For batch operations (>30 items), process in batches of 25
 9. Mentions in embeds are ALLOWED (they don't ping) - use <@userId>, <@&roleId>, <#channelId>
-10. NEVER send plain text messages - only embeds via results array
+10. NEVER send plain text messages - only return results array
 11. Handle errors gracefully with try-catch
-12. Use Colors from discord.js for embed colors
+12. Always return the results object even if action fails
 
-Example for multiple outputs:
+Example structure:
 \`\`\`javascript
 (async () => {
     try {
         const results = [];
         
-        // Action 1
-        await channel.send({ embeds: [embed1] });
-        results.push({
-            title: 'Step 1 Complete',
-            description: 'Did something'
-        });
-        
-        // Action 2 with long text (split if needed)
-        const longText = "...very long text...";
-        if (longText.length > 1024) {
-            const chunks = longText.match(/.{1,1024}/g);
-            chunks.forEach((chunk, i) => {
-                results.push({
-                    title: \`Result Part \${i+1}\`,
-                    description: chunk
-                });
-            });
-        } else {
-            results.push({
-                title: 'Result',
-                description: longText
-            });
+        // Example: Send a message
+        const targetChannel = guild.channels.cache.get('${message.channel.id}');
+        if (!targetChannel) {
+            return {
+                success: false,
+                results: [{
+                    title: '❌ Error',
+                    description: 'Channel not found'
+                }]
+            };
         }
+        
+        await targetChannel.send('Hello!');
+        
+        results.push({
+            title: '✅ Success',
+            description: 'Message sent successfully'
+        });
         
         return { success: true, results };
     } catch (error) {
@@ -407,14 +407,14 @@ Example for multiple outputs:
             success: false, 
             results: [{
                 title: '❌ Error',
-                description: error.message
+                description: error.message || 'An error occurred'
             }]
         };
     }
 })();
 \`\`\`
 
-Generate the code now:`;
+Generate the code now (wrap in async IIFE):`;
 
         try {
             const response = await this.hf.chatCompletion({
@@ -730,35 +730,41 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             console.log('⚙️ Executing code...');
             const result = await this.executeCode(code, confirmData.message);
 
-            // Update confirmation to completed
+            // Update confirmation to completed FIRST
             const completedEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(Colors.Green)
                 .setTitle('✅ Action Completed')
-                .setFooter({ text: 'Action executed successfully' });
+                .setFooter({ text: 'Results sent below' });
 
             await interaction.editReply({ embeds: [completedEmbed] });
 
-            // Send separate output embed(s)
+            // Then send separate output embed(s) in the channel
             if (result && result.results && result.results.length > 0) {
                 for (const output of result.results) {
                     const outputEmbed = new EmbedBuilder()
                         .setColor(result.success ? Colors.Green : Colors.Red)
                         .setTitle(output.title || '📊 Result')
-                        .setDescription(output.description || 'Action completed')
                         .setTimestamp();
 
+                    // Handle description
+                    if (output.description) {
+                        outputEmbed.setDescription(output.description);
+                    }
+
+                    // Handle fields
                     if (output.fields && output.fields.length > 0) {
                         outputEmbed.addFields(output.fields);
                     }
 
+                    // Send in the original message channel, not as a reply to interaction
                     await confirmData.message.channel.send({ embeds: [outputEmbed] });
                 }
             } else {
-                // Fallback output
+                // Fallback if no results
                 const fallbackEmbed = new EmbedBuilder()
                     .setColor(Colors.Blue)
                     .setTitle('📊 Result')
-                    .setDescription('Action completed but no output was generated.')
+                    .setDescription('Action completed successfully.')
                     .setTimestamp();
 
                 await confirmData.message.channel.send({ embeds: [fallbackEmbed] });
@@ -766,19 +772,38 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
         } catch (error) {
             console.error('💥 Execution error:', error);
+            console.error('Error stack:', error.stack);
+
+            // Update confirmation to show failure
             const errorEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(Colors.Red)
                 .setTitle('❌ Action Failed')
-                .setFooter({ text: 'Error during execution' });
+                .setFooter({ text: 'Error details sent below' });
 
             await interaction.editReply({ embeds: [errorEmbed] });
 
-            // Send error details
+            // Send error details as a NEW embed in the channel
             const errorOutputEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setTitle('❌ Error Details')
-                .setDescription(error.message)
+                .setTitle('❌ Execution Error')
+                .setDescription(error.message || 'An unknown error occurred')
                 .setTimestamp();
+
+            // Add error stack if available (truncated)
+            if (error.stack) {
+                const stackPreview = error.stack.split('\n').slice(0, 5).join('\n');
+                if (stackPreview.length > 1024) {
+                    errorOutputEmbed.addFields({
+                        name: 'Stack Trace',
+                        value: '```' + stackPreview.substring(0, 1010) + '...```'
+                    });
+                } else {
+                    errorOutputEmbed.addFields({
+                        name: 'Stack Trace',
+                        value: '```' + stackPreview + '```'
+                    });
+                }
+            }
 
             await confirmData.message.channel.send({ embeds: [errorOutputEmbed] });
         }
