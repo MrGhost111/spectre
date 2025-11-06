@@ -9,7 +9,6 @@ const huggingFaceApi = require('../utils/huggingFaceApi');
 
 require('dotenv').config();
 
-
 let lastStickyMessageId = null;
 
 module.exports = {
@@ -19,14 +18,39 @@ module.exports = {
         if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
             const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
 
+            // If empty command, ignore
+            if (!userCommand) {
+                return message.reply('Please provide a command or question! Example: `spectre send a message here`');
+            }
+
             try {
                 await message.channel.sendTyping();
 
-                // Process with Spectre AI
-                const result = await spectreAI.process(message, userCommand);
+                // Determine if this is an action command or just chat
+                const actionKeywords = [
+                    'send', 'create', 'delete', 'kick', 'ban', 'mute', 'unmute',
+                    'give', 'remove', 'add', 'change', 'rename', 'move',
+                    'set', 'make', 'edit', 'update', 'clear', 'purge',
+                    'role', 'channel', 'category', 'permission', 'message'
+                ];
 
-                if (result.type === 'chat') {
-                    // Use regular chatbot for non-action messages
+                const isAction = actionKeywords.some(keyword =>
+                    userCommand.toLowerCase().includes(keyword)
+                );
+
+                if (isAction) {
+                    // Process as action with Spectre AI
+                    const result = await spectreAI.process(message, userCommand);
+
+                    if (result.type === 'confirmation_pending') {
+                        // Confirmation message already sent by spectreAI
+                        return;
+                    } else if (result.type === 'error') {
+                        // Error occurred - send the embed
+                        return message.reply({ embeds: [result.embed] });
+                    }
+                } else {
+                    // Use regular chatbot for general questions/chat
                     try {
                         const chatbotResponse = await huggingFaceApi.getChatbotResponse(
                             message.author.id,
@@ -37,15 +61,6 @@ module.exports = {
                         console.error('Chatbot Error:', error);
                         return message.reply("I'm having trouble processing that. Could you rephrase?");
                     }
-                } else if (result.type === 'confirmation_pending') {
-                    // Confirmation message already sent
-                    return;
-                } else if (result.type === 'success') {
-                    // Action completed successfully
-                    return message.reply(result.message);
-                } else if (result.type === 'error') {
-                    // Error occurred
-                    return message.reply(result.message);
                 }
 
             } catch (error) {
