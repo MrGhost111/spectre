@@ -403,6 +403,8 @@ RETURN FORMAT (REQUIRED):
 }
 \`\`\`
 
+CRITICAL: Only push to results array ONCE per action. Do NOT add duplicate results.
+
 EXAMPLE CODE:
 \`\`\`javascript
 (async () => {
@@ -790,9 +792,13 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
             console.log('📝 Generated Code:', code);
 
+            // Validate and fix common issues
+            const validatedCode = this.validateAndFixCode(code);
+            console.log('✅ Code validated');
+
             // Execute the generated code
             console.log('⚙️ Executing code...');
-            const result = await this.executeCode(code, confirmData.message);
+            const result = await this.executeCode(validatedCode, confirmData.message);
 
             // Update confirmation to completed FIRST
             const completedEmbed = EmbedBuilder.from(originalEmbed)
@@ -804,7 +810,21 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
             // Then send separate output embed(s) in the channel
             if (result && result.results && result.results.length > 0) {
+                // Deduplicate results by title and description
+                const uniqueResults = [];
+                const seen = new Set();
+
                 for (const output of result.results) {
+                    const key = `${output.title || 'no-title'}:${output.description || 'no-desc'}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniqueResults.push(output);
+                    } else {
+                        console.log('⚠️ Skipping duplicate result:', output.title);
+                    }
+                }
+
+                for (const output of uniqueResults) {
                     const outputEmbed = new EmbedBuilder()
                         .setColor(result.success ? Colors.Green : Colors.Red)
                         .setTitle(output.title || '📊 Result')
