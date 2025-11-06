@@ -930,5 +930,4 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
         }
     }
 }
-
 module.exports = new SpectreAI();
