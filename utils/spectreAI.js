@@ -15,7 +15,13 @@ class SpectreAI {
      * Check if user has permission to execute actions
      */
     hasPermission(member, userId) {
-        if (userId === '753491023208120321') {
+        // Whitelist specific users
+        const whitelistedUsers = [
+            '753491023208120321',
+            '621379895104372757'
+        ];
+
+        if (whitelistedUsers.includes(userId)) {
             return true;
         }
         if (member && member.permissions.has('Administrator')) {
