@@ -62,7 +62,7 @@ async function getChatbotResponse(userId, userMessage) {
         if (error.message.includes("429")) return "Too many requests — slow down a bit!";
         if (error.message.includes("401") || error.message.includes("403"))
             return "Invalid or expired API key. Contact the bot owner.";
-        return "I'm having trouble connecting to my model right now. Please try again soon.";
+        return "tf is that? doesn't look like a valid discord action request to me";
     }
 }
 
