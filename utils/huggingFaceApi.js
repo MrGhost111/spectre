@@ -1,4 +1,5 @@
 ﻿const axios = require('axios');
+const { HfInference } = require('@huggingface/inference');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -9,11 +10,17 @@ const conversationMemory = new Map();
 // Personality data file path
 const PERSONALITY_FILE = path.join(__dirname, '../data/personalities.json');
 
-// Default model for chat
-const HF_CHAT_MODEL = "mistralai/Mixtral-8x7B-Instruct-v0.1";
+// Use the same working model as Spectre AI
+const HF_CHAT_MODEL = "Qwen/Qwen2.5-Coder-32B-Instruct";
 
 // Hugging Face API key from .env
 const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
+
+// Initialize HuggingFace client
+let hf;
+if (HF_API_KEY) {
+    hf = new HfInference(HF_API_KEY);
+}
 
 /**
  * Load personality data from JSON file
@@ -40,31 +47,20 @@ function loadPersonalities() {
 }
 
 /**
- * Get personality context for a user (includes all personalities)
+ * Get personality context for a user (only current user, no info about others)
  */
-function getUserContext(userId, includeAll = true) {
+function getUserContext(userId) {
     const personalities = loadPersonalities();
 
     let context = '';
 
-    // Add info about current user
+    // Only add info about current user
     if (personalities[userId]) {
         const p = personalities[userId];
         context += `\n[CONTEXT: You are currently talking to ${p.name} (ID: ${userId}). About them: ${p.description}${p.notes ? `. Additional notes: ${p.notes}` : ''}]`;
     }
 
-    // Add info about other people if includeAll is true
-    if (includeAll) {
-        const otherPeople = Object.entries(personalities)
-            .filter(([id]) => id !== userId)
-            .map(([id, p]) => `${p.name} (ID: ${id}): ${p.description}`)
-            .slice(0, 10); // Limit to 10 people to avoid token overload
-
-        if (otherPeople.length > 0) {
-            context += `\n[KNOWN PEOPLE: You also know about these people: ${otherPeople.join('; ')}]`;
-        }
-    }
-
+    // DO NOT include info about other people for privacy
     return context;
 }
 
@@ -93,7 +89,7 @@ function resetConversation(userId) {
  * Get chatbot response with personality awareness
  */
 async function getChatbotResponse(userId, userMessage, userName = 'User') {
-    if (!HF_API_KEY) {
+    if (!HF_API_KEY || !hf) {
         return "❌ Missing Hugging Face API key in .env";
     }
 
@@ -101,52 +97,34 @@ async function getChatbotResponse(userId, userMessage, userName = 'User') {
     const userContext = getUserContext(userId);
 
     // Build system context
-    let systemPrompt = `You are Spectre, a friendly and helpful Discord bot assistant. You are conversational, witty, and concise. Keep responses under 2000 characters.`;
+    let systemPrompt = `You are Spectre, a friendly and helpful Discord bot. You are conversational, witty, and keep responses concise (under 500 words). You answer questions, have conversations, and help users. You respect privacy and do not share information about other users.`;
 
     if (userContext) {
         systemPrompt += userContext;
     }
 
-    // Add system prompt on first message
-    if (memory.length === 0) {
-        memory.push({ role: "system", content: systemPrompt });
-    }
+    // Build conversation history
+    const messages = [
+        { role: "system", content: systemPrompt }
+    ];
 
-    memory.push({ role: "user", content: userMessage });
+    // Add recent conversation history (last 10 messages)
+    const recentMemory = memory.slice(-10);
+    messages.push(...recentMemory);
+
+    // Add current message
+    messages.push({ role: "user", content: userMessage });
 
     try {
-        // Build conversation history for the API
-        const conversationText = memory
-            .filter(m => m.role !== 'system')
-            .map(m => `${m.role === 'user' ? userName : 'Spectre'}: ${m.content}`)
-            .join('\n');
+        const response = await hf.chatCompletion({
+            model: HF_CHAT_MODEL,
+            messages: messages,
+            max_tokens: 500,
+            temperature: 0.7,
+            top_p: 0.9
+        });
 
-        const fullPrompt = `${systemPrompt}\n\nConversation:\n${conversationText}\nSpectre:`;
-
-        const response = await axios.post(
-            `https://api-inference.huggingface.co/models/${HF_CHAT_MODEL}`,
-            {
-                inputs: fullPrompt,
-                parameters: {
-                    max_new_tokens: 300,
-                    temperature: 0.8,
-                    top_p: 0.9,
-                    repetition_penalty: 1.2,
-                    return_full_text: false
-                }
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${HF_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                timeout: 20000
-            }
-        );
-
-        let replyText = response.data[0]?.generated_text ||
-            response.data.generated_text ||
-            null;
+        let replyText = response.choices[0].message.content;
 
         if (!replyText || replyText.trim() === '') {
             replyText = "🤔 I'm not sure how to respond to that.";
@@ -155,31 +133,24 @@ async function getChatbotResponse(userId, userMessage, userName = 'User') {
         // Clean up response
         replyText = replyText.trim();
 
-        // Remove if it repeats the prompt
-        if (replyText.startsWith('Spectre:')) {
-            replyText = replyText.substring(8).trim();
-        }
-
-        // Limit length
+        // Limit length to Discord's 2000 character limit
         if (replyText.length > 2000) {
             replyText = replyText.substring(0, 1997) + '...';
         }
 
+        // Save to memory
+        memory.push({ role: "user", content: userMessage });
         memory.push({ role: "assistant", content: replyText });
 
-        // Limit memory size (keep last 20 messages + system prompt)
-        if (memory.length > 21) {
-            const systemMsg = memory[0];
+        // Limit memory size (keep last 20 messages)
+        if (memory.length > 20) {
             memory.splice(0, memory.length - 20);
-            if (systemMsg.role === 'system') {
-                memory.unshift(systemMsg);
-            }
         }
 
         return replyText;
 
     } catch (error) {
-        console.error("Hugging Face API Error:", error.response?.data || error.message);
+        console.error("Hugging Face Chatbot Error:", error);
 
         if (error.message.includes("503")) {
             return "⏳ My brain is waking up... Try again in 20 seconds!";
@@ -190,11 +161,8 @@ async function getChatbotResponse(userId, userMessage, userName = 'User') {
         if (error.message.includes("401") || error.message.includes("403")) {
             return "🔑 Invalid API key. Contact the bot owner.";
         }
-        if (error.code === 'ECONNABORTED') {
-            return "⏱️ Request timed out. The model might be overloaded. Try again!";
-        }
 
-        return "🤖 I'm having trouble connecting to my brain right now. Try again later!";
+        return "🤖 I'm having trouble processing that right now. Try again!";
     }
 }
 

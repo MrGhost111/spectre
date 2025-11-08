@@ -64,11 +64,23 @@ module.exports = {
         // ===========================================
         // CHATBOT - Handle @Spectre mentions in server
         // ===========================================
-        if (message.mentions.has(client.user.id) && !message.content.toLowerCase().startsWith('spectre ')) {
-            const userMessage = message.content.replace(`<@${client.user.id}>`, '').trim();
+        if (message.mentions.has(client.user.id)) {
+            // Remove the mention from the message
+            const userMessage = message.content
+                .replace(/<@!?829741386558865510>/g, '')
+                .trim();
 
+            // If they just mentioned with no text, send a friendly response
             if (!userMessage) {
-                return message.reply('Yes? How can I help you? 🤖');
+                return message.reply('Yes? How can I help you? 🤖\n\nTip: Use `spectre [action]` for bot commands, or just chat with me!');
+            }
+
+            // Don't trigger chatbot if it looks like a Spectre AI command
+            const commandKeywords = ['send', 'create', 'delete', 'kick', 'ban', 'give', 'remove', 'make'];
+            const isCommand = commandKeywords.some(kw => userMessage.toLowerCase().includes(kw));
+
+            if (isCommand) {
+                return message.reply('💡 Use `spectre [action]` for bot commands!\nExample: `spectre send a message here`');
             }
 
             try {
@@ -82,7 +94,7 @@ module.exports = {
 
                 return message.reply(chatbotResponse);
             } catch (error) {
-                console.error('Chatbot Error:', error);
+                console.error('Chatbot Mention Error:', error);
                 return message.reply("I'm having trouble processing that. Could you rephrase?");
             }
         }
@@ -125,11 +137,12 @@ module.exports = {
                         return message.reply({ embeds: [result.embed] });
                     }
                 } else {
-                    // Use regular chatbot for general questions/chat
+                    // Use chatbot for general questions/chat
                     try {
                         const chatbotResponse = await huggingFaceApi.getChatbotResponse(
                             message.author.id,
-                            userCommand
+                            userCommand,
+                            message.author.username
                         );
                         return message.reply(chatbotResponse);
                     } catch (error) {
@@ -156,41 +169,9 @@ module.exports = {
             return; // Stop processing after handling spectre command
         }
 
-        // Handle DM messages (use Hugging Face API instead of echo)
-        if (!message.guild && !message.author.bot) {
-            console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
-
-            try {
-                // Let the user know the bot is "thinking"
-                await message.channel.sendTyping();
-
-                // Check for reset command
-                if (message.content.toLowerCase() === '!reset') {
-                    const reset = huggingFaceApi.resetConversation(message.author.id);
-                    if (reset) {
-                        await message.author.send("I've reset our conversation. What would you like to talk about?");
-                    } else {
-                        await message.author.send("There was no conversation history to reset.");
-                    }
-                    return;
-                }
-
-                // Get response from Hugging Face
-                const chatbotResponse = await huggingFaceApi.getChatbotResponse(message.author.id, message.content);
-
-                // Send the response
-                await message.author.send(chatbotResponse);
-                console.log(`Successfully sent chatbot response to ${message.author.tag}`);
-            } catch (error) {
-                console.error(`Failed to send DM response: ${error.message}`);
-                try {
-                    await message.author.send("Sorry, I encountered an error while processing your message.");
-                } catch (dmError) {
-                    console.error(`Failed to send error message: ${dmError.message}`);
-                }
-            }
-            return;
-        }
+        // ===========================================
+        // REST OF YOUR EXISTING CODE
+        // ===========================================
 
         // One Word Story moderation
         if (message.channelId === '1346427004299378718' && !message.author.bot) {
@@ -242,8 +223,7 @@ module.exports = {
             }
         }
 
-        // Track donation messages from Dank Memer bot
-        await donationTracker.execute(client, message);
+        // Track donation messages removed - now at top with bot check
 
         // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {
