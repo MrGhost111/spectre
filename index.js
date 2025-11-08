@@ -14,14 +14,15 @@ const LOG_CHANNEL_ID = '1349968940973166645'; // Replace with your log channel I
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.DirectMessageReactions,
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.MessageContent, // Required to read message content
         GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.DirectMessageReactions,
     ],
+    partials: ['CHANNEL'], // This is CRITICAL for DMs in v14!
 });
 
 // Simple logging function that logs to console
