@@ -20,7 +20,7 @@
   "dependencies": {
     "@discordjs/voice": "^0.17.0",
     "@google-cloud/language": "^6.5.0",
-    "@huggingface/inference": "^4.13.0",
+    "@huggingface/inference": "^4.13.2",
     "axios": "^1.7.9",
     "cls": "^0.1.5",
     "csv-parser": "^3.0.0",
