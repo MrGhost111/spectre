@@ -14,6 +14,9 @@ let lastStickyMessageId = null;
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
+        // Debug logging
+        console.log(`📨 Message received: Guild=${message.guild?.name || 'DM'}, Author=${message.author.tag}, Bot=${message.author.bot}, Content="${message.content.substring(0, 50)}"`);
+
         // Ignore all bot messages except for specific features
         if (message.author.bot) {
             // Track donation messages from Dank Memer bot
@@ -25,7 +28,7 @@ module.exports = {
         // CHATBOT - Handle DMs
         // ===========================================
         if (!message.guild) {
-            console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
+            console.log(`💬 DM detected from ${message.author.tag}`);
 
             try {
                 await message.channel.sendTyping();
@@ -41,6 +44,8 @@ module.exports = {
                     return;
                 }
 
+                console.log(`🤖 Getting chatbot response for DM...`);
+
                 // Get chatbot response
                 const chatbotResponse = await huggingFaceApi.getChatbotResponse(
                     message.author.id,
@@ -48,14 +53,15 @@ module.exports = {
                     message.author.username
                 );
 
+                console.log(`✅ Sending response: "${chatbotResponse.substring(0, 50)}..."`);
                 await message.author.send(chatbotResponse);
-                console.log(`✅ Sent chatbot response to ${message.author.tag}`);
+                console.log(`✅ DM response sent successfully`);
             } catch (error) {
-                console.error(`Failed to send DM response: ${error.message}`);
+                console.error(`❌ DM Error:`, error);
                 try {
                     await message.author.send("Sorry, I encountered an error while processing your message.");
                 } catch (dmError) {
-                    console.error(`Failed to send error message: ${dmError.message}`);
+                    console.error(`❌ Failed to send error message:`, dmError);
                 }
             }
             return;
