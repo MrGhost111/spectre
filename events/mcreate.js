@@ -41,15 +41,15 @@ module.exports = {
                     } else {
                         await message.author.send("There was no conversation history to reset.");
                     }
-                    return;
+                    return; // Return after handling reset
                 }
 
                 console.log(`🤖 Getting chatbot response for DM...`);
 
-                // Get chatbot response
+                // Get chatbot response - treat ALL DM content as chat
                 const chatbotResponse = await huggingFaceApi.getChatbotResponse(
                     message.author.id,
-                    message.content,
+                    message.content, // Use full message content
                     message.author.username
                 );
 
@@ -59,12 +59,12 @@ module.exports = {
             } catch (error) {
                 console.error(`❌ DM Error:`, error);
                 try {
-                    await message.author.send("Sorry, I encountered an error while processing your message.");
+                    await message.author.send("Sorry, I encountered an error while processing your message. Please try again!");
                 } catch (dmError) {
                     console.error(`❌ Failed to send error message:`, dmError);
                 }
             }
-            return;
+            return; // CRITICAL: Always return after DM handling
         }
 
         // ===========================================
