@@ -14,8 +14,83 @@ let lastStickyMessageId = null;
 module.exports = {
     name: 'messageCreate',
     async execute(client, message) {
-        // SPECTRE AI - Natural Language Commands and Chat
-        if (message.content.toLowerCase().startsWith('spectre ') && !message.author.bot) {
+        // Ignore all bot messages except for specific features
+        if (message.author.bot) {
+            // Track donation messages from Dank Memer bot
+            await donationTracker.execute(client, message);
+            return;
+        }
+
+        // ===========================================
+        // CHATBOT - Handle DMs
+        // ===========================================
+        if (!message.guild) {
+            console.log(`DM RECEIVED from ${message.author.tag}: "${message.content}"`);
+
+            try {
+                await message.channel.sendTyping();
+
+                // Check for reset command
+                if (message.content.toLowerCase() === '!reset') {
+                    const reset = huggingFaceApi.resetConversation(message.author.id);
+                    if (reset) {
+                        await message.author.send("✨ I've reset our conversation. What would you like to talk about?");
+                    } else {
+                        await message.author.send("There was no conversation history to reset.");
+                    }
+                    return;
+                }
+
+                // Get chatbot response
+                const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                    message.author.id,
+                    message.content,
+                    message.author.username
+                );
+
+                await message.author.send(chatbotResponse);
+                console.log(`✅ Sent chatbot response to ${message.author.tag}`);
+            } catch (error) {
+                console.error(`Failed to send DM response: ${error.message}`);
+                try {
+                    await message.author.send("Sorry, I encountered an error while processing your message.");
+                } catch (dmError) {
+                    console.error(`Failed to send error message: ${dmError.message}`);
+                }
+            }
+            return;
+        }
+
+        // ===========================================
+        // CHATBOT - Handle @Spectre mentions in server
+        // ===========================================
+        if (message.mentions.has(client.user.id) && !message.content.toLowerCase().startsWith('spectre ')) {
+            const userMessage = message.content.replace(`<@${client.user.id}>`, '').trim();
+
+            if (!userMessage) {
+                return message.reply('Yes? How can I help you? 🤖');
+            }
+
+            try {
+                await message.channel.sendTyping();
+
+                const chatbotResponse = await huggingFaceApi.getChatbotResponse(
+                    message.author.id,
+                    userMessage,
+                    message.author.username
+                );
+
+                return message.reply(chatbotResponse);
+            } catch (error) {
+                console.error('Chatbot Error:', error);
+                return message.reply("I'm having trouble processing that. Could you rephrase?");
+            }
+        }
+
+        // ===========================================
+        // SPECTRE AI - Natural Language Commands
+        // ===========================================
+        if (message.content.toLowerCase().startsWith('spectre ')) {
             const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
 
             // If empty command, ignore
