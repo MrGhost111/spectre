@@ -20,14 +20,14 @@ const client = new Client({
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
     ],
-    partials: [Partials.Channel], // FIXED: Use Partials enum instead of string
+    partials: [Partials.Channel], // FIXED: Proper syntax for DM support
 });
 
 // Simple logging function that logs to console
 function logToConsole(message, isError = false) {
     const timestamp = new Date().toISOString();
-    const formattedMessage = `[${timestamp}] ${isError? '❌ ERROR: ' : '📝 INFO: '}${message}`;
-    
+    const formattedMessage = `[${timestamp}] ${isError ? '❌ ERROR: ' : '📝 INFO: '}${message}`;
+
     if (isError) {
         console.error(formattedMessage);
     } else {
@@ -41,8 +41,8 @@ client.textCommands = new Collection();
 client.snipedMessages = new Collection();
 client.editedMessages = new Collection();
 client.itemPrices = new Map();
-client.prefix = ','; // Define your command prefix here
-client.logToDiscord = logToConsole; // Use console logging instead
+client.prefix = ',';
+client.logToDiscord = logToConsole;
 
 // Load commands
 const loadCommands = () => {
@@ -90,9 +90,9 @@ const loadEvents = () => {
             try {
                 const event = require(`./events/${file}`);
                 if (event.once) {
-                    client.once(event.name, (...args) => event.execute(client,...args));
+                    client.once(event.name, (...args) => event.execute(client, ...args));
                 } else {
-                    client.on(event.name, (...args) => event.execute(client,...args));
+                    client.on(event.name, (...args) => event.execute(client, ...args));
                 }
                 logToConsole(`Loaded event: ${event.name}`);
             } catch (error) {
@@ -145,33 +145,84 @@ client.once('ready', () => {
 // Setup weekly cron jobs
 function setupWeeklyCronJobs() {
     try {
-        // Weekly reset and channel check schedule
+        logToConsole('========================================');
+        logToConsole('📅 SETTING UP WEEKLY CRON JOBS');
+        logToConsole('========================================');
+
+        // Clear require cache to ensure fresh modules
+        const mupdatePath = path.resolve(__dirname, './events/mupdate.js');
+        const autochPath = path.resolve(__dirname, './utils/autoch.js');
+
+        delete require.cache[mupdatePath];
+        delete require.cache[autochPath];
+
         const { weeklyReset } = require('./events/mupdate.js');
         const { weeklyChannelCheck } = require('./utils/autoch.js');
 
-        cron.schedule('0 0 * * 0', () => {
-            logToConsole('Weekly reset triggered at: ' + new Date().toISOString());
+        // Verify functions are loaded
+        if (typeof weeklyReset !== 'function') {
+            throw new Error('weeklyReset is not a function!');
+        }
+        if (typeof weeklyChannelCheck !== 'function') {
+            throw new Error('weeklyChannelCheck is not a function!');
+        }
+
+        logToConsole('✅ Weekly reset functions loaded successfully');
+
+        // Schedule: Every Sunday at 00:00 UTC (midnight)
+        const cronSchedule = '0 0 * * 0';
+        logToConsole(`📅 Cron schedule: "${cronSchedule}" (Every Sunday at midnight UTC)`);
+
+        const job = cron.schedule(cronSchedule, async () => {
+            const triggerTime = new Date().toISOString();
+            logToConsole('========================================');
+            logToConsole(`⏰ WEEKLY CRON JOB TRIGGERED`);
+            logToConsole(`⏰ Time: ${triggerTime}`);
+            logToConsole('========================================');
+
             try {
+                // Clear require cache before running to get fresh data
+                delete require.cache[mupdatePath];
+                delete require.cache[autochPath];
+
+                const { weeklyReset: freshWeeklyReset } = require('./events/mupdate.js');
+                const { weeklyChannelCheck: freshWeeklyChannelCheck } = require('./utils/autoch.js');
+
                 // Run the weekly reset
-                weeklyReset(client)
-                    .then(resetSuccess => {
-                        logToConsole(resetSuccess ? 'Weekly reset completed successfully' : 'Weekly reset completed with errors');
-                    })
-                    .catch(error => {
-                        logToConsole(`Error during weekly reset: ${error.message}`, true);
-                    });
+                logToConsole('🔄 Starting weekly reset...');
+                const resetSuccess = await freshWeeklyReset(client);
+
+                if (resetSuccess) {
+                    logToConsole('✅ Weekly reset completed successfully');
+                } else {
+                    logToConsole('⚠️ Weekly reset completed with errors', true);
+                }
 
                 // Run the weekly channel eligibility check with logging to specified channel
-                const logChannelId = '843413781409169412'; // Your specified log channel
-                weeklyChannelCheck(client, logChannelId)
-                    .then(checkResults => {
-                        logToConsole(`Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
-                    })
-                    .catch(error => {
-                        logToConsole(`Error during weekly channel check: ${error.message}`, true);
-                    });
+                const logChannelId = '843413781409169412';
+                logToConsole('🔄 Starting weekly channel check...');
+                const checkResults = await freshWeeklyChannelCheck(client, logChannelId);
+                logToConsole(`✅ Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
+
+                logToConsole('========================================');
+                logToConsole('✅ WEEKLY TASKS COMPLETED SUCCESSFULLY');
+                logToConsole('========================================');
             } catch (error) {
-                logToConsole(`Unhandled error during weekly processes: ${error.message}`, true);
+                logToConsole('========================================', true);
+                logToConsole(`❌ CRITICAL ERROR DURING WEEKLY TASKS`, true);
+                logToConsole(`❌ Error: ${error.message}`, true);
+                logToConsole(`❌ Stack: ${error.stack}`, true);
+                logToConsole('========================================', true);
+
+                // Try to notify admin channel
+                try {
+                    const adminChannel = await client.channels.fetch('966598961353850910');
+                    if (adminChannel) {
+                        await adminChannel.send(`<:xmark:934659388386451516> **CRITICAL ERROR DURING AUTOMATED WEEKLY RESET**\n\`\`\`\n${error.message}\n\`\`\`\nPlease check logs and consider running \`,resetweekly\` manually.`);
+                    }
+                } catch (notifyError) {
+                    logToConsole(`Failed to send error notification: ${notifyError.message}`, true);
+                }
             }
         }, {
             timezone: "UTC",
@@ -179,9 +230,30 @@ function setupWeeklyCronJobs() {
             runOnInit: false
         });
 
-        logToConsole('Weekly reset and channel check schedules set up successfully');
+        // Verify job was created
+        if (!job) {
+            throw new Error('Cron job was not created!');
+        }
+
+        logToConsole('✅ Cron job created successfully');
+
+        // Calculate next Sunday
+        const now = new Date();
+        const daysUntilSunday = (7 - now.getUTCDay()) % 7 || 7;
+        const nextSunday = new Date(now);
+        nextSunday.setUTCDate(now.getUTCDate() + daysUntilSunday);
+        nextSunday.setUTCHours(0, 0, 0, 0);
+
+        logToConsole(`📅 Next scheduled run: ${nextSunday.toISOString()}`);
+        logToConsole(`📅 Days until next run: ${daysUntilSunday} days`);
+        logToConsole('========================================');
+
     } catch (error) {
-        logToConsole(`Failed to set up cron jobs: ${error.message}`, true);
+        logToConsole('========================================', true);
+        logToConsole('❌ FAILED TO SET UP CRON JOBS', true);
+        logToConsole(`❌ Error: ${error.message}`, true);
+        logToConsole(`❌ Stack: ${error.stack}`, true);
+        logToConsole('========================================', true);
     }
 }
 
@@ -200,6 +272,7 @@ process.on('uncaughtException', (error) => {
 // Login
 client.login(process.env.DISCORD_TOKEN).catch((error) => {
     console.error('Failed to login:', error);
+    process.exit(1);
 });
 
 module.exports = client;
