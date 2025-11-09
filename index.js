@@ -1,16 +1,14 @@
 // index.js
-const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 const MuteManager = require('./utils/muteManager');
-require('dotenv').config(); // Load environment variables from.env file
+require('dotenv').config();
 
-// Import OpenAI here for global client access
-const OpenAI = require('openai').default; // Correct way to import OpenAI in CommonJS
+const OpenAI = require('openai').default;
 
-// Define log channel ID for system issues
-const LOG_CHANNEL_ID = '1349968940973166645'; // Replace with your log channel ID
+const LOG_CHANNEL_ID = '1349968940973166645';
 
 const client = new Client({
     intents: [
@@ -22,7 +20,7 @@ const client = new Client({
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
     ],
-    partials: ['CHANNEL'], // This is CRITICAL for DMs in v14!
+    partials: [Partials.Channel], // FIXED: Use Partials enum instead of string
 });
 
 // Simple logging function that logs to console
