@@ -1,3 +1,4 @@
+﻿// JavaScript source code
 const { HfInference } = require('@huggingface/inference');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Colors } = require('discord.js');
 const entityResolver = require('./entityResolver');
