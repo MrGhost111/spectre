@@ -1,12 +1,10 @@
-﻿// JavaScript source code
-const { HfInference } = require('@huggingface/inference');
+﻿const { HfInference } = require('@huggingface/inference');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Colors } = require('discord.js');
 const entityResolver = require('./entityResolver');
 require('dotenv').config();
 
 class SpectreAI {
     constructor() {
-        console.log('🤖 SpectreAI instance created');
         this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
         this.entityResolver = entityResolver;
         this.pendingConfirmations = new Map();
@@ -16,121 +14,59 @@ class SpectreAI {
      * Check if user has permission to execute actions
      */
     hasPermission(member, userId) {
-        // Whitelist specific users
-        const whitelistedUsers = [
-            '753491023208120321'
-        ];
-
-        if (whitelistedUsers.includes(userId)) {
+        // Special user ID
+        if (userId === '753491023208120321') {
             return true;
         }
+
+        // Check admin permission
         if (member && member.permissions.has('Administrator')) {
             return true;
         }
+
         return false;
     }
 
     /**
-     * Get replied message data if exists
+     * Enhanced context extraction including reply data
      */
-    async getRepliedMessageData(message) {
-        if (!message.reference) return null;
+    async buildContextInfo(message) {
+        let context = `- Current Channel: #${message.channel.name} (ID: ${message.channel.id})`;
+        context += `\n- Message Author: ${message.author.username} (ID: ${message.author.id})`;
 
-        try {
-            const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-
-            const data = {
-                author: repliedMsg.author,
-                content: repliedMsg.content || '',
-                embeds: []
-            };
-
-            // Extract embed data
-            if (repliedMsg.embeds.length > 0) {
-                repliedMsg.embeds.forEach(embed => {
-                    const embedData = {
-                        title: embed.title || '',
-                        description: embed.description || '',
-                        fields: embed.fields.map(f => ({ name: f.name, value: f.value }))
-                    };
-                    data.embeds.push(embedData);
-                });
-            }
-
-            return data;
-        } catch (error) {
-            console.error('Failed to fetch replied message:', error);
-            return null;
+        if (message.channel.parent) {
+            context += `\n- Current Category: ${message.channel.parent.name} (ID: ${message.channel.parent.id})`;
         }
+
+        // Get replied message data if exists
+        if (message.reference) {
+            try {
+                const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                context += `\n- Replying to: ${repliedMsg.author.username} (ID: ${repliedMsg.author.id})`;
+                context += `\n- Replied Message Content: "${repliedMsg.content}"`;
+
+                if (repliedMsg.embeds.length > 0) {
+                    const embed = repliedMsg.embeds[0];
+                    context += `\n- Replied Message Has Embed:`;
+                    if (embed.title) context += `\n  - Title: ${embed.title}`;
+                    if (embed.description) context += `\n  - Description: ${embed.description}`;
+                    if (embed.fields && embed.fields.length > 0) {
+                        context += `\n  - Fields: ${embed.fields.map(f => `${f.name}: ${f.value}`).join(', ')}`;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch replied message:', error);
+            }
+        }
+
+        return context;
     }
 
     /**
-     * Analyze if action is dangerous/spam
-     */
-    isDangerousAction(analysis) {
-        const dangers = {
-            isSpam: false,
-            isNuke: false,
-            isMassPing: false,
-            reasons: []
-        };
-
-        // Check for message spam (more than 10 messages)
-        if (analysis.parameters) {
-            const messageCount = parseInt(analysis.parameters.count) ||
-                parseInt(analysis.parameters.amount) ||
-                parseInt(analysis.parameters.messages) || 0;
-
-            if (messageCount > 10) {
-                dangers.isSpam = true;
-                dangers.reasons.push(`⚠️ Attempting to send ${messageCount} messages (max: 10)`);
-            }
-        }
-
-        // Check for mass deletion/ban (nuke protection)
-        const action = analysis.action.toLowerCase();
-        const keywords = ['delete', 'remove', 'ban', 'kick'];
-
-        if (keywords.some(keyword => action.includes(keyword))) {
-            const totalTargets = (analysis.entities.channels?.length || 0) +
-                (analysis.entities.users?.length || 0) +
-                (analysis.entities.roles?.length || 0);
-
-            if (totalTargets > 3) {
-                dangers.isNuke = true;
-                dangers.reasons.push(`🚨 Mass ${action} detected (${totalTargets} targets, max: 3)`);
-            }
-        }
-
-        // Check for actual message pinging (not embed mentions)
-        if (action.includes('ping') || action.includes('mention')) {
-            const pingCount = (analysis.entities.users?.length || 0) +
-                (analysis.entities.roles?.length || 0);
-
-            if (pingCount > 1 || analysis.entities.roles?.length > 0) {
-                dangers.isMassPing = true;
-                dangers.reasons.push('📢 Mass pinging/role mentions outside embeds not allowed');
-            }
-        }
-
-        // Check for @everyone or @here
-        if (analysis.parameters) {
-            const paramsStr = JSON.stringify(analysis.parameters).toLowerCase();
-            if (paramsStr.includes('@everyone') || paramsStr.includes('@here')) {
-                dangers.isMassPing = true;
-                dangers.reasons.push('📢 @everyone/@here mentions not allowed');
-            }
-        }
-
-        return dangers;
-    }
-
-    /**
-     * Analyze request (without generating code yet)
+     * Analyze the request and detect dangerous actions
      */
     async analyzeRequest(message, userMessage) {
         const contextInfo = await this.buildContextInfo(message);
-        const repliedData = await this.getRepliedMessageData(message);
 
         const prompt = `You are a Discord action analyzer. Analyze what the user wants to do and extract all relevant information.
 
@@ -139,39 +75,31 @@ User Message: "${userMessage}"
 Context:
 ${contextInfo}
 
-${repliedData ? `Replied Message Data:
-- Author: ${repliedData.author.username}
-- Content: ${repliedData.content}
-- Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
-
-IMPORTANT CONTEXT TERMS:
-- "this channel" / "here" = current channel (${message.channel.name})
-- "this category" = current category (${message.channel.parent?.name || 'none'})
-- "this user" (when replying) = the user being replied to
-- "this message" (when replying) = the message being replied to
-- "me" / "my" = the command author (${message.author.username})
-
 Discord Entities Explained:
 - Users: Members of the server (can be mentioned with @username or by name)
 - Roles: Permission groups (can be mentioned with @rolename or by name)
 - Channels: Text/voice channels (can be mentioned with #channel or by name)
 - Categories: Groups of channels
 
+IMPORTANT Context Terms:
+- "this channel" / "here" = the channel where command was sent (${message.channel.name})
+- "this user" (when replying) = the user whose message is being replied to
+- "me" / "my" / "I" = the command author (${message.author.username})
+- "this category" = the category containing current channel
+- If user says "translate this" or similar without specifying text, use the replied message content
+- If replying to an embed, use the embed's content for actions
+
 Your Task:
 1. Identify the ACTION (what to do)
 2. Identify TARGET entities (users, roles, channels, categories)
 3. Extract any PARAMETERS (names, values, settings)
-4. Describe detailed steps of what will happen
-5. Understand context and pronouns correctly
+4. Detect dangerous bulk operations
+5. Count how many times an action will repeat
 
 Respond with ONLY valid JSON:
 {
-  "action": "descriptive_action_name",
-  "description": "Brief human readable description",
-  "detailedSteps": [
-    "Step 1: Specific action that will be taken",
-    "Step 2: Another specific action"
-  ],
+  "action": "descriptive action like 'create_channel', 'send_message', 'translate_text'",
+  "description": "human readable description",
   "entities": {
     "users": ["username1"],
     "roles": ["rolename1"],
@@ -179,21 +107,51 @@ Respond with ONLY valid JSON:
     "categories": ["categoryname1"]
   },
   "parameters": {
-    "name": "value"
+    "name": "value",
+    "count": number,
+    "text": "content to process"
   },
   "usesContext": {
     "currentChannel": true/false,
     "currentCategory": true/false,
     "repliedUser": true/false,
     "repliedMessage": true/false,
+    "repliedEmbed": true/false,
     "messageAuthor": true/false
-  }
+  },
+  "dangerLevel": "safe/warning/dangerous",
+  "dangerReasons": ["reason1", "reason2"],
+  "actionCount": 1,
+  "requiresConfirmation": true
 }
 
+Danger Detection Rules:
+- "dangerous" if: deleting multiple channels (3+), banning multiple users (3+), mass role deletion (2+), deleting categories, sending 10+ messages
+- "warning" if: deleting any channel/role, banning users, permission changes affecting many users
+- "safe" if: creating things, reading info, translating, single non-destructive actions
+
+Action Count: If user says "send me 5 messages", actionCount = 5. If "delete all channels", count channels in guild.
+
 Examples:
-"translate this" (while replying) → use repliedMessage data
-"give me a role called member" → target messageAuthor, create/assign role "member"
-"send 5 messages here" → send to currentChannel`;
+"translate this" (while replying to message) →
+{
+  "action": "translate_text",
+  "description": "Translate the replied message to English",
+  "parameters": {"text": "[content from replied message]"},
+  "usesContext": {"repliedMessage": true},
+  "dangerLevel": "safe",
+  "actionCount": 1
+}
+
+"give me admin role" →
+{
+  "action": "assign_role",
+  "description": "Assign admin role to command author",
+  "entities": {"roles": ["admin"]},
+  "usesContext": {"messageAuthor": true},
+  "dangerLevel": "warning",
+  "actionCount": 1
+}`;
 
         try {
             const response = await this.hf.chatCompletion({
@@ -209,16 +167,13 @@ Examples:
             const aiResponse = response.choices[0].message.content;
             const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
 
-            if (!jsonMatch) {
-                throw new Error('Failed to parse AI response');
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                parsed.requiresConfirmation = true;
+                return parsed;
             }
 
-            const analysis = JSON.parse(jsonMatch[0]);
-
-            // Resolve entities
-            const resolved = await this.resolveEntities(analysis, message, repliedData);
-
-            return { analysis, resolved, repliedData };
+            throw new Error('Failed to parse AI response');
         } catch (error) {
             console.error('Request analysis error:', error);
             throw error;
@@ -226,32 +181,16 @@ Examples:
     }
 
     /**
-     * Build context information
+     * Resolve entity names to actual Discord objects
      */
-    async buildContextInfo(message) {
-        let context = `- Current Channel: #${message.channel.name} (ID: ${message.channel.id})`;
-        context += `\n- Message Author: ${message.author.username} (ID: ${message.author.id})`;
-
-        if (message.channel.parent) {
-            context += `\n- Current Category: ${message.channel.parent.name} (ID: ${message.channel.parent.id})`;
-        }
-
-        if (message.reference) {
-            context += `\n- User is replying to a message`;
-        }
-
-        return context;
-    }
-
-    /**
-     * Resolve entities with replied message support
-     */
-    async resolveEntities(analysis, message, repliedData) {
+    async resolveEntities(analysis, message) {
         const resolved = {
             users: [],
             roles: [],
             channels: [],
-            categories: []
+            categories: [],
+            repliedMessageContent: null,
+            repliedEmbedData: null
         };
 
         // Handle context-based entities
@@ -265,14 +204,37 @@ Examples:
             if (analysis.usesContext.messageAuthor) {
                 resolved.users.push(message.author);
             }
-            if (analysis.usesContext.repliedUser && repliedData) {
-                if (!resolved.users.find(u => u.id === repliedData.author.id)) {
-                    resolved.users.push(repliedData.author);
+            if (analysis.usesContext.repliedUser && message.reference) {
+                try {
+                    const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                    if (!resolved.users.find(u => u.id === repliedMsg.author.id)) {
+                        resolved.users.push(repliedMsg.author);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch replied message');
+                }
+            }
+            if (analysis.usesContext.repliedMessage && message.reference) {
+                try {
+                    const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                    resolved.repliedMessageContent = repliedMsg.content;
+                } catch (error) {
+                    console.error('Failed to fetch replied message');
+                }
+            }
+            if (analysis.usesContext.repliedEmbed && message.reference) {
+                try {
+                    const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+                    if (repliedMsg.embeds.length > 0) {
+                        resolved.repliedEmbedData = repliedMsg.embeds[0];
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch replied embed');
                 }
             }
         }
 
-        // Resolve entity names using fuzzy search
+        // Resolve entity names
         if (analysis.entities.users) {
             for (const userName of analysis.entities.users) {
                 const user = await this.entityResolver.findUser(userName, message.guild);
@@ -309,7 +271,7 @@ Examples:
             }
         }
 
-        // Check mentions in original message
+        // Check mentions
         if (message.mentions.users.size > 0) {
             message.mentions.users.forEach(user => {
                 if (!resolved.users.find(u => u.id === user.id)) {
@@ -338,135 +300,119 @@ Examples:
     }
 
     /**
-     * Generate Discord.js v14 code with batching support
+     * Generate Discord.js v14 code with safety measures
      */
-    async generateCode(analysis, resolved, message, repliedData) {
-        // Build resolved entities with actual IDs for the prompt
-        const resolvedUserIds = resolved.users.map(u => u.id);
-        const resolvedRoleIds = resolved.roles.map(r => r.id);
-        const resolvedChannelIds = resolved.channels.map(c => c.id);
+    async generateCode(analysis, resolved, message) {
+        // Build resolved entities string with reply data
+        let resolvedInfo = `
+Resolved Entities:
+- Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
+- Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
+- Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+- Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}`;
+
+        if (resolved.repliedMessageContent) {
+            resolvedInfo += `\n- Replied Message Content: "${resolved.repliedMessageContent}"`;
+        }
+        if (resolved.repliedEmbedData) {
+            resolvedInfo += `\n- Replied Embed Data: ${JSON.stringify({
+                title: resolved.repliedEmbedData.title,
+                description: resolved.repliedEmbedData.description,
+                fields: resolved.repliedEmbedData.fields
+            })}`;
+        }
 
         const prompt = `Generate Discord.js v14 code to perform this action.
 
 Action: ${analysis.action}
 Description: ${analysis.description}
 
-RESOLVED ENTITY IDs (use these exact IDs):
-- User IDs: [${resolvedUserIds.join(', ')}]
-- Role IDs: [${resolvedRoleIds.join(', ')}]
-- Channel IDs: [${resolvedChannelIds.join(', ')}]
+${resolvedInfo}
 
 Parameters: ${JSON.stringify(analysis.parameters)}
 
-AVAILABLE VARIABLES (already provided, DO NOT redefine):
-- message: The Discord message object
-- guild: The guild (message.guild)
-- client: The Discord client
-- channel: Current channel (message.channel)
-- PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+Context:
+- Message Channel ID: ${message.channel.id}
+- Message Guild ID: ${message.guild.id}
+- Message Author ID: ${message.author.id}
 
-DISCORD.JS V14 SYNTAX RULES (CRITICAL):
-1. Get member: guild.members.cache.get(userId) or await guild.members.fetch(userId)
-2. Get channel: guild.channels.cache.get(channelId) - NO .isText() method exists
-3. Get role: guild.roles.cache.get(roleId)
-4. Member roles: member.roles.cache (Collection) - use .map(), .filter(), .has()
-5. Send to channel: channel.send({ content: 'text' }) or channel.send({ embeds: [embed] })
-6. NEVER use .isText(), .isTextBased() - just use the channel directly
-7. Check channel type: channel.type === ChannelType.GuildText
+CRITICAL REQUIREMENTS:
+1. Use ONLY Discord.js v14+ syntax
+2. Use PermissionFlagsBits for permissions
+3. Use ChannelType enum for channel types
+4. All async operations must use await
+5. Return: { success: boolean, embed: EmbedBuilder }
+6. Handle errors with try-catch
+7. Available: message, guild, client, EmbedBuilder, Colors
+8. **ALL OUTPUT MUST BE IN EMBEDS - NEVER USE PLAIN TEXT MESSAGES**
+9. **ALWAYS use channel.send({ embeds: [embed] }) - NEVER channel.send("text")**
+10. You CAN mention users and roles in embeds (they won't ping in embeds)
+11. Use Colors from discord.js for embed colors
 
-COMMON PATTERNS:
-\`\`\`javascript
-// Get user roles
-const member = guild.members.cache.get('userId');
-const roles = member.roles.cache
-    .filter(role => role.id !== guild.id) // exclude @everyone
-    .map(role => role.name)
-    .join(', ');
+EMBED FIELD LIMITS:
+- Field values must be ≤ 1024 characters
+- If content > 1024 chars, split into multiple fields
+- Field name example: "Results (1/3)", "Results (2/3)"
+- Max 25 fields per embed
 
-// Send message to channel
-const targetChannel = guild.channels.cache.get('channelId');
-await targetChannel.send({ content: 'message' });
+BATCHING FOR LARGE OPERATIONS:
+- If operation repeats 30+ times, use batches
+- Process in chunks, add delays between batches
+- Example: \`for (let i = 0; i < items.length; i += 30) { await processBatch(items.slice(i, i+30)); await new Promise(r => setTimeout(r, 1000)); }\`
 
-// Assign role to user
-const member = guild.members.cache.get('userId');
-const role = guild.roles.cache.get('roleId');
-await member.roles.add(role);
-
-// List multiple things
-const items = array.map(item => \`- \${item}\`).join('\\n');
-\`\`\`
-
-RETURN FORMAT (REQUIRED):
-\`\`\`javascript
-{
-    success: true/false,
-    results: [
-        {
-            title: "Title here",
-            description: "Required description text"
-        }
-    ]
-}
-\`\`\`
-
-CRITICAL: Only push to results array ONCE per action. Do NOT add duplicate results.
-
-EXAMPLE CODE:
+Example (correct):
 \`\`\`javascript
 (async () => {
     try {
-        const results = [];
+        const results = "very long text..."; // Assume > 1024 chars
         
-        // Get the member
-        const member = guild.members.cache.get('${resolvedUserIds[0] || 'userId'}');
-        if (!member) {
-            return {
-                success: false,
-                results: [{
-                    title: '❌ Error',
-                    description: 'User not found in server'
-                }]
-            };
+        // Split into chunks
+        const chunks = [];
+        for (let i = 0; i < results.length; i += 1000) {
+            chunks.push(results.slice(i, i + 1000));
         }
         
-        // Get roles (example)
-        const roleList = member.roles.cache
-            .filter(role => role.id !== guild.id)
-            .map(role => \`<@&\${role.id}>\`)
-            .join('\\n') || 'No roles';
+        const embed = new EmbedBuilder()
+            .setColor(Colors.Green)
+            .setTitle('Results');
         
-        results.push({
-            title: '👥 User Roles',
-            description: roleList
+        chunks.forEach((chunk, i) => {
+            embed.addFields({ 
+                name: \`Part \${i + 1}/\${chunks.length}\`, 
+                value: chunk 
+            });
         });
         
-        return { success: true, results };
+        await channel.send({ embeds: [embed] });
+        
+        return { 
+            success: true, 
+            embed: new EmbedBuilder()
+                .setColor(Colors.Green)
+                .setDescription('✅ Action completed')
+        };
     } catch (error) {
         return { 
             success: false, 
-            results: [{
-                title: '❌ Error',
-                description: error.message || 'An error occurred'
-            }]
+            embed: new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setDescription(\`❌ Error: \${error.message}\`)
         };
     }
 })();
 \`\`\`
 
-NOW GENERATE THE CODE FOR THE ACTION ABOVE (use the exact entity IDs provided):`;
+Generate the code now:`;
 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    {
-                        role: "system",
-                        content: "You are a Discord.js v14 code generator. You MUST use Discord.js v14 syntax ONLY. NEVER use deprecated methods like .isText() or .isTextBased(). Always wrap code in (async () => { ... })(); format. Generate ONLY executable JavaScript code with proper error handling."
-                    },
+                    { role: "system", content: "You are a Discord.js v14 code generator. Only generate code that outputs embeds, never plain text." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 2000,
-                temperature: 0.1
+                max_tokens: 1500,
+                temperature: 0.3
             });
 
             const aiResponse = response.choices[0].message.content;
@@ -488,33 +434,98 @@ NOW GENERATE THE CODE FOR THE ACTION ABOVE (use the exact entity IDs provided):`
     }
 
     /**
-     * Validate and fix common Discord.js v14 issues in generated code
+     * Analyze generated code to explain what it will do
      */
-    validateAndFixCode(code) {
-        let fixedCode = code;
+    async analyzeGeneratedCode(code, analysis, resolved) {
+        const prompt = `Analyze this Discord.js code and explain EXACTLY what it will do in clear, specific steps.
 
-        // List of deprecated methods and their fixes
-        const deprecatedPatterns = [
-            { old: /\.isText\(\)/g, new: '.type === ChannelType.GuildText' },
-            { old: /\.isTextBased\(\)/g, new: '.type === ChannelType.GuildText' },
-            { old: /\.isDM\(\)/g, new: '.type === ChannelType.DM' },
-            { old: /\.isThread\(\)/g, new: '[ChannelType.PublicThread, ChannelType.PrivateThread].includes(channel.type)' },
-        ];
+Code:
+\`\`\`javascript
+${code}
+\`\`\`
 
-        let hasChanges = false;
-        for (const pattern of deprecatedPatterns) {
-            if (pattern.old.test(fixedCode)) {
-                console.warn(`⚠️ Found deprecated pattern: ${pattern.old}`);
-                fixedCode = fixedCode.replace(pattern.old, pattern.new);
-                hasChanges = true;
+Original Action: ${analysis.description}
+
+Provide detailed, step-by-step explanation. Be specific about:
+- Which Discord API methods are called
+- What permissions are modified
+- Which channels/roles/users are affected
+- What messages are sent and where
+- Any batching or chunking logic
+
+Format as numbered steps. Be technical and precise.`;
+
+        try {
+            const response = await this.hf.chatCompletion({
+                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+                messages: [
+                    { role: "system", content: "You are a code analyzer. Explain Discord.js code in clear steps." },
+                    { role: "user", content: prompt }
+                ],
+                max_tokens: 600,
+                temperature: 0.2
+            });
+
+            const explanation = response.choices[0].message.content.trim();
+
+            const steps = [];
+            const lines = explanation.split('\n');
+
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (/^\d+[\.\)]\s+/.test(trimmedLine)) {
+                    const step = trimmedLine.replace(/^\d+[\.\)]\s+/, '');
+                    if (step.length > 0) {
+                        steps.push(step);
+                    }
+                }
             }
-        }
 
-        if (hasChanges) {
-            console.log('✅ Automatically fixed deprecated Discord.js patterns');
+            return steps.length > 0 ? steps : [explanation];
+        } catch (error) {
+            console.error('Code analysis error:', error);
+            return ['Execute the requested action'];
         }
+    }
 
-        return fixedCode;
+    /**
+     * Use AI to explain what went wrong with an error
+     */
+    async explainError(error, code, analysis) {
+        const prompt = `A Discord.js code execution failed with this error:
+
+Error: ${error.message}
+Stack: ${error.stack || 'N/A'}
+
+Code that failed:
+\`\`\`javascript
+${code.substring(0, 500)}...
+\`\`\`
+
+Action attempted: ${analysis.description}
+
+Explain in simple terms:
+1. What went wrong
+2. Why it happened
+3. What the user should check
+
+Keep it concise and user-friendly. No code, just explanation.`;
+
+        try {
+            const response = await this.hf.chatCompletion({
+                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+                messages: [
+                    { role: "system", content: "You are a helpful error explainer. Make technical errors understandable." },
+                    { role: "user", content: prompt }
+                ],
+                max_tokens: 300,
+                temperature: 0.3
+            });
+
+            return response.choices[0].message.content.trim();
+        } catch (aiError) {
+            return error.message;
+        }
     }
 
     /**
@@ -542,83 +553,72 @@ NOW GENERATE THE CODE FOR THE ACTION ABOVE (use the exact entity IDs provided):`
             return result;
         } catch (error) {
             console.error('Code execution error:', error);
-
-            // Use AI to explain the error
-            const explanation = await this.explainError(error, code);
-
             return {
                 success: false,
-                results: [{
-                    title: '❌ Execution Error',
-                    description: explanation
-                }]
+                embed: new EmbedBuilder()
+                    .setColor(Colors.Red)
+                    .setDescription(`❌ Execution error: ${error.message}`),
+                error: error
             };
         }
     }
 
     /**
-     * Use AI to explain errors in user-friendly way
+     * Create confirmation prompt with safety warnings
      */
-    async explainError(error, code) {
-        const prompt = `Explain this error in simple terms for a Discord user:
-
-Error: ${error.message}
-Stack: ${error.stack?.split('\n').slice(0, 3).join('\n') || 'N/A'}
-
-Code context:
-\`\`\`javascript
-${code.substring(0, 500)}
-\`\`\`
-
-Provide a brief, user-friendly explanation (max 200 chars) of what went wrong and why.`;
-
-        try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    { role: "system", content: "Explain errors simply and concisely." },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 150,
-                temperature: 0.2
-            });
-
-            const explanation = response.choices[0].message.content.trim();
-            return explanation.length > 300 ? explanation.substring(0, 297) + '...' : explanation;
-        } catch (err) {
-            return error.message;
-        }
-    }
-
-    /**
-     * Create confirmation prompt
-     */
-    async requestConfirmation(message, analysis, resolved, repliedData) {
+    async requestConfirmation(message, analysis, resolved, code, detailedSteps) {
         const confirmationId = `confirm_${Date.now()}_${message.author.id}`;
 
-        // Check for dangerous actions
-        const dangers = this.isDangerousAction(analysis);
-        const isBlocked = dangers.isSpam || dangers.isNuke || dangers.isMassPing;
+        // Determine color based on danger level
+        let embedColor = Colors.Orange;
+        if (analysis.dangerLevel === 'dangerous') embedColor = Colors.Red;
+        else if (analysis.dangerLevel === 'safe') embedColor = Colors.Blue;
 
         const embed = new EmbedBuilder()
-            .setColor(isBlocked ? Colors.Red : Colors.Orange)
-            .setTitle(isBlocked ? '🚫 Action Blocked' : '⚠️ Confirmation Required')
+            .setColor(embedColor)
+            .setTitle('⚠️ Confirmation Required')
             .setDescription(`**Action:** ${analysis.description}`)
-            .setFooter({ text: isBlocked ? 'This action has been blocked for safety.' : 'You have 60 seconds to respond.' });
+            .setFooter({ text: 'This action requires confirmation. You have 60 seconds to respond.' });
 
-        // Show what will happen
-        if (analysis.detailedSteps && analysis.detailedSteps.length > 0) {
+        // Add danger warnings
+        if (analysis.dangerLevel === 'dangerous') {
+            embed.addFields({
+                name: '🚨 DANGEROUS ACTION',
+                value: analysis.dangerReasons.join('\n') || 'This action could cause significant changes to the server.',
+                inline: false
+            });
+        } else if (analysis.dangerLevel === 'warning' && analysis.dangerReasons) {
+            embed.addFields({
+                name: '⚠️ Warning',
+                value: analysis.dangerReasons.join('\n'),
+                inline: false
+            });
+        }
+
+        // Add detailed steps
+        if (detailedSteps && detailedSteps.length > 0) {
             let stepsText = '';
-            analysis.detailedSteps.forEach((step, index) => {
+            detailedSteps.forEach((step, index) => {
                 stepsText += `${index + 1}. ${step}\n`;
             });
-
             // Split if too long
             if (stepsText.length > 1024) {
-                const chunks = stepsText.match(/.{1,1024}/g);
+                const chunks = [];
+                let currentChunk = '';
+                detailedSteps.forEach((step, index) => {
+                    const line = `${index + 1}. ${step}\n`;
+                    if ((currentChunk + line).length > 1000) {
+                        chunks.push(currentChunk);
+                        currentChunk = line;
+                    } else {
+                        currentChunk += line;
+                    }
+                });
+                if (currentChunk) chunks.push(currentChunk);
+
                 chunks.forEach((chunk, i) => {
                     embed.addFields({
-                        name: i === 0 ? '📋 What will happen:' : '📋 Continued:',
+                        name: `📋 What will happen (${i + 1}/${chunks.length}):`,
                         value: chunk
                     });
                 });
@@ -627,37 +627,26 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             }
         }
 
-        // Show danger reasons if blocked
-        if (isBlocked && dangers.reasons.length > 0) {
-            embed.addFields({
-                name: '🚨 Blocked Reasons',
-                value: dangers.reasons.join('\n'),
-                inline: false
-            });
-        }
-
-        // Add entity details
+        // Add affected entities
         if (resolved.users.length > 0) {
-            const userText = resolved.users.map(u => `${u.username}`).join(', ');
-            embed.addFields({
-                name: '👥 Users',
-                value: userText.length > 1024 ? userText.substring(0, 1021) + '...' : userText,
-                inline: true
-            });
+            const userList = resolved.users.map(u => `${u.username} (${u.id})`).join('\n');
+            if (userList.length > 1024) {
+                embed.addFields({ name: '👥 Users', value: `${resolved.users.length} users affected`, inline: true });
+            } else {
+                embed.addFields({ name: '👥 Users', value: userList, inline: true });
+            }
         }
         if (resolved.roles.length > 0) {
-            const roleText = resolved.roles.map(r => r.name).join(', ');
             embed.addFields({
                 name: '🎭 Roles',
-                value: roleText.length > 1024 ? roleText.substring(0, 1021) + '...' : roleText,
+                value: resolved.roles.map(r => `${r.name} (${r.id})`).join('\n').substring(0, 1024),
                 inline: true
             });
         }
         if (resolved.channels.length > 0) {
-            const channelText = resolved.channels.map(c => `#${c.name}`).join(', ');
             embed.addFields({
                 name: '📝 Channels',
-                value: channelText.length > 1024 ? channelText.substring(0, 1021) + '...' : channelText,
+                value: resolved.channels.map(c => `#${c.name} (${c.id})`).join('\n').substring(0, 1024),
                 inline: true
             });
         }
@@ -667,11 +656,19 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
             const paramsText = Object.entries(analysis.parameters)
                 .map(([key, value]) => `**${key}:** ${value}`)
                 .join('\n');
-            if (paramsText.length > 1024) {
-                embed.addFields({ name: '⚙️ Parameters', value: paramsText.substring(0, 1021) + '...' });
-            } else {
-                embed.addFields({ name: '⚙️ Parameters', value: paramsText });
-            }
+            embed.addFields({ name: '⚙️ Parameters', value: paramsText.substring(0, 1024) });
+        }
+
+        // Check if blocked
+        const isBlocked = analysis.dangerLevel === 'dangerous' ||
+            (analysis.actionCount && analysis.actionCount > 10);
+
+        if (isBlocked) {
+            embed.addFields({
+                name: '🛑 Action Blocked',
+                value: 'This action has been automatically blocked for safety reasons.',
+                inline: false
+            });
         }
 
         const row = new ActionRowBuilder()
@@ -691,26 +688,21 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
 
         const confirmMsg = await message.reply({ embeds: [embed], components: [row] });
 
-        // Store confirmation data with repliedData included
         this.pendingConfirmations.set(confirmationId, {
             analysis,
             resolved,
             message,
-            repliedData,
+            code,
             authorId: message.author.id,
             expiresAt: Date.now() + 60000,
-            blocked: isBlocked,
-            confirmMsgId: confirmMsg.id
+            blocked: isBlocked
         });
-
-        console.log(`✅ Confirmation created: ${confirmationId}`);
-        console.log(`📊 Total pending confirmations: ${this.pendingConfirmations.size}`);
 
         setTimeout(() => {
             if (this.pendingConfirmations.has(confirmationId)) {
                 this.pendingConfirmations.delete(confirmationId);
-                console.log(`⏰ Confirmation expired: ${confirmationId}`);
-                embed.setTitle('⏰ Confirmation Expired').setColor(Colors.Red);
+                embed.setTitle('⏰ Confirmation Expired')
+                    .setColor(Colors.Red);
                 confirmMsg.edit({ embeds: [embed], components: [] }).catch(() => { });
             }
         }, 60000);
@@ -722,180 +714,119 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
      * Handle confirmation button clicks
      */
     async handleConfirmation(interaction, confirmed) {
-        // Fix: Properly extract confirmation ID by removing both suffixes
-        const customId = interaction.customId;
-        const confirmationId = customId.replace(/_confirm$|_cancel$/, '');
-
-        console.log(`🔘 Button clicked: ${customId}`);
-        console.log(`🔑 Extracted confirmation ID: ${confirmationId}`);
-        console.log(`📋 Pending confirmations: [${Array.from(this.pendingConfirmations.keys()).join(', ')}]`);
-
+        const confirmationId = interaction.customId.replace('_confirm', '').replace('_cancel', '');
         const confirmData = this.pendingConfirmations.get(confirmationId);
 
         if (!confirmData) {
-            console.log(`❌ Confirmation data not found for: ${confirmationId}`);
-            return interaction.reply({
-                embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription('❌ This confirmation has expired.')],
-                ephemeral: true
-            });
-        }
-
-        // Check if expired
-        if (Date.now() > confirmData.expiresAt) {
-            this.pendingConfirmations.delete(confirmationId);
-            console.log(`⏰ Confirmation expired: ${confirmationId}`);
-            return interaction.reply({
-                embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription('❌ This confirmation has expired.')],
-                ephemeral: true
-            });
+            const expiredEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setDescription('❌ This confirmation has expired.');
+            return interaction.reply({ embeds: [expiredEmbed], ephemeral: true });
         }
 
         if (confirmData.authorId !== interaction.user.id) {
-            return interaction.reply({
-                embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription('❌ Only the person who initiated this action can confirm it.')],
-                ephemeral: true
-            });
+            const deniedEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setDescription('❌ Only the person who initiated this action can confirm it.');
+            return interaction.reply({ embeds: [deniedEmbed], ephemeral: true });
         }
 
         this.pendingConfirmations.delete(confirmationId);
-        console.log(`🗑️ Confirmation removed: ${confirmationId}`);
 
-        const originalEmbed = interaction.message.embeds[0];
+        const originalEmbedData = interaction.message.embeds[0];
 
         if (!confirmed) {
-            const cancelledEmbed = EmbedBuilder.from(originalEmbed)
+            const cancelledEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setTitle('❌ Action Cancelled');
+                .setTitle('❌ Action Cancelled')
+                .setDescription(originalEmbedData.description)
+                .setFooter(originalEmbedData.footer);
+
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                cancelledEmbed.addFields(originalEmbedData.fields);
+            }
+
             await interaction.update({ embeds: [cancelledEmbed], components: [] });
             return;
         }
 
         if (confirmData.blocked) {
-            const blockedEmbed = EmbedBuilder.from(originalEmbed)
+            const blockedEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
-                .setTitle('❌ Action Blocked');
+                .setTitle('❌ Action Blocked')
+                .setDescription(originalEmbedData.description)
+                .setFooter(originalEmbedData.footer);
+
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                blockedEmbed.addFields(originalEmbedData.fields);
+            }
+
             await interaction.update({ embeds: [blockedEmbed], components: [] });
             return;
         }
 
-        // Update to processing
-        const processingEmbed = EmbedBuilder.from(originalEmbed)
-            .setColor(Colors.Yellow)
-            .setTitle('⏳ Processing...')
+        const confirmedEmbed = new EmbedBuilder()
+            .setColor(Colors.Blue)
+            .setTitle('✅ Action Confirmed')
+            .setDescription(originalEmbedData.description)
             .setFooter({ text: 'Executing action...' });
 
-        await interaction.update({ embeds: [processingEmbed], components: [] });
+        if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+            confirmedEmbed.addFields(originalEmbedData.fields);
+        }
+
+        await interaction.update({ embeds: [confirmedEmbed], components: [] });
 
         try {
-            // Generate code now (after confirmation)
-            console.log('🔧 Generating code...');
-            const code = await this.generateCode(
-                confirmData.analysis,
-                confirmData.resolved,
-                confirmData.message,
-                confirmData.repliedData
-            );
+            console.log('Executing Code:', confirmData.code);
+            const result = await this.executeCode(confirmData.code, confirmData.message);
 
-            console.log('📝 Generated Code:', code);
-
-            // Validate and fix common issues
-            const validatedCode = this.validateAndFixCode(code);
-            console.log('✅ Code validated');
-
-            // Execute the generated code
-            console.log('⚙️ Executing code...');
-            const result = await this.executeCode(validatedCode, confirmData.message);
-
-            // Update confirmation to completed FIRST
-            const completedEmbed = EmbedBuilder.from(originalEmbed)
-                .setColor(Colors.Green)
-                .setTitle('✅ Action Completed')
-                .setFooter({ text: 'Results sent below' });
-
-            await interaction.editReply({ embeds: [completedEmbed] });
-
-            // Then send separate output embed(s) in the channel
-            if (result && result.results && result.results.length > 0) {
-                // Deduplicate results by title and description
-                const uniqueResults = [];
-                const seen = new Set();
-
-                for (const output of result.results) {
-                    const key = `${output.title || 'no-title'}:${output.description || 'no-desc'}`;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        uniqueResults.push(output);
-                    } else {
-                        console.log('⚠️ Skipping duplicate result:', output.title);
-                    }
-                }
-
-                for (const output of uniqueResults) {
-                    const outputEmbed = new EmbedBuilder()
-                        .setColor(result.success ? Colors.Green : Colors.Red)
-                        .setTitle(output.title || '📊 Result')
-                        .setTimestamp();
-
-                    // Handle description
-                    if (output.description) {
-                        outputEmbed.setDescription(output.description);
-                    }
-
-                    // Handle fields
-                    if (output.fields && output.fields.length > 0) {
-                        outputEmbed.addFields(output.fields);
-                    }
-
-                    // Send in the original message channel, not as a reply to interaction
-                    await confirmData.message.channel.send({ embeds: [outputEmbed] });
-                }
+            if (result && result.embed) {
+                await confirmData.message.channel.send({ embeds: [result.embed] });
             } else {
-                // Fallback if no results
                 const fallbackEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setTitle('📊 Result')
-                    .setDescription('Action completed successfully.')
-                    .setTimestamp();
-
+                    .setColor(Colors.Orange)
+                    .setTitle('⚠️ Action Completed')
+                    .setDescription('Action completed but no valid response returned.');
                 await confirmData.message.channel.send({ embeds: [fallbackEmbed] });
             }
 
-        } catch (error) {
-            console.error('💥 Execution error:', error);
-            console.error('Error stack:', error.stack);
+            const completedConfirmEmbed = new EmbedBuilder()
+                .setColor(Colors.Green)
+                .setTitle('✅ Action Completed')
+                .setDescription(originalEmbedData.description)
+                .setFooter({ text: 'Action completed successfully. Result sent below.' });
 
-            // Update confirmation to show failure
-            const errorEmbed = EmbedBuilder.from(originalEmbed)
-                .setColor(Colors.Red)
-                .setTitle('❌ Action Failed')
-                .setFooter({ text: 'Error details sent below' });
-
-            await interaction.editReply({ embeds: [errorEmbed] });
-
-            // Send error details as a NEW embed in the channel
-            const errorOutputEmbed = new EmbedBuilder()
-                .setColor(Colors.Red)
-                .setTitle('❌ Execution Error')
-                .setDescription(error.message || 'An unknown error occurred')
-                .setTimestamp();
-
-            // Add error stack if available (truncated)
-            if (error.stack) {
-                const stackPreview = error.stack.split('\n').slice(0, 5).join('\n');
-                if (stackPreview.length > 1024) {
-                    errorOutputEmbed.addFields({
-                        name: 'Stack Trace',
-                        value: '```' + stackPreview.substring(0, 1010) + '...```'
-                    });
-                } else {
-                    errorOutputEmbed.addFields({
-                        name: 'Stack Trace',
-                        value: '```' + stackPreview + '```'
-                    });
-                }
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                completedConfirmEmbed.addFields(originalEmbedData.fields);
             }
 
-            await confirmData.message.channel.send({ embeds: [errorOutputEmbed] });
+            await interaction.editReply({ embeds: [completedConfirmEmbed] });
+
+        } catch (error) {
+            // Use AI to explain the error
+            const errorExplanation = await this.explainError(error, confirmData.code, confirmData.analysis);
+
+            const errorEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setTitle('❌ Action Failed')
+                .setDescription(errorExplanation)
+                .addFields({ name: 'Technical Error', value: error.message.substring(0, 1024) })
+                .setTimestamp();
+
+            await confirmData.message.channel.send({ embeds: [errorEmbed] });
+
+            const failedConfirmEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setTitle('❌ Action Failed')
+                .setDescription(originalEmbedData.description)
+                .setFooter({ text: 'Action failed. Error details sent below.' });
+
+            if (originalEmbedData.fields && originalEmbedData.fields.length > 0) {
+                failedConfirmEmbed.addFields(originalEmbedData.fields);
+            }
+
+            await interaction.editReply({ embeds: [failedConfirmEmbed] });
         }
     }
 
@@ -904,6 +835,7 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
      */
     async process(message, userMessage) {
         try {
+            // Check permissions
             if (!this.hasPermission(message.member, message.author.id)) {
                 return {
                     type: 'error',
@@ -913,10 +845,21 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
                 };
             }
 
-            // Analyze and create confirmation
-            const { analysis, resolved, repliedData } = await this.analyzeRequest(message, userMessage);
-            await this.requestConfirmation(message, analysis, resolved, repliedData);
+            // Step 1: Analyze request with enhanced context
+            const analysis = await this.analyzeRequest(message, userMessage);
 
+            // Step 2: Resolve entities including reply data
+            const resolved = await this.resolveEntities(analysis, message);
+
+            // Step 3: Generate code with safety measures
+            const code = await this.generateCode(analysis, resolved, message);
+            console.log('Generated Code:', code);
+
+            // Step 4: Analyze the generated code
+            const detailedSteps = await this.analyzeGeneratedCode(code, analysis, resolved);
+
+            // Step 5: Request confirmation with all safety checks
+            await this.requestConfirmation(message, analysis, resolved, code, detailedSteps);
             return { type: 'confirmation_pending' };
 
         } catch (error) {
@@ -930,4 +873,5 @@ Provide a brief, user-friendly explanation (max 200 chars) of what went wrong an
         }
     }
 }
+
 module.exports = new SpectreAI();
