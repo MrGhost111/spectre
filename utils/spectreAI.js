@@ -17,8 +17,7 @@ class SpectreAI {
     hasPermission(member, userId) {
         // Whitelist specific users
         const whitelistedUsers = [
-            '753491023208120321',
-            '621379895104372757'
+            '753491023208120321'
         ];
 
         if (whitelistedUsers.includes(userId)) {
