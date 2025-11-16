@@ -4,8 +4,6 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const spectreAI = require('../utils/spectreAI');
-const huggingFaceApi = require('../utils/huggingFaceApi');
 
 require('dotenv').config();
 
@@ -24,155 +22,9 @@ module.exports = {
             return;
         }
 
-        // ===========================================
-        // CHATBOT - Handle DMs
-        // ===========================================
+        // Ignore DM messages
         if (!message.guild) {
-            console.log(`💬 DM detected from ${message.author.tag}`);
-
-            try {
-                await message.channel.sendTyping();
-
-                // Check for reset command
-                if (message.content.toLowerCase() === '!reset') {
-                    const reset = huggingFaceApi.resetConversation(message.author.id);
-                    if (reset) {
-                        await message.author.send("✨ I've reset our conversation. What would you like to talk about?");
-                    } else {
-                        await message.author.send("There was no conversation history to reset.");
-                    }
-                    return; // Return after handling reset
-                }
-
-                console.log(`🤖 Getting chatbot response for DM...`);
-
-                // Get chatbot response - treat ALL DM content as chat
-                const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                    message.author.id,
-                    message.content, // Use full message content
-                    message.author.username
-                );
-
-                console.log(`✅ Sending response: "${chatbotResponse.substring(0, 50)}..."`);
-                await message.author.send(chatbotResponse);
-                console.log(`✅ DM response sent successfully`);
-            } catch (error) {
-                console.error(`❌ DM Error:`, error);
-                try {
-                    await message.author.send("Sorry, I encountered an error while processing your message. Please try again!");
-                } catch (dmError) {
-                    console.error(`❌ Failed to send error message:`, dmError);
-                }
-            }
-            return; // CRITICAL: Always return after DM handling
-        }
-
-        // ===========================================
-        // CHATBOT - Handle @Spectre mentions in server
-        // ===========================================
-        if (message.mentions.has(client.user.id)) {
-            // Remove the mention from the message
-            const userMessage = message.content
-                .replace(/<@!?829741386558865510>/g, '')
-                .trim();
-
-            // If they just mentioned with no text, send a friendly response
-            if (!userMessage) {
-                return message.reply('Yes? How can I help you? 🤖\n\nTip: Use `spectre [action]` for bot commands, or just chat with me!');
-            }
-
-            // Don't trigger chatbot if it looks like a Spectre AI command
-            const commandKeywords = ['send', 'create', 'delete', 'kick', 'ban', 'give', 'remove', 'make'];
-            const isCommand = commandKeywords.some(kw => userMessage.toLowerCase().includes(kw));
-
-            if (isCommand) {
-                return message.reply('💡 Use `spectre [action]` for bot commands!\nExample: `spectre send a message here`');
-            }
-
-            try {
-                await message.channel.sendTyping();
-
-                const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                    message.author.id,
-                    userMessage,
-                    message.author.username
-                );
-
-                return message.reply(chatbotResponse);
-            } catch (error) {
-                console.error('Chatbot Mention Error:', error);
-                return message.reply("I'm having trouble processing that. Could you rephrase?");
-            }
-        }
-
-        // ===========================================
-        // SPECTRE AI - Natural Language Commands
-        // ===========================================
-        if (message.content.toLowerCase().startsWith('spectre ')) {
-            const userCommand = message.content.slice(8).trim(); // Remove "spectre " prefix
-
-            // If empty command, ignore
-            if (!userCommand) {
-                return message.reply('Please provide a command or question! Example: `spectre send a message here`');
-            }
-
-            try {
-                await message.channel.sendTyping();
-
-                // Determine if this is an action command or just chat
-                const actionKeywords = [
-                    'send', 'create', 'delete', 'kick', 'ban', 'mute', 'unmute',
-                    'give', 'remove', 'add', 'change', 'rename', 'move',
-                    'set', 'make', 'edit', 'update', 'clear', 'purge',
-                    'role', 'channel', 'category', 'permission', 'message'
-                ];
-
-                const isAction = actionKeywords.some(keyword =>
-                    userCommand.toLowerCase().includes(keyword)
-                );
-
-                if (isAction) {
-                    // Process as action with Spectre AI
-                    const result = await spectreAI.process(message, userCommand);
-
-                    if (result.type === 'confirmation_pending') {
-                        // Confirmation message already sent by spectreAI
-                        return;
-                    } else if (result.type === 'error') {
-                        // Error occurred - send the embed
-                        return message.reply({ embeds: [result.embed] });
-                    }
-                } else {
-                    // Use chatbot for general questions/chat
-                    try {
-                        const chatbotResponse = await huggingFaceApi.getChatbotResponse(
-                            message.author.id,
-                            userCommand,
-                            message.author.username
-                        );
-                        return message.reply(chatbotResponse);
-                    } catch (error) {
-                        console.error('Chatbot Error:', error);
-                        return message.reply("I'm having trouble processing that. Could you rephrase?");
-                    }
-                }
-
-            } catch (error) {
-                console.error('Spectre AI Error:', error);
-
-                let errorMessage = error.message;
-                if (error.message.includes('503')) {
-                    errorMessage = 'Model is loading... Try again in 20 seconds!';
-                } else if (error.message.includes('401') || error.message.includes('403')) {
-                    errorMessage = 'API key issue. Contact bot owner.';
-                } else if (error.message.includes('429')) {
-                    errorMessage = 'Too many requests. Try again in a minute.';
-                }
-
-                await message.reply(`❌ **Error**: ${errorMessage}`);
-            }
-
-            return; // Stop processing after handling spectre command
+            return;
         }
 
         // ===========================================
