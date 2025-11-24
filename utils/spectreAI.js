@@ -426,10 +426,10 @@ Make detailedSteps very specific and technical - these will be shown to the user
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord action analyzer. Be precise with targets. Respond only with valid JSON." },
+                    { role: "system", content: "You are a Discord action analyzer. Keep it simple for simple queries. Respond only with valid JSON." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 600,
+                max_tokens: 400,
                 temperature: 0.1
             });
 
