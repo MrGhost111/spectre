@@ -4,6 +4,7 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
+const spectreAI = require('../utils/spectreAI');
 
 require('dotenv').config();
 
@@ -28,7 +29,46 @@ module.exports = {
         }
 
         // ===========================================
-        // REST OF YOUR EXISTING CODE
+        // SPECTRE AI HANDLER (before other checks)
+        // ===========================================
+        // Check if message starts with "spectre" or "@Spectre"
+        const spectreKeywords = ['spectre', '@spectre'];
+        const lowerContent = message.content.toLowerCase();
+
+        if (spectreKeywords.some(keyword => lowerContent.startsWith(keyword))) {
+            // Extract the actual command (remove "spectre " or "@spectre ")
+            let userMessage = message.content;
+            for (const keyword of spectreKeywords) {
+                if (lowerContent.startsWith(keyword)) {
+                    userMessage = message.content.substring(keyword.length).trim();
+                    break;
+                }
+            }
+
+            if (userMessage.length === 0) {
+                // Just "spectre" without command - ignore silently
+                return;
+            }
+
+            // Process with SpectreAI
+            const result = await spectreAI.process(message, userMessage);
+
+            // If no permission, silently return (no response)
+            if (result.type === 'no_permission') {
+                return;
+            }
+
+            // If error, send error embed
+            if (result.type === 'error') {
+                await message.reply({ embeds: [result.embed] });
+            }
+
+            // For confirmation_created, SpectreAI already sent the confirmation
+            return;
+        }
+
+        // ===========================================
+        // REST OF EXISTING CODE
         // ===========================================
 
         // One Word Story moderation
@@ -80,8 +120,6 @@ module.exports = {
                 console.error('Error handling sticky message:', error);
             }
         }
-
-        // Track donation messages removed - now at top with bot check
 
         // Auto react for specific channel
         if (message.channelId === '1299069910751903857') {

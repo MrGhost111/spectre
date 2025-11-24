@@ -3,44 +3,61 @@
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
+        // Handle SpectreAI confirmation buttons
+        if (interaction.isButton()) {
+            const customId = interaction.customId;
+
+            // Check if it's a SpectreAI confirmation button
+            if (customId.startsWith('confirm_')) {
+                const isConfirm = customId.endsWith('_confirm');
+                const isCancel = customId.endsWith('_cancel');
+
+                if (isConfirm || isCancel) {
+                    await spectreAI.handleConfirmation(interaction, isConfirm);
+                    return;
+                }
+            }
+        }
+
         // Handle slash commands
         if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
+
             if (!command) {
                 console.error(`No command matching ${interaction.commandName} was found.`);
                 return;
             }
+
             try {
                 await command.execute(interaction);
             } catch (error) {
                 console.error(`Error executing ${interaction.commandName}`);
                 console.error(error);
+
+                const errorMessage = { content: 'There was an error while executing this command!', ephemeral: true };
+
                 if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({
-                        content: 'There was an error while executing this command!',
-                        ephemeral: true
-                    });
+                    await interaction.followUp(errorMessage);
                 } else {
-                    await interaction.reply({
-                        content: 'There was an error while executing this command!',
-                        ephemeral: true
-                    });
+                    await interaction.reply(errorMessage);
                 }
             }
         }
 
-        // Handle Spectre AI confirmation buttons
-        if (interaction.isButton()) {
-            const customId = interaction.customId;
+        // Handle autocomplete interactions
+        if (interaction.isAutocomplete()) {
+            const command = client.commands.get(interaction.commandName);
 
-            console.log(`🔘 Button interaction received: ${customId}`);
-            console.log(`🤖 SpectreAI instance: ${spectreAI.constructor.name}`);
-            console.log(`📊 Pending confirmations count: ${spectreAI.pendingConfirmations.size}`);
+            if (!command || !command.autocomplete) {
+                console.error(`No autocomplete handler for ${interaction.commandName} was found.`);
+                return;
+            }
 
-            if (customId.startsWith('confirm_')) {
-                const confirmed = customId.endsWith('_confirm');
-                console.log(`✅ Processing confirmation (confirmed: ${confirmed})`);
-                await spectreAI.handleConfirmation(interaction, confirmed);
+            try {
+                await command.autocomplete(interaction);
+            } catch (error) {
+                console.error(`Error handling autocomplete for ${interaction.commandName}`);
+                console.error(error);
             }
         }
     },
