@@ -1,3 +1,4 @@
+// JavaScript source code
 const Fuse = require('fuse.js');
 const { ChannelType } = require('discord.js');
 
