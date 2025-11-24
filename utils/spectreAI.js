@@ -10,6 +10,10 @@ class SpectreAI {
         this.entityResolver = entityResolver;
         this.pendingConfirmations = new Map();
         this.ADMIN_ID = '753491023208120321';
+
+        // Cache for frequent requests
+        this.requestCache = new Map();
+        this.cacheTimeout = 60000; // 1 minute cache
     }
 
     /**
@@ -19,6 +23,13 @@ class SpectreAI {
         if (userId === this.ADMIN_ID) return true;
         if (member && member.permissions.has('Administrator')) return true;
         return false;
+    }
+
+    /**
+     * Get cache key for request
+     */
+    getCacheKey(message, userMessage) {
+        return `${message.guild.id}:${userMessage.toLowerCase().trim()}`;
     }
 
     /**
@@ -157,7 +168,72 @@ class SpectreAI {
     }
 
     /**
-     * Generate Discord.js v14 code with proper batching and splitting
+     * Analyze request with caching
+     */
+    async analyzeRequest(message, userMessage, repliedData, progressMsg) {
+        const cacheKey = this.getCacheKey(message, userMessage);
+        const cached = this.requestCache.get(cacheKey);
+
+        if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+            console.log('✅ Using cached analysis');
+            return cached.data;
+        }
+
+        await progressMsg.edit({
+            embeds: [new EmbedBuilder()
+                .setColor(Colors.Yellow)
+                .setTitle('⏳ Step 1/3: Analyzing Request')
+                .setDescription('Understanding what you want to do...')
+                .setTimestamp()]
+        });
+
+        const contextInfo = this.buildContextInfo(message);
+
+        // OPTIMIZED PROMPT - Much shorter for faster processing
+        const prompt = `Analyze: "${userMessage}"
+
+Context:
+${contextInfo}
+
+${repliedData ? `Replying to: ${repliedData.author.username}` : ''}
+
+Respond with JSON: {action,description,entities:{users,roles,channels,categories},parameters,usesContext:{currentChannel,currentCategory,repliedUser,messageAuthor}}`;
+
+        try {
+            const response = await this.hf.chatCompletion({
+                model: "Qwen/Qwen2.5-Coder-7B", // FASTER MODEL
+                messages: [
+                    { role: "system", content: "You are a Discord action analyzer. Respond only with valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                max_tokens: 400, // REDUCED TOKENS
+                temperature: 0.1
+            });
+
+            const aiResponse = response.choices[0].message.content;
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+
+            if (!jsonMatch) {
+                throw new Error('Failed to parse AI response');
+            }
+
+            const analysis = JSON.parse(jsonMatch[0]);
+
+            // Cache the result
+            this.requestCache.set(cacheKey, {
+                data: analysis,
+                timestamp: Date.now()
+            });
+
+            return analysis;
+        } catch (error) {
+            console.error('Request analysis error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate Discord.js v14 code with optimized prompt
      */
     async generateCode(analysis, resolved, message, repliedData, progressMsg) {
         await progressMsg.edit({
@@ -168,121 +244,38 @@ class SpectreAI {
                 .setTimestamp()]
         });
 
-        const prompt = `Generate Discord.js v14 code to perform this action.
+        // OPTIMIZED PROMPT - Shorter and more direct
+        const prompt = `Generate Discord.js v14 code for: ${analysis.action}
 
-Action: ${analysis.action}
-Description: ${analysis.description}
+Targets:
+- Users: ${resolved.users.map(u => `${u.username} (${u.id})`).join(', ') || 'none'}
+- Channels: ${resolved.channels.map(c => `${c.name} (${c.id})`).join(', ') || 'none'}
+- Roles: ${resolved.roles.map(r => `${r.name} (${r.id})`).join(', ') || 'none'}
+- Categories: ${resolved.categories.map(c => `${c.name} (${c.id})`).join(', ') || 'none'}
 
-Resolved Entities:
-- Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
-- Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
-- Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
-- Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+Params: ${JSON.stringify(analysis.parameters)}
+Context: guild=${message.guild.id}, channel=${message.channel.id}
 
-Parameters: ${JSON.stringify(analysis.parameters)}
-
-${repliedData ? `Replied Message Data:
-- Content: ${repliedData.content}
-- Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
-
-Context:
-- Message Channel ID: ${message.channel.id}
-- Message Guild ID: ${message.guild.id}
-- Message Author ID: ${message.author.id}
-
-CRITICAL REQUIREMENTS:
-1. Variables available in scope: guild, client, channel, message, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
-2. DO NOT use require() - all dependencies are already available
-3. Return format: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
-4. ALL output must be in results array - each result object becomes an embed
-5. Mentions in embeds don't ping: use <@userId>, <@&roleId>, <#channelId> freely in embeds
-6. Handle Discord limits:
-   - Description max 4096 chars - split into multiple results if needed
-   - Field value max 1024 chars - split into multiple fields if needed
-   - Max 25 fields per embed - create multiple results if needed
-7. For large operations (>100 items), process in batches of 50-100
-8. For fetching messages:
-   - Use existing cache first: channel.messages.cache
-   - Only fetch if needed, and fetch in batches
-   - OPTIMIZE: If user asks for "last X users who sent messages", use cache first
-9. Always wrap in try-catch with proper error handling
-10. Return code as IIFE: (async () => { ... })();
-11. PERFORMANCE: Minimize API calls - use cached data when possible
-12. PERFORMANCE: Avoid unnecessary loops - use built-in methods like .map(), .filter()
-13. PERFORMANCE: For counting/listing, use efficient methods:
-    - guild.members.cache (already loaded, super fast)
-    - channel.messages.cache (already loaded, super fast)
-    - Only use .fetch() if absolutely necessary
-
-Example for list with auto-splitting:
-\`\`\`javascript
-(async () => {
-    try {
-        const items = ['item1', 'item2', ...]; // your data
-        const results = [];
-        
-        // Auto-split into chunks that fit in 1024 char fields
-        const chunkItems = (arr, maxChars = 1000) => {
-            const chunks = [];
-            let current = [];
-            let currentLength = 0;
-            
-            for (const item of arr) {
-                const line = \`• \${item}\\n\`;
-                if (currentLength + line.length > maxChars) {
-                    if (current.length > 0) chunks.push([...current]);
-                    current = [item];
-                    currentLength = line.length;
-                } else {
-                    current.push(item);
-                    currentLength += line.length;
-                }
-            }
-            if (current.length > 0) chunks.push(current);
-            return chunks;
-        };
-        
-        const chunks = chunkItems(items);
-        const fields = chunks.map((chunk, i) => ({
-            name: \`Part \${i + 1}/\${chunks.length}\`,
-            value: chunk.map(item => \`• \${item}\`).join('\\n')
-        }));
-        
-        // Split into multiple embeds if >25 fields
-        while (fields.length > 0) {
-            const embedFields = fields.splice(0, 25);
-            results.push({
-                title: 'Results',
-                description: \`Showing \${embedFields.length} fields\`,
-                fields: embedFields
-            });
-        }
-        
-        return { success: true, results };
-    } catch (error) {
-        return { 
-            success: false, 
-            results: [{ title: '❌ Error', description: error.message }]
-        };
-    }
-})();
-\`\`\`
-
-Generate the code now:`;
+Rules:
+- Return {success, results[]} in IIFE
+- Use: guild, client, channel, message, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+- Use cache first (guild.members.cache, channel.messages.cache)
+- Handle Discord limits (split large outputs)
+- No require() statements`;
 
         try {
             const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+                model: "Qwen/Qwen2.5-Coder-7B", // FASTER MODEL
                 messages: [
-                    { role: "system", content: "You are a Discord.js v14 code generator. Generate executable JavaScript with proper error handling, batching, and auto-splitting for Discord limits." },
+                    { role: "system", content: "You are a Discord.js v14 code generator. Generate concise, executable JavaScript with proper error handling." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 1500,
+                max_tokens: 1000, // REDUCED FROM 1500
                 temperature: 0.2
             });
 
             const aiResponse = response.choices[0].message.content;
-            const codeMatch = aiResponse.match(/```(?:javascript)?\s*([\s\S]*?)```/);
+            const codeMatch = aiResponse.match(/```(?:javascript)?\s*([\s\S]*?)```/) || aiResponse.match(/(\(async \(\)[^]*\}\)\))/);
 
             if (codeMatch) {
                 return codeMatch[1].trim();
@@ -344,106 +337,6 @@ Generate the code now:`;
                     description: `\`\`\`\n${error.message}\n\`\`\`\n\nThe code failed to execute. This might be due to:\n• Missing permissions\n• Invalid entity references\n• Discord API rate limits\n\nPlease try rephrasing your request.`
                 }]
             };
-        }
-    }
-
-    /**
-     * Analyze request with detailed execution steps
-     */
-    async analyzeRequest(message, userMessage, repliedData, progressMsg) {
-        await progressMsg.edit({
-            embeds: [new EmbedBuilder()
-                .setColor(Colors.Yellow)
-                .setTitle('⏳ Step 1/3: Analyzing Request')
-                .setDescription('Understanding what you want to do...')
-                .setTimestamp()]
-        });
-
-        const contextInfo = this.buildContextInfo(message);
-
-        const prompt = `You are a Discord action analyzer. Analyze the user's request carefully.
-
-User Message: "${userMessage}"
-
-Context:
-${contextInfo}
-
-${repliedData ? `Replied Message Data:
-- Author: ${repliedData.author.username} (ID: ${repliedData.author.id})
-- Content: ${repliedData.content}
-- Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
-
-CONTEXT TERMS (VERY IMPORTANT):
-- "this channel" / "here" = current channel (#${message.channel.name})
-- "this category" = current category (${message.channel.parent?.name || 'none'})
-- "this user" (when replying) = the replied user (${repliedData ? repliedData.author.username : 'none'})
-- "me" / "my" / "I" = command author (${message.author.username})
-
-CRITICAL: Be precise with targets:
-- "ban wolfy" → target ONLY wolfy, NOT command author
-- "give me admin" → target command author
-- "kick this user" (when replying) → target replied user
-- "delete this channel" → target current channel
-
-Your Task:
-1. Identify ACTION (what to do)
-2. Identify TARGET entities (be specific - don't confuse command author with target)
-3. Create DETAILED EXECUTION STEPS (explain exact technical steps)
-4. Extract PARAMETERS
-
-Respond with ONLY valid JSON:
-{
-  "action": "action_name",
-  "description": "What I understood from your request",
-  "detailedSteps": [
-    "Use entity resolver to find user 'wolfy' in guild",
-    "Check if user exists and is bannable",
-    "Execute guild.members.ban() with user ID",
-    "Create result embed with success/failure status",
-    "Return embed in results array"
-  ],
-  "entities": {
-    "users": ["wolfy"],
-    "roles": [],
-    "channels": [],
-    "categories": []
-  },
-  "parameters": {
-    "reason": "Requested by admin"
-  },
-  "usesContext": {
-    "currentChannel": false,
-    "currentCategory": false,
-    "repliedUser": false,
-    "repliedMessage": false,
-    "messageAuthor": false
-  }
-}
-
-Make detailedSteps very specific and technical - these will be shown to the user before execution.`;
-
-        try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    { role: "system", content: "You are a Discord action analyzer. Keep it simple for simple queries. Respond only with valid JSON." },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 400,
-                temperature: 0.1
-            });
-
-            const aiResponse = response.choices[0].message.content;
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-
-            if (!jsonMatch) {
-                throw new Error('Failed to parse AI response');
-            }
-
-            return JSON.parse(jsonMatch[0]);
-        } catch (error) {
-            console.error('Request analysis error:', error);
-            throw error;
         }
     }
 
