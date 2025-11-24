@@ -172,11 +172,7 @@ ${repliedData ? `Replied Message Data:
 - Author: ${repliedData.author.username} (ID: ${repliedData.author.id})
 - Content: ${repliedData.content}` : ''}
 
-CRITICAL: Understand the actual intent behind the user's words. For example:
-- "what channel is this" → User wants information about the current channel
-- "2+2" → User wants to perform a mathematical calculation  
-- "list users" → User wants to see all server members
-- "ban @user" → User wants to ban a specific member
+CRITICAL: You MUST respond with ONLY valid JSON. No other text, no explanation, no markdown code blocks. Just the raw JSON object.
 
 Your Task:
 1. Identify the SPECIFIC ACTION the user wants to perform
@@ -186,7 +182,7 @@ Your Task:
 5. Extract any PARAMETERS needed
 6. Note what CONTEXT is being used
 
-Respond with ONLY valid JSON:
+Respond with ONLY this JSON structure (no code blocks, no extra text):
 {
   "action": "specific_action_name",
   "description": "Clear description of what will happen",
@@ -201,8 +197,7 @@ Respond with ONLY valid JSON:
     "channels": [],
     "categories": []
   },
-  "parameters": {
-  },
+  "parameters": {},
   "usesContext": {
     "currentChannel": false,
     "currentCategory": false,
@@ -217,7 +212,7 @@ Respond with ONLY valid JSON:
                 messages: [
                     {
                         role: "system",
-                        content: "You are a Discord action analyzer. Understand the user's intent and provide specific, actionable analysis. Respond only with valid JSON."
+                        content: "You are a JSON-only response bot. Return ONLY valid JSON with no additional text, no markdown, no code blocks. Just raw JSON."
                     },
                     { role: "user", content: prompt }
                 ],
@@ -226,8 +221,8 @@ Respond with ONLY valid JSON:
             });
 
             const aiResponse = response.choices[0].message.content;
+            console.log('🔍 AI Response:', aiResponse.substring(0, 200));
 
-            // Extract JSON with multiple fallback methods
             let analysis = this.extractJSONFromText(aiResponse);
 
             if (!analysis) {
@@ -255,43 +250,74 @@ Respond with ONLY valid JSON:
     }
 
     extractJSONFromText(text) {
-        // Method 1: Code blocks
-        const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (codeBlockMatch) {
-            try {
-                return JSON.parse(codeBlockMatch[1].trim());
-            } catch (e) {
-                // Continue to next method
-            }
+        console.log('🔍 Extracting JSON from text...');
+
+        // Method 1: Try direct parse first
+        try {
+            const parsed = JSON.parse(text);
+            console.log('✅ Direct parse successful');
+            return parsed;
+        } catch (e) {
+            console.log('❌ Direct parse failed, trying extraction methods...');
         }
 
-        // Method 2: Direct JSON object
+        // Method 2: Remove markdown code blocks
+        let cleaned = text.replace(/```(?:json)?\s*/g, '').replace(/```/g, '').trim();
+        try {
+            const parsed = JSON.parse(cleaned);
+            console.log('✅ Parsed after removing code blocks');
+            return parsed;
+        } catch (e) {
+            // Continue
+        }
+
+        // Method 3: Find JSON object with regex
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             try {
-                return JSON.parse(jsonMatch[0]);
+                const parsed = JSON.parse(jsonMatch[0]);
+                console.log('✅ Extracted JSON with regex');
+                return parsed;
             } catch (e) {
-                // Continue to next method
+                console.log('❌ Regex extraction failed');
             }
         }
 
-        // Method 3: Try to fix common JSON issues
-        const fixedText = text
-            .replace(/(\w+):/g, '"$1":')
-            .replace(/'/g, '"')
-            .replace(/,\s*}/g, '}')
-            .replace(/,\s*]/g, ']');
+        // Method 4: Try to fix common JSON formatting issues
+        try {
+            cleaned = text
+                .replace(/```json|```/g, '')
+                .replace(/^[^{]*/, '')
+                .replace(/[^}]*$/, '')
+                .replace(/,(\s*[}\]])/g, '$1')
+                .trim();
 
-        const fixedMatch = fixedText.match(/\{[\s\S]*\}/);
-        if (fixedMatch) {
-            try {
-                return JSON.parse(fixedMatch[0]);
-            } catch (e) {
-                // Final fallback
-            }
+            const parsed = JSON.parse(cleaned);
+            console.log('✅ Parsed after aggressive cleanup');
+            return parsed;
+        } catch (e) {
+            console.log('❌ All JSON extraction methods failed');
         }
 
-        return null;
+        // Method 5: Last resort fallback
+        console.warn('⚠️ Using fallback JSON structure');
+        return {
+            action: 'process_request',
+            description: text.substring(0, 200),
+            detailedSteps: [
+                'Parse user request',
+                'Execute requested operation',
+                'Return results to user'
+            ],
+            entities: { users: [], roles: [], channels: [], categories: [] },
+            parameters: {},
+            usesContext: {
+                currentChannel: false,
+                currentCategory: false,
+                repliedUser: false,
+                messageAuthor: false
+            }
+        };
     }
 
     async generateCode(analysis, resolved, message, repliedData, progressMsg) {
@@ -365,14 +391,12 @@ Generate the Discord.js v14+ code now:`;
 
             const aiResponse = response.choices[0].message.content;
 
-            // Extract code with multiple methods
             let code = this.extractCodeFromResponse(aiResponse);
 
             if (!code) {
                 throw new Error('Could not extract valid code from AI response');
             }
 
-            // Validate code syntax
             try {
                 new Function(`return ${code}`);
                 return code;
@@ -545,7 +569,7 @@ Generate the Discord.js v14+ code now:`;
         }
 
         if (resolved.roles.length > 0) {
-            const roleList = resolved.roles.map(r => `• ${r.name} (\`${u.id}\`)`).join('\n');
+            const roleList = resolved.roles.map(r => `• ${r.name} (\`${r.id}\`)`).join('\n');
             embed.addFields({
                 name: '🎭 Target Roles',
                 value: this.truncateText(roleList, 1024),
