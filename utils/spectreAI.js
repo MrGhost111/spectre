@@ -192,8 +192,8 @@ Context:
 
 CRITICAL REQUIREMENTS:
 1. Use ONLY Discord.js v14+ syntax
-2. DO NOT declare PermissionFlagsBits, ChannelType, EmbedBuilder, Colors, guild, client, or channel - they are already available
-3. Start your code with the IIFE: (async () => { ... })();
+2. Use PermissionFlagsBits for permissions
+3. Use ChannelType enum for channel types
 4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
 5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
 6. Mentions in embeds DON'T PING - use <@userId>, <@&roleId>, <#channelId> freely
@@ -307,20 +307,39 @@ Generate the code now:`;
      */
     async executeCode(code, message) {
         try {
-            // Wrap code in an async function with all required dependencies
+            const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
+            const guild = message.guild;
+            const client = message.client;
+            const channel = message.channel;
+
+            // Clean and wrap the code
+            let cleanCode = code.trim();
+
+            // Remove existing async wrappers if present
+            if (cleanCode.startsWith('(async () => {') && cleanCode.endsWith('})()')) {
+                cleanCode = cleanCode.slice(14, -4).trim();
+            } else if (cleanCode.startsWith('(async function() {') && cleanCode.endsWith('})()')) {
+                cleanCode = cleanCode.slice(19, -4).trim();
+            }
+
+            // Wrap in async function with proper return
             const wrappedCode = `
-                const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
-                const guild = message.guild;
-                const client = message.client;
-                const channel = message.channel;
-                
-                ${code}
+                return (async () => {
+                    ${cleanCode}
+                })();
             `;
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-            const executor = new AsyncFunction('message', wrappedCode);
+            const executor = new AsyncFunction(
+                'message', 'guild', 'client', 'channel',
+                'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
+                wrappedCode
+            );
 
-            const result = await executor(message);
+            const result = await executor(
+                message, guild, client, channel,
+                PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+            );
 
             return result;
         } catch (error) {
