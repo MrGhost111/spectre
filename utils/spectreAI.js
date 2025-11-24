@@ -192,8 +192,8 @@ Context:
 
 CRITICAL REQUIREMENTS:
 1. Use ONLY Discord.js v14+ syntax
-2. Use PermissionFlagsBits for permissions
-3. Use ChannelType enum for channel types
+2. DO NOT declare PermissionFlagsBits, ChannelType, EmbedBuilder, Colors, guild, client, or channel - they are already available
+3. Start your code with the IIFE: (async () => { ... })();
 4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
 5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
 6. Mentions in embeds DON'T PING - use <@userId>, <@&roleId>, <#channelId> freely
@@ -307,24 +307,20 @@ Generate the code now:`;
      */
     async executeCode(code, message) {
         try {
-            const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
-            const guild = message.guild;
-            const client = message.client;
-            const channel = message.channel;
+            // Wrap code in an async function with all required dependencies
+            const wrappedCode = `
+                const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
+                const guild = message.guild;
+                const client = message.client;
+                const channel = message.channel;
+                
+                ${code}
+            `;
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+            const executor = new AsyncFunction('message', wrappedCode);
 
-            // Execute the code directly without wrapping in return statement
-            const executor = new AsyncFunction(
-                'message', 'guild', 'client', 'channel',
-                'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
-                code
-            );
-
-            const result = await executor(
-                message, guild, client, channel,
-                PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
-            );
+            const result = await executor(message);
 
             return result;
         } catch (error) {
