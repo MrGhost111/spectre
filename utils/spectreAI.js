@@ -5,20 +5,13 @@ require('dotenv').config();
 
 class SpectreAI {
     constructor() {
-        console.log('🤖 SpectreAI instance created - INTELLIGENT MODE');
+        console.log('🤖 SpectreAI instance created');
         this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
         this.entityResolver = entityResolver;
         this.pendingConfirmations = new Map();
         this.ADMIN_ID = '753491023208120321';
-
-        this.smartPatterns = {
-            math: [/calc|calculate|compute|math|[\d\+\-\*\/\^]/, this.handleMath],
-            info: [/info|information|details|about/, this.handleInfo],
-            list: [/list|show|display|all|every/, this.handleList],
-            count: [/count|how many|total|number of/, this.handleCount],
-            search: [/find|search|look.*up|get.*info/, this.handleSearch],
-            utility: [/ping|time|date|uptime|status/, this.handleUtility]
-        };
+        this.requestCache = new Map();
+        this.cacheTimeout = 30000;
     }
 
     hasPermission(member, userId) {
@@ -26,296 +19,201 @@ class SpectreAI {
             (member && member.permissions.has(PermissionFlagsBits.Administrator));
     }
 
+    getCacheKey(message, userMessage) {
+        return `${message.guild.id}:${userMessage.toLowerCase().trim()}`;
+    }
+
     async getRepliedMessageData(message) {
         if (!message.reference) return null;
         try {
             const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-            return { author: repliedMsg.author, content: repliedMsg.content || '' };
+            return {
+                author: repliedMsg.author,
+                content: repliedMsg.content || '',
+                embeds: repliedMsg.embeds.map(embed => ({
+                    title: embed.title || '',
+                    description: embed.description || '',
+                    fields: embed.fields.map(f => ({ name: f.name, value: f.value }))
+                }))
+            };
         } catch (error) {
+            console.error('Failed to fetch replied message:', error);
             return null;
         }
     }
 
-    async intelligentAnalyze(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
-
-        const mathMatch = lowerMsg.match(/(\d+)\s*([\+\-\*\/\^])\s*(\d+)/);
-        if (mathMatch) {
-            return this.analyzeMath(mathMatch, userMessage);
+    buildContextInfo(message) {
+        let context = `- Current Channel: #${message.channel.name} (ID: ${message.channel.id})`;
+        context += `\n- Message Author: ${message.author.username} (ID: ${message.author.id})`;
+        if (message.channel.parent) {
+            context += `\n- Current Category: ${message.channel.parent.name} (ID: ${message.channel.parent.id})`;
         }
+        if (message.reference) {
+            context += `\n- User is replying to a message`;
+        }
+        return context;
+    }
 
-        for (const [category, [pattern, handler]] of Object.entries(this.smartPatterns)) {
-            if (pattern.test(lowerMsg)) {
-                const analysis = await handler.call(this, userMessage, message);
-                if (analysis) return analysis;
+    async resolveEntities(analysis, message, repliedData) {
+        const resolved = {
+            users: [],
+            roles: [],
+            channels: [],
+            categories: []
+        };
+
+        if (analysis.usesContext) {
+            if (analysis.usesContext.currentChannel) {
+                resolved.channels.push(message.channel);
+            }
+            if (analysis.usesContext.currentCategory && message.channel.parent) {
+                resolved.categories.push(message.channel.parent);
+            }
+            if (analysis.usesContext.messageAuthor) {
+                resolved.users.push(message.author);
+            }
+            if (analysis.usesContext.repliedUser && repliedData) {
+                if (!resolved.users.find(u => u.id === repliedData.author.id)) {
+                    resolved.users.push(repliedData.author);
+                }
             }
         }
 
-        return this.smartAIAnalysis(userMessage, message);
+        if (analysis.entities.users) {
+            for (const userName of analysis.entities.users) {
+                const user = await this.entityResolver.findUser(userName, message.guild);
+                if (user && !resolved.users.find(u => u.id === user.id)) {
+                    resolved.users.push(user);
+                }
+            }
+        }
+
+        if (analysis.entities.roles) {
+            for (const roleName of analysis.entities.roles) {
+                const role = this.entityResolver.findRole(roleName, message.guild);
+                if (role && !resolved.roles.find(r => r.id === role.id)) {
+                    resolved.roles.push(role);
+                }
+            }
+        }
+
+        if (analysis.entities.channels) {
+            for (const channelName of analysis.entities.channels) {
+                const channel = this.entityResolver.findChannel(channelName, message.guild);
+                if (channel && !resolved.channels.find(c => c.id === channel.id)) {
+                    resolved.channels.push(channel);
+                }
+            }
+        }
+
+        if (analysis.entities.categories) {
+            for (const categoryName of analysis.entities.categories) {
+                const category = this.entityResolver.findCategory(categoryName, message.guild);
+                if (category && !resolved.categories.find(c => c.id === category.id)) {
+                    resolved.categories.push(category);
+                }
+            }
+        }
+
+        if (message.mentions.users.size > 0) {
+            message.mentions.users.forEach(user => {
+                if (!resolved.users.find(u => u.id === user.id)) {
+                    resolved.users.push(user);
+                }
+            });
+        }
+
+        if (message.mentions.roles.size > 0) {
+            message.mentions.roles.forEach(role => {
+                if (!resolved.roles.find(r => r.id === role.id)) {
+                    resolved.roles.push(role);
+                }
+            });
+        }
+
+        if (message.mentions.channels.size > 0) {
+            message.mentions.channels.forEach(channel => {
+                if (!resolved.channels.find(c => c.id === channel.id)) {
+                    resolved.channels.push(channel);
+                }
+            });
+        }
+
+        return resolved;
     }
 
-    analyzeMath(mathMatch, userMessage) {
-        const [, num1, operator, num2] = mathMatch;
-        let result;
-        let operation;
+    async analyzeRequest(message, userMessage, repliedData, progressMsg) {
+        const cacheKey = this.getCacheKey(message, userMessage);
+        const cached = this.requestCache.get(cacheKey);
 
-        switch (operator) {
-            case '+':
-                result = parseInt(num1) + parseInt(num2);
-                operation = 'addition';
-                break;
-            case '-':
-                result = parseInt(num1) - parseInt(num2);
-                operation = 'subtraction';
-                break;
-            case '*':
-                result = parseInt(num1) * parseInt(num2);
-                operation = 'multiplication';
-                break;
-            case '/':
-                result = parseInt(num1) / parseInt(num2);
-                operation = 'division';
-                break;
-            case '^':
-                result = Math.pow(parseInt(num1), parseInt(num2));
-                operation = 'exponent';
-                break;
+        if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+            console.log('✅ Using cached analysis');
+            return cached.data;
         }
 
-        return {
-            action: 'math_calculation',
-            description: `Calculate ${num1} ${operator} ${num2} = ${result}`,
-            detailedSteps: [
-                `Parse mathematical expression: ${num1} ${operator} ${num2}`,
-                `Perform ${operation} operation`,
-                `Return result: ${result}`
-            ],
-            entities: { users: [], roles: [], channels: [], categories: [] },
-            parameters: { expression: `${num1} ${operator} ${num2}`, result: result },
-            usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-            instantResult: result,
-            operationType: 'math'
-        };
-    }
+        await progressMsg.edit({
+            embeds: [new EmbedBuilder()
+                .setColor(Colors.Yellow)
+                .setTitle('⏳ Step 1/3: Analyzing Request')
+                .setDescription('Understanding what you want to do...')
+                .setTimestamp()]
+        });
 
-    async handleInfo(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
+        const contextInfo = this.buildContextInfo(message);
 
-        if (lowerMsg.includes('channel') || lowerMsg.includes('where am i')) {
-            return {
-                action: 'get_channel_info',
-                description: 'Get information about the current channel',
-                detailedSteps: [
-                    'Access message.channel properties',
-                    'Extract channel name, ID, type, creation date',
-                    'Format information into embed fields',
-                    'Return channel details'
-                ],
-                entities: { users: [], roles: [], channels: [message.channel], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: true, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'info'
-            };
-        }
+        const prompt = `You are a Discord action analyzer. Analyze the user's request carefully.
 
-        if (lowerMsg.includes('server') || lowerMsg.includes('guild')) {
-            return {
-                action: 'get_server_info',
-                description: 'Get information about this server',
-                detailedSteps: [
-                    'Access message.guild properties',
-                    'Extract server name, member count, channel count, roles',
-                    'Get server creation date and owner information',
-                    'Format into comprehensive server info embed'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'info'
-            };
-        }
+User Message: "${userMessage}"
 
-        if (lowerMsg.includes('user') || lowerMsg.includes('member') || lowerMsg.includes('who am i')) {
-            const targetUser = await this.extractUserFromMessage(userMessage, message);
-            return {
-                action: 'get_user_info',
-                description: `Get information about ${targetUser ? targetUser.username : 'you'}`,
-                detailedSteps: [
-                    `Extract user information for ${targetUser ? targetUser.username : 'command author'}`,
-                    'Get user creation date, join date, roles, permissions',
-                    'Check if user is a bot account',
-                    'Format user details into embed'
-                ],
-                entities: { users: targetUser ? [targetUser] : [message.author], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: !targetUser },
-                operationType: 'info'
-            };
-        }
+Context:
+${contextInfo}
 
-        return null;
-    }
+${repliedData ? `Replied Message Data:
+- Author: ${repliedData.author.username} (ID: ${repliedData.author.id})
+- Content: ${repliedData.content}` : ''}
 
-    async handleList(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
+CRITICAL: Be precise with targets and understand the actual intent.
+- "what channel is this" → Get current channel information
+- "2+2" → Calculate mathematical expression
+- "list users" → List server members
 
-        if (lowerMsg.includes('user') || lowerMsg.includes('member')) {
-            return {
-                action: 'list_users',
-                description: 'List all members in this server',
-                detailedSteps: [
-                    'Access guild.members.cache',
-                    'Map members to readable list format',
-                    'Handle Discord field limits by splitting into chunks if needed',
-                    'Return formatted member list'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: { limit: 50 },
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'list'
-            };
-        }
+Your Task:
+1. Identify SPECIFIC ACTION (what to actually do)
+2. Create DETAILED EXECUTION STEPS (explain exact technical steps)
+3. Extract PARAMETERS and ENTITIES
 
-        if (lowerMsg.includes('channel')) {
-            return {
-                action: 'list_channels',
-                description: 'List all channels in this server',
-                detailedSteps: [
-                    'Access guild.channels.cache',
-                    'Filter and map channels by type',
-                    'Format channel list with types and names',
-                    'Return organized channel list'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'list'
-            };
-        }
-
-        if (lowerMsg.includes('role')) {
-            return {
-                action: 'list_roles',
-                description: 'List all roles in this server',
-                detailedSteps: [
-                    'Access guild.roles.cache',
-                    'Sort roles by position',
-                    'Map roles to readable list format',
-                    'Return role list with member counts'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'list'
-            };
-        }
-
-        return null;
-    }
-
-    async handleCount(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
-
-        if (lowerMsg.includes('member') || lowerMsg.includes('user')) {
-            return {
-                action: 'count_members',
-                description: 'Count members in this server',
-                detailedSteps: [
-                    'Access guild.members.cache',
-                    'Count total members',
-                    'Separate humans and bots',
-                    'Return count statistics'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'count'
-            };
-        }
-
-        if (lowerMsg.includes('channel')) {
-            return {
-                action: 'count_channels',
-                description: 'Count channels in this server',
-                detailedSteps: [
-                    'Access guild.channels.cache',
-                    'Count by channel type',
-                    'Return channel type breakdown'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'count'
-            };
-        }
-
-        return null;
-    }
-
-    async handleSearch(userMessage, message) {
-        return {
-            action: 'search_data',
-            description: `Search for: ${userMessage}`,
-            detailedSteps: [
-                'Analyze search query',
-                'Search through relevant Discord data',
-                'Return matching results'
-            ],
-            entities: { users: [], roles: [], channels: [], categories: [] },
-            parameters: { query: userMessage },
-            usesContext: { currentChannel: true, currentCategory: false, repliedUser: false, messageAuthor: false },
-            operationType: 'search'
-        };
-    }
-
-    async handleUtility(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
-
-        if (lowerMsg.includes('ping')) {
-            return {
-                action: 'check_ping',
-                description: 'Check bot latency',
-                detailedSteps: [
-                    'Calculate WebSocket ping',
-                    'Measure response time',
-                    'Return latency information'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: {},
-                usesContext: { currentChannel: false, currentCategory: false, repliedUser: false, messageAuthor: false },
-                operationType: 'utility'
-            };
-        }
-
-        return null;
-    }
-
-    async smartAIAnalysis(userMessage, message) {
-        const prompt = `Analyze this Discord command INTELLIGENTLY:
-
-User: "${userMessage}"
-
-Context: #${message.channel.name}, ${message.guild.name}, ${message.author.username}
-
-Respond with ONLY this JSON:
+Respond with ONLY valid JSON:
 {
   "action": "specific_action_name",
-  "description": "clear_description_of_what_will_happen",
-  "detailedSteps": ["step1", "step2", "step3"],
-  "entities": {"users": [], "roles": [], "channels": [], "categories": []},
-  "parameters": {},
-  "usesContext": {"currentChannel": false, "currentCategory": false, "repliedUser": false, "messageAuthor": false},
-  "operationType": "info|math|list|count|search|utility"
-}`;
+  "description": "Clear description of what will happen",
+  "detailedSteps": [
+    "Step 1: Specific technical action",
+    "Step 2: Specific technical action", 
+    "Step 3: Specific technical action"
+  ],
+  "entities": {
+    "users": [],
+    "roles": [],
+    "channels": [],
+    "categories": []
+  },
+  "parameters": {
+  },
+  "usesContext": {
+    "currentChannel": false,
+    "currentCategory": false,
+    "repliedUser": false,
+    "messageAuthor": false
+  }
+}
+
+Make detailedSteps very specific and technical - these will be shown to the user before execution.`;
 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-7B",
                 messages: [
-                    {
-                        role: "system",
-                        content: "You are an intelligent Discord command analyzer. Understand the actual user intent and provide SPECIFIC actions and descriptions."
-                    },
+                    { role: "system", content: "You are a Discord action analyzer. Understand the actual user intent and provide SPECIFIC actions and descriptions. Respond only with valid JSON." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 500,
@@ -325,244 +223,76 @@ Respond with ONLY this JSON:
             const aiResponse = response.choices[0].message.content;
             const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
 
-            if (jsonMatch) {
-                const analysis = JSON.parse(jsonMatch[0]);
-
-                if (analysis.action === 'execute_command') {
-                    analysis.action = this.guessBetterAction(userMessage);
-                }
-                if (!analysis.description || analysis.description.includes('execute command')) {
-                    analysis.description = this.createSmartDescription(userMessage, analysis.action);
-                }
-
-                return analysis;
-            }
-        } catch (error) {
-            console.error('Smart analysis failed:', error);
-        }
-
-        return this.createIntelligentFallback(userMessage, message);
-    }
-
-    createIntelligentFallback(userMessage, message) {
-        const lowerMsg = userMessage.toLowerCase();
-
-        if (/\d+[\+\-\*\/\^]\d+/.test(lowerMsg)) {
-            return this.analyzeMath(userMessage.match(/(\d+)\s*([\+\-\*\/\^])\s*(\d+)/), userMessage);
-        }
-
-        if (lowerMsg.includes('?')) {
-            return {
-                action: 'answer_question',
-                description: `Answer the question: "${userMessage}"`,
-                detailedSteps: [
-                    'Process the question to understand what information is needed',
-                    'Gather relevant data from Discord context',
-                    'Format answer in clear, understandable way',
-                    'Return helpful response'
-                ],
-                entities: { users: [], roles: [], channels: [], categories: [] },
-                parameters: { question: userMessage },
-                usesContext: { currentChannel: true, currentCategory: false, repliedUser: false, messageAuthor: true },
-                operationType: 'info'
-            };
-        }
-
-        return {
-            action: 'process_request',
-            description: `Process: "${userMessage}"`,
-            detailedSteps: [
-                'Analyze the request context and intent',
-                'Execute appropriate Discord.js operations',
-                'Return meaningful results based on request'
-            ],
-            entities: { users: [], roles: [], channels: [], categories: [] },
-            parameters: { request: userMessage },
-            usesContext: { currentChannel: true, currentCategory: false, repliedUser: false, messageAuthor: true },
-            operationType: 'utility'
-        };
-    }
-
-    guessBetterAction(userMessage) {
-        const lowerMsg = userMessage.toLowerCase();
-
-        if (lowerMsg.includes('list') || lowerMsg.includes('show') || lowerMsg.includes('all')) {
-            if (lowerMsg.includes('user') || lowerMsg.includes('member')) return 'list_members';
-            if (lowerMsg.includes('channel')) return 'list_channels';
-            if (lowerMsg.includes('role')) return 'list_roles';
-            return 'list_items';
-        }
-
-        if (lowerMsg.includes('info') || lowerMsg.includes('information')) {
-            if (lowerMsg.includes('channel')) return 'get_channel_info';
-            if (lowerMsg.includes('server') || lowerMsg.includes('guild')) return 'get_server_info';
-            if (lowerMsg.includes('user')) return 'get_user_info';
-            return 'get_information';
-        }
-
-        if (/\d+[\+\-\*\/]+\d+/.test(lowerMsg)) return 'math_calculation';
-        if (lowerMsg.includes('count') || lowerMsg.includes('how many')) return 'count_items';
-
-        return 'process_request';
-    }
-
-    createSmartDescription(userMessage, action) {
-        const descriptions = {
-            'math_calculation': `Calculate mathematical expression: ${userMessage}`,
-            'list_members': 'List all server members with details',
-            'get_channel_info': 'Show information about this channel',
-            'get_server_info': 'Display server statistics and information',
-            'get_user_info': 'Show user profile information',
-            'list_channels': 'Display all channels in this server',
-            'list_roles': 'Show all server roles with details',
-            'count_items': 'Count and display quantities',
-            'process_request': `Process: ${userMessage}`,
-            'answer_question': `Answer: ${userMessage}`
-        };
-
-        return descriptions[action] || `Execute: ${userMessage}`;
-    }
-
-    async extractUserFromMessage(userMessage, message) {
-        if (message.mentions.users.size > 0) {
-            return message.mentions.users.first();
-        }
-
-        const lowerMsg = userMessage.toLowerCase();
-        if (lowerMsg.includes(' me ') || lowerMsg.includes(' my ') || lowerMsg.endsWith(' me') || lowerMsg.endsWith(' my')) {
-            return message.author;
-        }
-
-        const words = userMessage.split(' ');
-        for (const word of words) {
-            if (word.length > 2 && !this.isCommonWord(word)) {
-                const user = await this.entityResolver.findUser(word, message.guild);
-                if (user) return user;
-            }
-        }
-
-        return null;
-    }
-
-    isCommonWord(word) {
-        const commonWords = ['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has', 'had', 'her', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'that', 'with', 'this', 'have', 'from', 'they', 'will', 'what', 'when', 'where', 'which'];
-        return commonWords.includes(word.toLowerCase());
-    }
-
-    async process(message, userMessage) {
-        const startTime = Date.now();
-        console.log(`🧠 Starting INTELLIGENT processing: "${userMessage}"`);
-
-        try {
-            if (!this.hasPermission(message.member, message.author.id)) {
-                return { type: 'no_permission' };
+            if (!jsonMatch) {
+                throw new Error('Failed to parse AI response');
             }
 
-            const progressMsg = await message.reply({
-                embeds: [new EmbedBuilder()
-                    .setColor(Colors.Yellow)
-                    .setTitle('🧠 Analyzing...')
-                    .setDescription('Understanding your request intelligently...')
-                    .setTimestamp()]
+            const analysis = JSON.parse(jsonMatch[0]);
+
+            this.requestCache.set(cacheKey, {
+                data: analysis,
+                timestamp: Date.now()
             });
 
-            const analysis = await this.intelligentAnalyze(userMessage, message);
-            console.log('✅ Intelligent analysis:', analysis);
-
-            if (analysis.instantResult !== undefined) {
-                await progressMsg.delete();
-                await message.reply({
-                    embeds: [new EmbedBuilder()
-                        .setColor(Colors.Green)
-                        .setTitle('✅ Calculation Result')
-                        .setDescription(`**${analysis.description}**`)
-                        .addFields(
-                            { name: 'Expression', value: analysis.parameters.expression, inline: true },
-                            { name: 'Result', value: analysis.instantResult.toString(), inline: true }
-                        )
-                        .setTimestamp()
-                    ]
-                });
-                return { type: 'instant_complete' };
-            }
-
-            const repliedData = await this.getRepliedMessageData(message);
-            const resolved = await this.resolveEntities(analysis, message, repliedData);
-            const code = await this.generateCode(analysis, resolved, message, repliedData, progressMsg);
-
-            await this.createConfirmation(message, analysis, resolved, repliedData, code, progressMsg);
-
-            console.log(`🎉 TOTAL PROCESSING TIME: ${Date.now() - startTime}ms`);
-            return { type: 'confirmation_created' };
-
+            return analysis;
         } catch (error) {
-            console.error('💥 Processing error:', error);
-            return {
-                type: 'error',
-                embed: new EmbedBuilder()
-                    .setColor(Colors.Red)
-                    .setTitle('❌ Error')
-                    .setDescription(`Failed: ${error.message}`)
-                    .setTimestamp()
-            };
+            console.error('Request analysis error:', error);
+            throw error;
         }
-    }
-
-    async resolveEntities(analysis, message, repliedData) {
-        const resolved = { users: [], roles: [], channels: [], categories: [] };
-
-        if (analysis.entities) {
-            resolved.users.push(...analysis.entities.users);
-            resolved.roles.push(...analysis.entities.roles);
-            resolved.channels.push(...analysis.entities.channels);
-            resolved.categories.push(...analysis.entities.categories);
-        }
-
-        if (analysis.usesContext) {
-            if (analysis.usesContext.currentChannel) resolved.channels.push(message.channel);
-            if (analysis.usesContext.currentCategory && message.channel.parent) resolved.categories.push(message.channel.parent);
-            if (analysis.usesContext.messageAuthor) resolved.users.push(message.author);
-            if (analysis.usesContext.repliedUser && repliedData) {
-                resolved.users.push(repliedData.author);
-            }
-        }
-
-        return resolved;
     }
 
     async generateCode(analysis, resolved, message, repliedData, progressMsg) {
         await progressMsg.edit({
             embeds: [new EmbedBuilder()
                 .setColor(Colors.Yellow)
-                .setTitle('⚡ Generating Code')
+                .setTitle('⏳ Step 2/3: Generating Code')
                 .setDescription('Creating execution plan...')
                 .setTimestamp()]
         });
 
-        const prompt = `Generate Discord.js v14 code for: ${analysis.action}
+        const prompt = `Generate Discord.js v14 code to perform this action.
 
-Targets:
-${resolved.users.length > 0 ? `- Users: ${resolved.users.map(u => u.username).join(', ')}` : ''}
-${resolved.channels.length > 0 ? `- Channels: ${resolved.channels.map(c => c.name).join(', ')}` : ''}
-${resolved.roles.length > 0 ? `- Roles: ${resolved.roles.map(r => r.name).join(', ')}` : ''}
+Action: ${analysis.action}
+Description: ${analysis.description}
+
+Resolved Entities:
+- Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
+- Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
+- Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+- Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
 
 Parameters: ${JSON.stringify(analysis.parameters)}
 
-Return IIFE that returns {success, results[]}. Use message.guild, message.channel, cache.`;
+${repliedData ? `Replied Message Data:
+- Content: ${repliedData.content}` : ''}
+
+Context:
+- Message Channel ID: ${message.channel.id}
+- Message Guild ID: ${message.guild.id}
+- Message Author ID: ${message.author.id}
+
+CRITICAL REQUIREMENTS:
+1. Variables available: guild, client, channel, message, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+2. Return format: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
+3. ALL output must be in results array - each result object becomes an embed
+4. Handle Discord limits (max 4096 chars in description, 1024 in fields)
+5. Return code as IIFE: (async () => { ... })();
+
+Generate the code now:`;
 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-7B",
                 messages: [
-                    { role: "system", content: "You are a Discord.js v14 code generator. Generate concise, executable JavaScript." },
+                    { role: "system", content: "You are a Discord.js v14 code generator. Generate executable JavaScript with proper error handling and Discord limits handling." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 1000,
+                max_tokens: 1500,
                 temperature: 0.2
             });
 
             const aiResponse = response.choices[0].message.content;
-            const codeMatch = aiResponse.match(/```(?:javascript|js)?\s*([\s\S]*?)```/) || aiResponse.match(/(\(async \(\)[^]*\}\)\))/);
+            const codeMatch = aiResponse.match(/```(?:javascript)?\s*([\s\S]*?)```/);
 
             if (codeMatch) {
                 return codeMatch[1].trim();
@@ -575,39 +305,93 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
             throw new Error('Failed to extract code from AI response');
         } catch (error) {
             console.error('Code generation error:', error);
-            return this.generateFallbackCode(analysis);
+            throw error;
         }
     }
 
-    generateFallbackCode(analysis) {
-        return `(async () => {
-    try {
-        return {
-            success: true,
-            results: [{
-                title: '✅ Action Completed',
-                description: '${analysis.description}',
-                fields: [
-                    { name: 'Action', value: '${analysis.action}', inline: true },
-                    { name: 'Status', value: 'Success', inline: true }
-                ]
-            }]
-        };
-    } catch (error) {
-        return { 
-            success: false, 
-            results: [{ title: '❌ Error', description: error.message }]
-        };
+    async executeCode(code, message) {
+        try {
+            const guild = message.guild;
+            const client = message.client;
+            const channel = message.channel;
+
+            const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+            const executor = new AsyncFunction(
+                'message',
+                'guild',
+                'client',
+                'channel',
+                'PermissionFlagsBits',
+                'ChannelType',
+                'EmbedBuilder',
+                'Colors',
+                `return ${code}`
+            );
+
+            const result = await executor(
+                message,
+                guild,
+                client,
+                channel,
+                PermissionFlagsBits,
+                ChannelType,
+                EmbedBuilder,
+                Colors
+            );
+
+            return result;
+        } catch (error) {
+            console.error('Code execution error:', error);
+            return {
+                success: false,
+                results: [{
+                    title: '❌ Execution Error',
+                    description: `\`\`\`\n${error.message}\n\`\`\`\n\nThe code failed to execute. This might be due to:\n• Missing permissions\n• Invalid entity references\n• Discord API rate limits\n\nPlease try rephrasing your request.`
+                }]
+            };
+        }
     }
-})();`;
+
+    isDangerousAction(analysis, resolved) {
+        const dangers = {
+            isBlocked: false,
+            reasons: []
+        };
+
+        const action = analysis.action.toLowerCase();
+        const destructiveKeywords = ['delete', 'remove', 'ban', 'kick'];
+
+        if (destructiveKeywords.some(keyword => action.includes(keyword))) {
+            const totalTargets = (resolved.channels?.length || 0) +
+                (resolved.users?.length || 0) +
+                (resolved.roles?.length || 0);
+
+            if (totalTargets > 5) {
+                dangers.isBlocked = true;
+                dangers.reasons.push(`🚨 Mass ${action} detected (${totalTargets} targets, max: 5)`);
+            }
+        }
+
+        if (analysis.parameters) {
+            const messageCount = parseInt(analysis.parameters.count) ||
+                parseInt(analysis.parameters.amount) ||
+                parseInt(analysis.parameters.messages) || 0;
+
+            if (messageCount > 10) {
+                dangers.isBlocked = true;
+                dangers.reasons.push(`⚠️ Attempting to send ${messageCount} messages (max: 10)`);
+            }
+        }
+
+        return dangers;
     }
 
     async createConfirmation(message, analysis, resolved, repliedData, code, progressMsg) {
         await progressMsg.edit({
             embeds: [new EmbedBuilder()
                 .setColor(Colors.Yellow)
-                .setTitle('⚡ Finalizing')
-                .setDescription('Preparing confirmation...')
+                .setTitle('⏳ Step 3/3: Preparing Confirmation')
+                .setDescription('Building action details...')
                 .setTimestamp()]
         });
 
@@ -616,40 +400,90 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
 
         const embed = new EmbedBuilder()
             .setColor(dangers.isBlocked ? Colors.Red : Colors.Orange)
-            .setTitle(dangers.isBlocked ? '🚫 Action Blocked' : '⚠️ Confirm Action')
-            .setDescription(analysis.description)
-            .setFooter({ text: dangers.isBlocked ? 'Blocked for safety' : '60 seconds to confirm' })
+            .setTitle(dangers.isBlocked ? '🚫 Action Blocked' : '⚠️ Confirmation Required')
+            .setFooter({ text: dangers.isBlocked ? 'This action has been blocked for safety.' : 'You have 60 seconds to respond.' })
             .setTimestamp();
+
+        embed.addFields({
+            name: '🎯 What I Understood',
+            value: analysis.description,
+            inline: false
+        });
 
         if (analysis.detailedSteps && analysis.detailedSteps.length > 0) {
             let stepsText = analysis.detailedSteps.map((step, i) => `${i + 1}. ${step}`).join('\n');
+
             if (stepsText.length > 1024) {
-                stepsText = stepsText.substring(0, 1020) + '...';
+                const chunks = this.splitText(stepsText, 1024);
+                chunks.forEach((chunk, i) => {
+                    embed.addFields({
+                        name: i === 0 ? '📋 What Bot Will Do' : '📋 Continued',
+                        value: chunk,
+                        inline: false
+                    });
+                });
+            } else {
+                embed.addFields({
+                    name: '📋 What Bot Will Do',
+                    value: stepsText,
+                    inline: false
+                });
             }
+        }
+
+        if (resolved.users.length > 0) {
+            const userList = resolved.users.map(u => `• ${u.username} (\`${u.id}\`)`).join('\n');
             embed.addFields({
-                name: '📋 What I Will Do',
-                value: stepsText,
+                name: '👥 Target Users',
+                value: this.truncateText(userList, 1024),
+                inline: true
+            });
+        }
+
+        if (resolved.roles.length > 0) {
+            const roleList = resolved.roles.map(r => `• ${r.name} (\`${r.id}\`)`).join('\n');
+            embed.addFields({
+                name: '🎭 Target Roles',
+                value: this.truncateText(roleList, 1024),
+                inline: true
+            });
+        }
+
+        if (resolved.channels.length > 0) {
+            const channelList = resolved.channels.map(c => `• #${c.name} (\`${c.id}\`)`).join('\n');
+            embed.addFields({
+                name: '📝 Target Channels',
+                value: this.truncateText(channelList, 1024),
+                inline: true
+            });
+        }
+
+        if (resolved.categories.length > 0) {
+            const catList = resolved.categories.map(c => `• ${c.name} (\`${c.id}\`)`).join('\n');
+            embed.addFields({
+                name: '📁 Target Categories',
+                value: this.truncateText(catList, 1024),
+                inline: true
+            });
+        }
+
+        if (analysis.parameters && Object.keys(analysis.parameters).length > 0) {
+            const paramsText = Object.entries(analysis.parameters)
+                .map(([key, value]) => `• **${key}:** ${value}`)
+                .join('\n');
+            embed.addFields({
+                name: '⚙️ Parameters',
+                value: this.truncateText(paramsText, 1024),
                 inline: false
             });
         }
 
-        if (resolved.users.length > 0) {
-            const userList = resolved.users.map(u => `• ${u.username}`).join('\n');
-            embed.addFields({ name: '👥 Users', value: userList, inline: true });
-        }
-
-        if (resolved.roles.length > 0) {
-            const roleList = resolved.roles.map(r => `• ${r.name}`).join('\n');
-            embed.addFields({ name: '🎭 Roles', value: roleList, inline: true });
-        }
-
-        if (resolved.channels.length > 0) {
-            const channelList = resolved.channels.map(c => `• #${c.name}`).join('\n');
-            embed.addFields({ name: '📝 Channels', value: channelList, inline: true });
-        }
-
-        if (dangers.isBlocked) {
-            embed.addFields({ name: '🚨 Blocked', value: dangers.reasons.join('\n'), inline: false });
+        if (dangers.isBlocked && dangers.reasons.length > 0) {
+            embed.addFields({
+                name: '🚨 Blocked Reasons',
+                value: dangers.reasons.join('\n'),
+                inline: false
+            });
         }
 
         const row = new ActionRowBuilder()
@@ -671,44 +505,55 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
         const confirmMsg = await message.reply({ embeds: [embed], components: [row] });
 
         this.pendingConfirmations.set(confirmationId, {
-            analysis, resolved, message, repliedData, code,
+            analysis,
+            resolved,
+            message,
+            repliedData,
+            code,
             authorId: message.author.id,
             expiresAt: Date.now() + 60000,
             blocked: dangers.isBlocked
         });
 
+        console.log(`✅ Confirmation created: ${confirmationId}`);
+
         setTimeout(() => {
             if (this.pendingConfirmations.has(confirmationId)) {
                 this.pendingConfirmations.delete(confirmationId);
-                embed.setTitle('⏰ Expired').setColor(Colors.Red);
+                console.log(`⏰ Confirmation expired: ${confirmationId}`);
+                embed.setTitle('⏰ Confirmation Expired').setColor(Colors.Red);
                 confirmMsg.edit({ embeds: [embed], components: [] }).catch(() => { });
             }
         }, 60000);
-
-        console.log(`✅ Confirmation created: ${confirmationId}`);
     }
 
-    isDangerousAction(analysis, resolved) {
-        const dangers = { isBlocked: false, reasons: [] };
-        const action = analysis.action.toLowerCase();
-        const destructiveKeywords = ['delete', 'remove', 'ban', 'kick', 'prune', 'nuke'];
+    splitText(text, maxLength) {
+        const chunks = [];
+        let current = '';
+        const lines = text.split('\n');
 
-        if (destructiveKeywords.some(keyword => action.includes(keyword))) {
-            const totalTargets = resolved.channels.length + resolved.users.length + resolved.roles.length;
-            if (totalTargets > 5) {
-                dangers.isBlocked = true;
-                dangers.reasons.push(`Mass ${action} (${totalTargets} targets)`);
+        for (const line of lines) {
+            if ((current + line + '\n').length > maxLength) {
+                if (current) chunks.push(current.trim());
+                current = line + '\n';
+            } else {
+                current += line + '\n';
             }
         }
 
-        return dangers;
+        if (current) chunks.push(current.trim());
+        return chunks;
+    }
+
+    truncateText(text, maxLength) {
+        return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
     }
 
     async handleConfirmation(interaction, confirmed) {
         const customId = interaction.customId;
         const confirmationId = customId.replace(/_confirm$|_cancel$/, '');
 
-        console.log(`🔘 Button clicked: ${customId}, confirmed: ${confirmed}`);
+        console.log(`🔘 Button clicked: ${customId}`);
 
         const confirmData = this.pendingConfirmations.get(confirmationId);
 
@@ -751,6 +596,7 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
         }
 
         await interaction.deferUpdate();
+
         this.executeAndSendResults(confirmData, interaction, originalEmbed).catch(error => {
             console.error('💥 Background execution error:', error);
         });
@@ -758,11 +604,11 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
 
     async executeAndSendResults(confirmData, interaction, originalEmbed) {
         try {
-            console.log('⚡ Executing code...');
+            console.log('⚙️ Executing code...');
 
             const executingEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(Colors.Yellow)
-                .setTitle('⚡ Executing...')
+                .setTitle('⚙️ Executing...')
                 .setFooter({ text: 'Running action...' });
 
             await interaction.editReply({ embeds: [executingEmbed], components: [] });
@@ -777,7 +623,7 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
             await interaction.editReply({ embeds: [completedEmbed] });
 
             if (result && result.results && result.results.length > 0) {
-                for (const output of result.results) {
+                const sendPromises = result.results.map(output => {
                     const outputEmbed = new EmbedBuilder()
                         .setColor(result.success ? Colors.Green : Colors.Red)
                         .setTitle(output.title || '📊 Result')
@@ -788,11 +634,14 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
                     }
 
                     if (output.fields && output.fields.length > 0) {
-                        outputEmbed.addFields(output.fields.slice(0, 25));
+                        const fields = output.fields.slice(0, 25);
+                        outputEmbed.addFields(fields);
                     }
 
-                    await confirmData.message.channel.send({ embeds: [outputEmbed] });
-                }
+                    return confirmData.message.channel.send({ embeds: [outputEmbed] });
+                });
+
+                await Promise.all(sendPromises);
             } else {
                 const fallbackEmbed = new EmbedBuilder()
                     .setColor(Colors.Blue)
@@ -823,31 +672,37 @@ Return IIFE that returns {success, results[]}. Use message.guild, message.channe
         }
     }
 
-    async executeCode(code, message) {
+    async process(message, userMessage) {
         try {
-            const guild = message.guild;
-            const client = message.client;
-            const channel = message.channel;
+            if (!this.hasPermission(message.member, message.author.id)) {
+                return { type: 'no_permission' };
+            }
 
-            const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-            const executor = new AsyncFunction(
-                'message', 'guild', 'client', 'channel', 'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
-                `return ${code}`
-            );
+            const progressMsg = await message.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor(Colors.Yellow)
+                    .setTitle('⏳ Processing Request')
+                    .setDescription('Starting...')
+                    .setTimestamp()]
+            });
 
-            const result = await executor(
-                message, guild, client, channel, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
-            );
+            const repliedData = await this.getRepliedMessageData(message);
+            const analysis = await this.analyzeRequest(message, userMessage, repliedData, progressMsg);
+            const resolved = await this.resolveEntities(analysis, message, repliedData);
+            const code = await this.generateCode(analysis, resolved, message, repliedData, progressMsg);
+            await this.createConfirmation(message, analysis, resolved, repliedData, code, progressMsg);
 
-            return result;
+            return { type: 'confirmation_created' };
+
         } catch (error) {
-            console.error('Code execution error:', error);
+            console.error('Spectre AI processing error:', error);
             return {
-                success: false,
-                results: [{
-                    title: '❌ Execution Error',
-                    description: `\`\`\`\n${error.message}\n\`\`\``
-                }]
+                type: 'error',
+                embed: new EmbedBuilder()
+                    .setColor(Colors.Red)
+                    .setTitle('❌ Error')
+                    .setDescription(`An error occurred: ${error.message}`)
+                    .setTimestamp()
             };
         }
     }
