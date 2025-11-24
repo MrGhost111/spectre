@@ -63,7 +63,7 @@ class SpectreAI {
     }
 
     /**
-     * Resolve entities with replied message support
+     * Enhanced entity resolution with better AI analysis
      */
     async resolveEntities(analysis, message, repliedData) {
         const resolved = {
@@ -73,63 +73,110 @@ class SpectreAI {
             categories: []
         };
 
+        console.log('🔍 Resolving entities from analysis:', analysis.entities);
+
         // Handle context-based entities first
         if (analysis.usesContext) {
             if (analysis.usesContext.currentChannel) {
+                console.log('📝 Adding current channel to resolved entities');
                 resolved.channels.push(message.channel);
             }
             if (analysis.usesContext.currentCategory && message.channel.parent) {
+                console.log('📝 Adding current category to resolved entities');
                 resolved.categories.push(message.channel.parent);
             }
             if (analysis.usesContext.messageAuthor) {
+                console.log('📝 Adding message author to resolved entities');
                 resolved.users.push(message.author);
             }
             if (analysis.usesContext.repliedUser && repliedData) {
+                console.log('📝 Adding replied user to resolved entities');
                 if (!resolved.users.find(u => u.id === repliedData.author.id)) {
                     resolved.users.push(repliedData.author);
                 }
             }
         }
 
-        // Resolve entity names using fuzzy search
-        if (analysis.entities.users) {
+        // Enhanced entity resolution using entityResolver
+        if (analysis.entities.users && analysis.entities.users.length > 0) {
+            console.log(`👥 Resolving users: ${analysis.entities.users.join(', ')}`);
             for (const userName of analysis.entities.users) {
-                const user = await this.entityResolver.findUser(userName, message.guild);
-                if (user && !resolved.users.find(u => u.id === user.id)) {
-                    resolved.users.push(user);
+                try {
+                    const user = await this.entityResolver.findUser(userName, message.guild);
+                    if (user) {
+                        if (!resolved.users.find(u => u.id === user.id)) {
+                            console.log(`✅ Resolved user: ${userName} -> ${user.username}`);
+                            resolved.users.push(user);
+                        }
+                    } else {
+                        console.log(`❌ Could not resolve user: ${userName}`);
+                    }
+                } catch (error) {
+                    console.error(`Error resolving user ${userName}:`, error);
                 }
             }
         }
 
-        if (analysis.entities.roles) {
+        if (analysis.entities.roles && analysis.entities.roles.length > 0) {
+            console.log(`🎭 Resolving roles: ${analysis.entities.roles.join(', ')}`);
             for (const roleName of analysis.entities.roles) {
-                const role = this.entityResolver.findRole(roleName, message.guild);
-                if (role && !resolved.roles.find(r => r.id === role.id)) {
-                    resolved.roles.push(role);
+                try {
+                    const role = this.entityResolver.findRole(roleName, message.guild);
+                    if (role) {
+                        if (!resolved.roles.find(r => r.id === role.id)) {
+                            console.log(`✅ Resolved role: ${roleName} -> ${role.name}`);
+                            resolved.roles.push(role);
+                        }
+                    } else {
+                        console.log(`❌ Could not resolve role: ${roleName}`);
+                    }
+                } catch (error) {
+                    console.error(`Error resolving role ${roleName}:`, error);
                 }
             }
         }
 
-        if (analysis.entities.channels) {
+        if (analysis.entities.channels && analysis.entities.channels.length > 0) {
+            console.log(`📝 Resolving channels: ${analysis.entities.channels.join(', ')}`);
             for (const channelName of analysis.entities.channels) {
-                const channel = this.entityResolver.findChannel(channelName, message.guild);
-                if (channel && !resolved.channels.find(c => c.id === channel.id)) {
-                    resolved.channels.push(channel);
+                try {
+                    const channel = this.entityResolver.findChannel(channelName, message.guild);
+                    if (channel) {
+                        if (!resolved.channels.find(c => c.id === channel.id)) {
+                            console.log(`✅ Resolved channel: ${channelName} -> ${channel.name}`);
+                            resolved.channels.push(channel);
+                        }
+                    } else {
+                        console.log(`❌ Could not resolve channel: ${channelName}`);
+                    }
+                } catch (error) {
+                    console.error(`Error resolving channel ${channelName}:`, error);
                 }
             }
         }
 
-        if (analysis.entities.categories) {
+        if (analysis.entities.categories && analysis.entities.categories.length > 0) {
+            console.log(`📁 Resolving categories: ${analysis.entities.categories.join(', ')}`);
             for (const categoryName of analysis.entities.categories) {
-                const category = this.entityResolver.findCategory(categoryName, message.guild);
-                if (category && !resolved.categories.find(c => c.id === category.id)) {
-                    resolved.categories.push(category);
+                try {
+                    const category = this.entityResolver.findCategory(categoryName, message.guild);
+                    if (category) {
+                        if (!resolved.categories.find(c => c.id === category.id)) {
+                            console.log(`✅ Resolved category: ${categoryName} -> ${category.name}`);
+                            resolved.categories.push(category);
+                        }
+                    } else {
+                        console.log(`❌ Could not resolve category: ${categoryName}`);
+                    }
+                } catch (error) {
+                    console.error(`Error resolving category ${categoryName}:`, error);
                 }
             }
         }
 
         // Check mentions in original message
         if (message.mentions.users.size > 0) {
+            console.log('👥 Adding mentioned users');
             message.mentions.users.forEach(user => {
                 if (!resolved.users.find(u => u.id === user.id)) {
                     resolved.users.push(user);
@@ -138,6 +185,7 @@ class SpectreAI {
         }
 
         if (message.mentions.roles.size > 0) {
+            console.log('🎭 Adding mentioned roles');
             message.mentions.roles.forEach(role => {
                 if (!resolved.roles.find(r => r.id === role.id)) {
                     resolved.roles.push(role);
@@ -146,12 +194,20 @@ class SpectreAI {
         }
 
         if (message.mentions.channels.size > 0) {
+            console.log('📝 Adding mentioned channels');
             message.mentions.channels.forEach(channel => {
                 if (!resolved.channels.find(c => c.id === channel.id)) {
                     resolved.channels.push(channel);
                 }
             });
         }
+
+        console.log('✅ Final resolved entities:', {
+            users: resolved.users.map(u => u.username),
+            roles: resolved.roles.map(r => r.name),
+            channels: resolved.channels.map(c => c.name),
+            categories: resolved.categories.map(c => c.name)
+        });
 
         return resolved;
     }
@@ -170,31 +226,107 @@ class SpectreAI {
 
         const prompt = `Generate Discord.js v14 code to perform this action.
 
-IMPORTANT: DO NOT use require() statements in your code.All Discord.js components are already available.
+CRITICAL REQUIREMENTS FOR RESULTS:
+1. ALWAYS return meaningful results that show WHAT actually happened
+2. For channel operations: include channel mentions <#channelId>
+3. For user operations: include user mentions <@userId> 
+4. For role operations: include role mentions <@&roleId>
+5. Show actual data that was processed, not just "success"
+6. Include counts, names, and specific outcomes
+7. If fetching data, show the actual data retrieved
+8. If modifying something, show before/after states
+9. Use ONLY Discord.js v14+ syntax
+10. Use PermissionFlagsBits for permissions
+11. Use ChannelType enum for channel types
+12. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
+13. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
+14. Mentions in embeds DON'T PING - use <@userId>, <@&roleId>, <#channelId> freely
+15. Handle large data by splitting:
+    - If description > 4000 chars, split into multiple result objects
+    - If field value > 1024 chars, split into multiple fields
+    - If total fields > 25, split into multiple embeds
+16. For operations on >100 items, process in batches of 100
+17. NEVER send plain text messages - only embeds via results array
+18. Handle ALL errors gracefully with try-catch
+19. Use Colors from discord.js for embed colors
 
-Available variables in scope:
-        - PermissionFlagsBits, ChannelType, EmbedBuilder, Colors(from discord.js)
-            - message, guild, client, channel(Discord objects)
-            - console, setTimeout, setInterval, Promise, Date, JSON, Math(standard JS)
-
-DO NOT USE:
-        - const { anything } = require('discord.js');
-        - const discord = require('discord.js');
-
-INSTEAD USE:
-        - PermissionFlagsBits.Administrator(already imported)
-            - ChannelType.GuildText(already imported)
-            - new EmbedBuilder()(already imported)
-            - Colors.Red(already imported)
-
-Action: ${analysis.action}
-Description: ${analysis.description}
-
-Resolved Entities:
+RESOLVED ENTITIES TO USE IN CODE:
 - Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
 - Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
 - Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
 - Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+
+Example for banning a user:
+\`\`\`javascript
+(async () => {
+    try {
+        const targetUser = guild.members.cache.get('${resolved.users[0]?.id || 'USER_ID'}');
+        if (!targetUser) {
+            return {
+                success: false,
+                results: [{
+                    title: '❌ User Not Found',
+                    description: 'Could not find the specified user.'
+                }]
+            };
+        }
+
+        await targetUser.ban({ reason: 'Banned by SpectreAI' });
+        
+        return {
+            success: true,
+            results: [{
+                title: '✅ User Banned',
+                description: \`Successfully banned <@\${targetUser.id}> (\${targetUser.user.username})\`,
+                fields: [
+                    { name: 'User ID', value: targetUser.id, inline: true },
+                    { name: 'Username', value: targetUser.user.tag, inline: true }
+                ]
+            }]
+        };
+    } catch (error) {
+        return {
+            success: false,
+            results: [{
+                title: '❌ Ban Failed',
+                description: \`Failed to ban user: \${error.message}\`
+            }]
+        };
+    }
+})();
+\`\`\`
+
+Example for listing current channel:
+\`\`\`javascript
+(async () => {
+    try {
+        const channel = message.channel;
+        return {
+            success: true,
+            results: [{
+                title: '📊 Current Channel Info',
+                description: \`**Channel:** <#\${channel.id}>\\n**Name:** \${channel.name}\\n**ID:** \${channel.id}\\n**Category:** \${channel.parent ? channel.parent.name : 'None'}\`,
+                fields: [
+                    { name: 'Type', value: channel.type.toString(), inline: true },
+                    { name: 'Created', value: \`<t:\${Math.floor(channel.createdTimestamp / 1000)}:R>\`, inline: true },
+                    { name: 'Position', value: channel.position.toString(), inline: true }
+                ]
+            }]
+        };
+    } catch (error) {
+        return {
+            success: false,
+            results: [{
+                title: '❌ Error',
+                description: error.message
+            }]
+        };
+    }
+})();
+\`\`\`
+
+Action: ${analysis.action}
+Description: ${analysis.description}
 
 Parameters: ${JSON.stringify(analysis.parameters)}
 
@@ -207,94 +339,13 @@ Context:
 - Message Guild ID: ${message.guild.id}
 - Message Author ID: ${message.author.id}
 
-CRITICAL REQUIREMENTS:
-1. Use ONLY Discord.js v14+ syntax
-2. Use PermissionFlagsBits for permissions
-3. Use ChannelType enum for channel types
-4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
-5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
-6. Mentions in embeds DON'T PING - use <@userId>, <@&roleId>, <#channelId> freely
-7. Handle large data by splitting:
-   - If description > 4000 chars, split into multiple result objects
-   - If field value > 1024 chars, split into multiple fields
-   - If total fields > 25, split into multiple embeds
-8. For operations on >100 items, process in batches of 100
-9. For fetching messages beyond 100, use batching:
-   \`\`\`javascript
-   let allMessages = [];
-   let lastId;
-   while (allMessages.length < targetAmount) {
-       const options = { limit: 100 };
-       if (lastId) options.before = lastId;
-       const batch = await channel.messages.fetch(options);
-       if (batch.size === 0) break;
-       allMessages.push(...batch.values());
-       lastId = batch.last().id;
-   }
-   \`\`\`
-10. NEVER send plain text messages - only embeds via results array
-11. Handle ALL errors gracefully with try-catch
-12. Use Colors from discord.js for embed colors
-
-Example for splitting long lists:
-\`\`\`javascript
-(async () => {
-    try {
-        const results = [];
-        const items = [...]; // large array
-        
-        // Split items into chunks for embed fields (each field max 1024 chars)
-        const formatChunk = (chunk) => chunk.map(i => \`• \${i}\`).join('\\n');
-        
-        let currentChunk = [];
-        let currentLength = 0;
-        const fields = [];
-        
-        for (const item of items) {
-            const line = \`• \${item}\\n\`;
-            if (currentLength + line.length > 1024) {
-                fields.push({ name: 'Items', value: formatChunk(currentChunk) });
-                currentChunk = [item];
-                currentLength = line.length;
-            } else {
-                currentChunk.push(item);
-                currentLength += line.length;
-            }
-        }
-        if (currentChunk.length > 0) {
-            fields.push({ name: 'Items', value: formatChunk(currentChunk) });
-        }
-        
-        // Split into multiple embeds if >25 fields
-        while (fields.length > 0) {
-            const embedFields = fields.splice(0, 25);
-            results.push({
-                title: 'Results',
-                description: \`Showing \${embedFields.length} fields\`,
-                fields: embedFields
-            });
-        }
-        
-        return { success: true, results };
-    } catch (error) {
-        return { 
-            success: false, 
-            results: [{
-                title: '❌ Error',
-                description: error.message
-            }]
-        };
-    }
-})();
-\`\`\`
-
-Generate the code now:`;
+Generate the code now. Use the RESOLVED ENTITIES above in your code:`;
 
         try {
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord.js v14 code generator. Generate only executable JavaScript code with proper error handling and batching." },
+                    { role: "system", content: "You are a Discord.js v14 code generator. Generate only executable JavaScript code with proper error handling and meaningful results that show actual data. Use the resolved entities provided in the prompt." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 2000,
@@ -324,6 +375,7 @@ Generate the code now:`;
      */
     async executeCode(code, message) {
         try {
+            // Pre-require all necessary modules and make them available
             const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
             const guild = message.guild;
             const client = message.client;
@@ -339,26 +391,62 @@ Generate the code now:`;
                 cleanCode = cleanCode.slice(19, -4).trim();
             }
 
-            // Wrap in async function with proper return
+            // Create a safe execution environment with all required modules
+            const executionContext = {
+                // Discord.js modules
+                PermissionFlagsBits,
+                ChannelType,
+                EmbedBuilder,
+                Colors,
+
+                // Discord objects
+                message,
+                guild,
+                client,
+                channel,
+
+                // Node.js globals (safe ones)
+                console,
+                setTimeout,
+                setInterval,
+                clearTimeout,
+                clearInterval,
+                Promise,
+                Date,
+                JSON,
+                Math,
+
+                // Make require available for the AI code
+                require
+            };
+
+            // Wrap in async function with proper return and error handling
             const wrappedCode = `
-                return (async () => {
+                try {
                     ${cleanCode}
-                })();
+                } catch (error) {
+                    return {
+                        success: false,
+                        results: [{
+                            title: '❌ Execution Error',
+                            description: 'Error: ' + error.message
+                        }]
+                    };
+                }
             `;
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+
+            // Pass all context variables to the function
             const executor = new AsyncFunction(
-                'message', 'guild', 'client', 'channel',
-                'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
-                wrappedCode
+                ...Object.keys(executionContext),
+                `return (async () => { ${wrappedCode} })();`
             );
 
-            const result = await executor(
-                message, guild, client, channel,
-                PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
-            );
-
+            // Execute with all context
+            const result = await executor(...Object.values(executionContext));
             return result;
+
         } catch (error) {
             console.error('Code execution error:', error);
             return {
@@ -372,7 +460,7 @@ Generate the code now:`;
     }
 
     /**
-     * Analyze request and generate code BEFORE confirmation
+     * Enhanced analysis with better entity extraction
      */
     async analyzeAndPrepare(message, userMessage, progressMsg) {
         const contextInfo = this.buildContextInfo(message);
@@ -390,29 +478,30 @@ ${repliedData ? `Replied Message Data:
 - Content: ${repliedData.content}
 - Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
 
-
-IMPORTANT CONTEXT TERMS:
+CRITICAL CONTEXT RULES:
 - "this channel" / "here" = current channel (${message.channel.name})
 - "this category" = current category (${message.channel.parent?.name || 'none'})
 - "this user" (when replying) = the user being replied to
 - "this message" (when replying) = the message being replied to
 - "me" / "my" = the command author (${message.author.username})
+- Specific names like "def bot", "wolfy", "admin role" = search for those exact entities
 
-IMPORTANT: Be careful with pronouns and context:
-- If user says "ban wolfy", target ONLY wolfy, NOT the message author
-- If user says "give me admin", target the message author
-- If user says "delete this channel", target current channel
-- If replying and says "ban this user", target the replied user
+PRONOUN AND CONTEXT ANALYSIS:
+- If user says "ban def bot", target user named "def bot", NOT the message author
+- If user says "give me admin", target the message author (${message.author.username})
+- If user says "delete general channel", target channel named "general"
+- If replying and says "ban this user", target the replied user (${repliedData?.author.username || 'N/A'})
+- If user mentions a specific name, ALWAYS include it in entities
 
 Discord Entities:
-- Users: Members (mentioned with @username or by name)
-- Roles: Permission groups (@rolename or by name)
-- Channels: Text/voice channels (#channel or by name)
+- Users: Members (mentioned with @username or by name like "def bot")
+- Roles: Permission groups (@rolename or by name like "admin role")
+- Channels: Text/voice channels (#channel or by name like "general")
 - Categories: Groups of channels
 
 Your Task:
 1. Identify the ACTION (what to do)
-2. Identify TARGET entities (users, roles, channels, categories)
+2. Identify TARGET entities (users, roles, channels, categories) - be specific about names mentioned
 3. Extract PARAMETERS (names, values, settings)
 4. Describe DETAILED STEPS of execution (be specific about what will happen)
 5. Understand context correctly - don't confuse subjects
@@ -422,14 +511,14 @@ Respond with ONLY valid JSON:
   "action": "descriptive_action_name",
   "description": "Brief human readable description",
   "detailedSteps": [
-    "Step 1: Specific action (e.g., 'Search for user named wolfy using entity resolver')",
+    "Step 1: Specific action (e.g., 'Search for user named def bot using entity resolver')",
     "Step 2: Another action (e.g., 'Ban the user if found')",
     "Step 3: Final step (e.g., 'Send result embed with ban confirmation')"
   ],
   "entities": {
-    "users": ["username1"],
-    "roles": ["rolename1"],
-    "channels": ["channelname1"],
+    "users": ["username1", "def bot", "wolfy"],
+    "roles": ["rolename1", "admin role"],
+    "channels": ["channelname1", "general"],
     "categories": ["categoryname1"]
   },
   "parameters": {
@@ -456,7 +545,7 @@ Respond with ONLY valid JSON:
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord action analyzer. Respond only with valid JSON. Be careful with context and don't confuse subjects." },
+                    { role: "system", content: "You are a Discord action analyzer. Respond only with valid JSON. Be careful with context and don't confuse subjects. Always extract specific entity names mentioned in the user message." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 800,
@@ -471,6 +560,7 @@ Respond with ONLY valid JSON:
             }
 
             const analysis = JSON.parse(jsonMatch[0]);
+            console.log('🔍 AI Analysis Result:', JSON.stringify(analysis, null, 2));
 
             // Resolve entities
             await progressMsg.edit({
@@ -575,9 +665,9 @@ Respond with ONLY valid JSON:
             }
         }
 
-        // Show affected entities (parameters)
+        // Show affected entities with proper mentions
         if (resolved.users.length > 0) {
-            const userList = resolved.users.map(u => `• ${u.username} (${u.id})`).join('\n');
+            const userList = resolved.users.map(u => `• <@${u.id}> (${u.username})`).join('\n');
             embed.addFields({
                 name: '👥 Target Users',
                 value: this.truncateText(userList, 1024),
@@ -586,7 +676,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.roles.length > 0) {
-            const roleList = resolved.roles.map(r => `• ${r.name} (${r.id})`).join('\n');
+            const roleList = resolved.roles.map(r => `• <@&${r.id}> (${r.name})`).join('\n');
             embed.addFields({
                 name: '🎭 Target Roles',
                 value: this.truncateText(roleList, 1024),
@@ -595,7 +685,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.channels.length > 0) {
-            const channelList = resolved.channels.map(c => `• #${c.name} (${c.id})`).join('\n');
+            const channelList = resolved.channels.map(c => `• <#${c.id}> (${c.name})`).join('\n');
             embed.addFields({
                 name: '📝 Target Channels',
                 value: this.truncateText(channelList, 1024),
@@ -604,7 +694,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.categories.length > 0) {
-            const catList = resolved.categories.map(c => `• ${c.name} (${c.id})`).join('\n');
+            const catList = resolved.categories.map(c => `• ${c.name} (ID: ${c.id})`).join('\n');
             embed.addFields({
                 name: '📁 Target Categories',
                 value: this.truncateText(catList, 1024),
@@ -704,6 +794,17 @@ Respond with ONLY valid JSON:
     }
 
     /**
+     * Helper: Split array into chunks
+     */
+    chunkArray(array, chunkSize) {
+        const chunks = [];
+        for (let i = 0; i < array.length; i += chunkSize) {
+            chunks.push(array.slice(i, i + chunkSize));
+        }
+        return chunks;
+    }
+
+    /**
      * Handle confirmation button clicks
      */
     async handleConfirmation(interaction, confirmed) {
@@ -775,40 +876,75 @@ Respond with ONLY valid JSON:
             console.log('⚙️ Executing code...');
             const result = await this.executeCode(confirmData.code, confirmData.message);
 
+            console.log('📊 Execution result:', JSON.stringify(result, null, 2));
+
             // Update confirmation to completed
             const completedEmbed = EmbedBuilder.from(originalEmbed)
-                .setColor(Colors.Green)
-                .setTitle('✅ Action Completed')
-                .setFooter({ text: 'Execution finished' });
+                .setColor(result.success ? Colors.Green : Colors.Red)
+                .setTitle(result.success ? '✅ Action Completed' : '❌ Action Failed')
+                .setFooter({ text: result.success ? 'Execution finished' : 'Execution failed' });
 
             await interaction.editReply({ embeds: [completedEmbed] });
 
-            // Send results
-            if (result && result.results && result.results.length > 0) {
+            // Send results - FIXED: Check if results exist and handle them properly
+            if (result && result.results && Array.isArray(result.results) && result.results.length > 0) {
+                console.log(`📨 Sending ${result.results.length} result embeds`);
+
                 for (const output of result.results) {
-                    const outputEmbed = new EmbedBuilder()
-                        .setColor(result.success ? Colors.Green : Colors.Red)
-                        .setTitle(output.title || '📊 Result')
-                        .setTimestamp();
+                    try {
+                        const outputEmbed = new EmbedBuilder()
+                            .setColor(result.success ? Colors.Green : Colors.Red)
+                            .setTitle(output.title || (result.success ? '📊 Result' : '❌ Error'))
+                            .setTimestamp();
 
-                    if (output.description) {
-                        outputEmbed.setDescription(output.description);
+                        if (output.description) {
+                            outputEmbed.setDescription(output.description);
+                        }
+
+                        if (output.fields && Array.isArray(output.fields) && output.fields.length > 0) {
+                            // Add fields in chunks of 25 (Discord limit)
+                            const fieldChunks = this.chunkArray(output.fields, 25);
+                            for (const fields of fieldChunks) {
+                                const chunkEmbed = new EmbedBuilder(outputEmbed.toJSON());
+                                chunkEmbed.addFields(fields);
+                                await confirmData.message.channel.send({ embeds: [chunkEmbed] });
+                            }
+                        } else {
+                            // Only send if there's actual content
+                            if (output.description || output.title) {
+                                await confirmData.message.channel.send({ embeds: [outputEmbed] });
+                            }
+                        }
+                    } catch (embedError) {
+                        console.error('Error sending result embed:', embedError);
+                        // Send fallback error
+                        const errorEmbed = new EmbedBuilder()
+                            .setColor(Colors.Red)
+                            .setTitle('❌ Error Displaying Results')
+                            .setDescription('Failed to display action results.')
+                            .setTimestamp();
+                        await confirmData.message.channel.send({ embeds: [errorEmbed] });
                     }
-
-                    if (output.fields && output.fields.length > 0) {
-                        outputEmbed.addFields(output.fields);
-                    }
-
-                    await confirmData.message.channel.send({ embeds: [outputEmbed] });
                 }
             } else {
-                const fallbackEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setTitle('📊 Result')
-                    .setDescription('Action completed.')
-                    .setTimestamp();
-
-                await confirmData.message.channel.send({ embeds: [fallbackEmbed] });
+                console.log('⚠️ No results array found in execution result');
+                // If no results but execution was successful, create a default success message
+                if (result && result.success) {
+                    const successEmbed = new EmbedBuilder()
+                        .setColor(Colors.Green)
+                        .setTitle('✅ Action Completed')
+                        .setDescription('The action was executed successfully.')
+                        .setTimestamp();
+                    await confirmData.message.channel.send({ embeds: [successEmbed] });
+                } else {
+                    // Execution failed but no results provided
+                    const errorEmbed = new EmbedBuilder()
+                        .setColor(Colors.Red)
+                        .setTitle('❌ Execution Failed')
+                        .setDescription('The action failed but no error details were provided.')
+                        .setTimestamp();
+                    await confirmData.message.channel.send({ embeds: [errorEmbed] });
+                }
             }
 
         } catch (error) {
