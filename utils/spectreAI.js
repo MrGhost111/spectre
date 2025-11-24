@@ -170,6 +170,23 @@ class SpectreAI {
 
         const prompt = `Generate Discord.js v14 code to perform this action.
 
+IMPORTANT: DO NOT use require() statements in your code.All Discord.js components are already available.
+
+Available variables in scope:
+        - PermissionFlagsBits, ChannelType, EmbedBuilder, Colors(from discord.js)
+            - message, guild, client, channel(Discord objects)
+            - console, setTimeout, setInterval, Promise, Date, JSON, Math(standard JS)
+
+DO NOT USE:
+        - const { anything } = require('discord.js');
+        - const discord = require('discord.js');
+
+INSTEAD USE:
+        - PermissionFlagsBits.Administrator(already imported)
+            - ChannelType.GuildText(already imported)
+            - new EmbedBuilder()(already imported)
+            - Colors.Red(already imported)
+
 Action: ${analysis.action}
 Description: ${analysis.description}
 
@@ -372,6 +389,7 @@ ${repliedData ? `Replied Message Data:
 - Author: ${repliedData.author.username}
 - Content: ${repliedData.content}
 - Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
+
 
 IMPORTANT CONTEXT TERMS:
 - "this channel" / "here" = current channel (${message.channel.name})
