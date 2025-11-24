@@ -11,14 +11,8 @@ class SpectreAI {
         this.pendingConfirmations = new Map();
         this.ADMIN_ID = '753491023208120321';
 
-        // SPEED OPTIMIZATIONS
-        this.cache = new Map();
-        this.commonCommands = this.buildCommonCommands();
-    }
-
-    // ULTRA-FAST Common Commands Database
-    buildCommonCommands() {
-        return new Map([
+        // Common commands for instant responses
+        this.commonCommands = new Map([
             ['channel', this.instantChannelInfo],
             ['what channel', this.instantChannelInfo],
             ['which channel', this.instantChannelInfo],
@@ -28,14 +22,11 @@ class SpectreAI {
             ['list channels', this.instantListChannels],
             ['list roles', this.instantListRoles],
             ['count', this.instantCountMembers],
-            ['how many members', this.instantCountMembers],
-            ['user info', this.instantUserInfo],
-            ['my permissions', this.instantMyPermissions],
-            ['my roles', this.instantMyRoles]
+            ['how many members', this.instantCountMembers]
         ]);
     }
 
-    // INSTANT Response Methods (0-second delay)
+    // INSTANT Response Methods
     instantChannelInfo(message) {
         const channel = message.channel;
         return {
@@ -82,29 +73,75 @@ class SpectreAI {
                     { name: 'Channels', value: `${guild.channels.cache.size}`, inline: true },
                     { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
                     { name: 'Owner', value: `<@${guild.ownerId}>`, inline: true },
-                    { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
-                    { name: 'Boost Level', value: `${guild.premiumTier}`, inline: true }
+                    { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true }
                 ]
             }]
         };
     }
 
-    // ... other instant methods (similar pattern) ...
+    instantListChannels(message) {
+        const channels = message.guild.channels.cache;
+        const channelList = channels.first(20).map(c => `• ${c.type === 0 ? '#' : ''}${c.name}`).join('\n');
+
+        return {
+            success: true,
+            results: [{
+                title: '📝 Server Channels',
+                description: `Total: ${channels.size} channels`,
+                fields: [{
+                    name: `First ${Math.min(20, channels.size)} Channels`,
+                    value: channelList
+                }]
+            }]
+        };
+    }
+
+    instantListRoles(message) {
+        const roles = message.guild.roles.cache;
+        const roleList = roles.first(20).map(r => `• ${r.name}`).join('\n');
+
+        return {
+            success: true,
+            results: [{
+                title: '🎭 Server Roles',
+                description: `Total: ${roles.size} roles`,
+                fields: [{
+                    name: `First ${Math.min(20, roles.size)} Roles`,
+                    value: roleList
+                }]
+            }]
+        };
+    }
+
+    instantCountMembers(message) {
+        const members = message.guild.members.cache;
+        return {
+            success: true,
+            results: [{
+                title: '👥 Member Count',
+                description: `Total members: ${members.size}`,
+                fields: [
+                    { name: 'Humans', value: `${members.filter(m => !m.user.bot).size}`, inline: true },
+                    { name: 'Bots', value: `${members.filter(m => m.user.bot).size}`, inline: true }
+                ]
+            }]
+        };
+    }
 
     /**
-     * ULTRA-FAST Main Processor - PARALLEL EVERYTHING
+     * ULTRA-FAST Main Processor
      */
     async process(message, userMessage) {
         const startTime = Date.now();
         console.log(`🚀 Starting ULTRA-FAST processing: "${userMessage}"`);
 
         try {
-            // STEP 0: Instant permission check
+            // Permission check
             if (!this.hasPermission(message.member, message.author.id)) {
                 return { type: 'no_permission' };
             }
 
-            // STEP 1: Send progress immediately
+            // Send progress immediately
             const progressMsg = await message.reply({
                 embeds: [new EmbedBuilder()
                     .setColor(Colors.Yellow)
@@ -113,13 +150,12 @@ class SpectreAI {
                     .setTimestamp()]
             });
 
-            // STEP 2: Check for INSTANT commands (0-second response)
+            // Check for INSTANT commands
             const instantResult = this.checkInstantCommand(userMessage, message);
             if (instantResult) {
                 console.log(`⚡ INSTANT command executed in ${Date.now() - startTime}ms`);
                 await progressMsg.delete();
 
-                // Send instant results
                 const resultEmbeds = instantResult.results.map(result =>
                     new EmbedBuilder()
                         .setColor(Colors.Green)
@@ -133,9 +169,7 @@ class SpectreAI {
                 return { type: 'instant_complete' };
             }
 
-            // STEP 3: PARALLEL Processing - Run everything at once
-            console.log('🔄 Starting parallel AI processing...');
-
+            // PARALLEL Processing
             const [analysis, repliedData] = await Promise.all([
                 this.fastAnalyzeRequest(userMessage, message, progressMsg),
                 this.getRepliedMessageData(message)
@@ -143,15 +177,11 @@ class SpectreAI {
 
             console.log(`✅ Analysis completed in ${Date.now() - startTime}ms`);
 
-            // STEP 4: Fast entity resolution
             const resolved = await this.fastResolveEntities(analysis, message, repliedData);
-
-            // STEP 5: FAST Code generation with timeout
             const code = await this.fastGenerateCode(analysis, resolved, message, progressMsg);
 
             console.log(`✅ Code generated in ${Date.now() - startTime}ms`);
 
-            // STEP 6: Quick confirmation
             await this.fastCreateConfirmation(message, analysis, resolved, code, progressMsg);
 
             console.log(`🎉 TOTAL PROCESSING TIME: ${Date.now() - startTime}ms`);
@@ -171,11 +201,10 @@ class SpectreAI {
     }
 
     /**
-     * LIGHTNING-FAST Instant Command Check
+     * Check for instant commands
      */
     checkInstantCommand(userMessage, message) {
         const lowerMessage = userMessage.toLowerCase();
-
         for (const [command, handler] of this.commonCommands) {
             if (lowerMessage.includes(command)) {
                 console.log(`⚡ Found instant command: ${command}`);
@@ -186,7 +215,7 @@ class SpectreAI {
     }
 
     /**
-     * FAST Analyze Request with Aggressive Timeout
+     * FAST Analyze Request
      */
     async fastAnalyzeRequest(userMessage, message, progressMsg) {
         await progressMsg.edit({
@@ -197,7 +226,6 @@ class SpectreAI {
                 .setTimestamp()]
         });
 
-        // SIMPLEST possible prompt
         const prompt = `Analyze: "${userMessage}" in #${message.channel.name}. Respond with JSON: {action,description,entities:{users,roles,channels}}`;
 
         try {
@@ -221,8 +249,7 @@ class SpectreAI {
 
             if (!jsonMatch) throw new Error('No JSON found');
 
-            const analysis = JSON.parse(jsonMatch[0]);
-            return analysis;
+            return JSON.parse(jsonMatch[0]);
 
         } catch (error) {
             console.log('Analysis failed, using fallback');
@@ -253,7 +280,7 @@ class SpectreAI {
     }
 
     /**
-     * FAST Code Generation with Timeout
+     * FAST Code Generation
      */
     async fastGenerateCode(analysis, resolved, message, progressMsg) {
         await progressMsg.edit({
@@ -264,7 +291,6 @@ class SpectreAI {
                 .setTimestamp()]
         });
 
-        // SIMPLE prompt
         const prompt = `Generate Discord.js v14 code for: ${analysis.action}. Use message.guild, message.channel. Return IIFE with {success, results[]}.`;
 
         try {
@@ -295,7 +321,7 @@ class SpectreAI {
     }
 
     /**
-     * SIMPLE Fallback Code Generator
+     * SIMPLE Fallback Code
      */
     generateSimpleCode(analysis) {
         return `(async () => {
@@ -362,10 +388,11 @@ class SpectreAI {
         await progressMsg.delete();
         const confirmMsg = await message.reply({ embeds: [embed], components: [row] });
 
-        // Store confirmation
+        // Store confirmation - THIS IS CRITICAL FOR BUTTONS TO WORK
         this.pendingConfirmations.set(confirmationId, {
             analysis, resolved, message, code,
-            authorId: message.author.id
+            authorId: message.author.id,
+            expiresAt: Date.now() + 60000
         });
 
         // Auto-expire
@@ -378,7 +405,163 @@ class SpectreAI {
         }, 60000);
     }
 
-    // Keep your existing permission check and other necessary methods
+    /**
+     * 🚨 BUTTON INTERACTION HANDLER - THIS WAS MISSING!
+     */
+    async handleConfirmation(interaction, confirmed) {
+        const customId = interaction.customId;
+        const confirmationId = customId.replace(/_confirm$|_cancel$/, '');
+
+        console.log(`🔘 Button clicked: ${customId}, confirmed: ${confirmed}`);
+
+        const confirmData = this.pendingConfirmations.get(confirmationId);
+
+        if (!confirmData) {
+            return interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor(Colors.Red)
+                    .setDescription('❌ This confirmation has expired.')],
+                ephemeral: true
+            });
+        }
+
+        if (confirmData.authorId !== interaction.user.id) {
+            return interaction.reply({
+                embeds: [new EmbedBuilder()
+                    .setColor(Colors.Red)
+                    .setDescription('❌ Only the person who initiated this action can confirm it.')],
+                ephemeral: true
+            });
+        }
+
+        this.pendingConfirmations.delete(confirmationId);
+
+        const originalEmbed = interaction.message.embeds[0];
+
+        if (!confirmed) {
+            const cancelledEmbed = EmbedBuilder.from(originalEmbed)
+                .setColor(Colors.Red)
+                .setTitle('❌ Action Cancelled');
+            await interaction.update({ embeds: [cancelledEmbed], components: [] });
+            return;
+        }
+
+        // SPEED OPTIMIZATION: Defer immediately
+        await interaction.deferUpdate();
+
+        // Execute in background
+        this.executeAndSendResults(confirmData, interaction, originalEmbed).catch(error => {
+            console.error('💥 Background execution error:', error);
+        });
+    }
+
+    /**
+     * Execute code and send results
+     */
+    async executeAndSendResults(confirmData, interaction, originalEmbed) {
+        try {
+            console.log('⚡ Executing code...');
+
+            // Update to executing state
+            const executingEmbed = EmbedBuilder.from(originalEmbed)
+                .setColor(Colors.Yellow)
+                .setTitle('⚡ Executing...')
+                .setFooter({ text: 'Running action...' });
+
+            await interaction.editReply({ embeds: [executingEmbed], components: [] });
+
+            // Execute the code
+            const result = await this.executeCode(confirmData.code, confirmData.message);
+
+            // Update confirmation to completed
+            const completedEmbed = EmbedBuilder.from(originalEmbed)
+                .setColor(Colors.Green)
+                .setTitle('✅ Action Completed')
+                .setFooter({ text: 'Execution finished' });
+
+            await interaction.editReply({ embeds: [completedEmbed] });
+
+            // Send results as separate embeds
+            if (result && result.results && result.results.length > 0) {
+                for (const output of result.results) {
+                    const outputEmbed = new EmbedBuilder()
+                        .setColor(result.success ? Colors.Green : Colors.Red)
+                        .setTitle(output.title || '📊 Result')
+                        .setTimestamp();
+
+                    if (output.description) {
+                        outputEmbed.setDescription(output.description);
+                    }
+
+                    if (output.fields && output.fields.length > 0) {
+                        outputEmbed.addFields(output.fields.slice(0, 25));
+                    }
+
+                    await confirmData.message.channel.send({ embeds: [outputEmbed] });
+                }
+            } else {
+                const fallbackEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
+                    .setTitle('✅ Action Completed')
+                    .setDescription('Action completed successfully.')
+                    .setTimestamp();
+
+                await confirmData.message.channel.send({ embeds: [fallbackEmbed] });
+            }
+
+        } catch (error) {
+            console.error('💥 Execution error:', error);
+
+            const errorEmbed = EmbedBuilder.from(originalEmbed)
+                .setColor(Colors.Red)
+                .setTitle('❌ Execution Failed')
+                .setFooter({ text: 'Error occurred' });
+
+            await interaction.editReply({ embeds: [errorEmbed] }).catch(() => { });
+
+            const errorOutputEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setTitle('❌ Error')
+                .setDescription(`\`\`\`\n${error.message}\n\`\`\``)
+                .setTimestamp();
+
+            await confirmData.message.channel.send({ embeds: [errorOutputEmbed] }).catch(() => { });
+        }
+    }
+
+    /**
+     * Execute generated code safely
+     */
+    async executeCode(code, message) {
+        try {
+            const guild = message.guild;
+            const client = message.client;
+            const channel = message.channel;
+
+            const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+            const executor = new AsyncFunction(
+                'message', 'guild', 'client', 'channel', 'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
+                `return ${code}`
+            );
+
+            const result = await executor(
+                message, guild, client, channel, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+            );
+
+            return result;
+        } catch (error) {
+            console.error('Code execution error:', error);
+            return {
+                success: false,
+                results: [{
+                    title: '❌ Execution Error',
+                    description: `\`\`\`\n${error.message}\n\`\`\``
+                }]
+            };
+        }
+    }
+
+    // Utility methods
     hasPermission(member, userId) {
         return userId === this.ADMIN_ID ||
             (member && member.permissions.has(PermissionFlagsBits.Administrator));
@@ -392,15 +575,6 @@ class SpectreAI {
         } catch (error) {
             return null;
         }
-    }
-
-    // Keep your existing handleConfirmation and executeCode methods
-    async handleConfirmation(interaction, confirmed) {
-        // Your existing confirmation handler
-    }
-
-    async executeCode(code, message) {
-        // Your existing code executor
     }
 }
 
