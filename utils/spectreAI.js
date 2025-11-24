@@ -313,10 +313,12 @@ Generate the code now:`;
             const channel = message.channel;
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+
+            // Execute the code directly without wrapping in return statement
             const executor = new AsyncFunction(
                 'message', 'guild', 'client', 'channel',
                 'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
-                `return ${code}`
+                code
             );
 
             const result = await executor(
