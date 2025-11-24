@@ -161,7 +161,7 @@ class SpectreAI {
 
         const contextInfo = this.buildContextInfo(message);
 
-        const prompt = `You are a Discord action analyzer. Analyze the user's request and understand what they want to accomplish.
+        const prompt = `Analyze what the user wants to do.
 
 User Message: "${userMessage}"
 
@@ -172,24 +172,19 @@ ${repliedData ? `Replied Message Data:
 - Author: ${repliedData.author.username} (ID: ${repliedData.author.id})
 - Content: ${repliedData.content}` : ''}
 
-CRITICAL: You MUST respond with ONLY valid JSON. No other text, no explanation, no markdown code blocks. Just the raw JSON object.
+Examples:
+- "2+2" → action: "calculate", description: "Calculate 2+2 and show result", steps: ["Parse math expression", "Calculate result", "Return answer"]
+- "ban @user" → action: "ban_user", description: "Ban user from server", steps: ["Verify permissions", "Ban user", "Log action"]
+- "list users" → action: "list_users", description: "Show all server members", steps: ["Fetch members", "Format list", "Display results"]
 
-Your Task:
-1. Identify the SPECIFIC ACTION the user wants to perform
-2. Create a CLEAR DESCRIPTION of what will happen
-3. List DETAILED EXECUTION STEPS (technical steps the bot will take)
-4. Identify any ENTITIES involved (users, roles, channels, categories)
-5. Extract any PARAMETERS needed
-6. Note what CONTEXT is being used
-
-Respond with ONLY this JSON structure (no code blocks, no extra text):
+Respond ONLY with this JSON (no markdown, no explanation):
 {
-  "action": "specific_action_name",
-  "description": "Clear description of what will happen",
+  "action": "what_to_do",
+  "description": "Clear one-line explanation",
   "detailedSteps": [
-    "Step 1: Specific technical action",
-    "Step 2: Specific technical action", 
-    "Step 3: Specific technical action"
+    "First thing bot will do",
+    "Second thing bot will do",
+    "Third thing bot will do"
   ],
   "entities": {
     "users": [],
@@ -208,16 +203,16 @@ Respond with ONLY this JSON structure (no code blocks, no extra text):
 
         try {
             const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-7B",
+                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
                     {
                         role: "system",
-                        content: "You are a JSON-only response bot. Return ONLY valid JSON with no additional text, no markdown, no code blocks. Just raw JSON."
+                        content: "You analyze Discord bot requests. Return ONLY JSON, no markdown, no code blocks."
                     },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 500,
-                temperature: 0.1
+                max_tokens: 600,
+                temperature: 0.05
             });
 
             const aiResponse = response.choices[0].message.content;
@@ -329,83 +324,103 @@ Respond with ONLY this JSON structure (no code blocks, no extra text):
                 .setTimestamp()]
         });
 
-        const prompt = `Generate Discord.js v14 code to perform this action.
+        const prompt = `Generate Discord.js v14 code for this action.
 
-ACTION TO PERFORM: ${analysis.action}
+ACTION: ${analysis.action}
 DESCRIPTION: ${analysis.description}
 
-RESOLVED ENTITIES:
-- Users: ${resolved.users.map(u => `${u.username} (ID: ${u.id})`).join(', ') || 'none'}
-- Roles: ${resolved.roles.map(r => `${r.name} (ID: ${r.id})`).join(', ') || 'none'}
-- Channels: ${resolved.channels.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
-- Categories: ${resolved.categories.map(c => `${c.name} (ID: ${c.id})`).join(', ') || 'none'}
+ENTITIES:
+Users: ${resolved.users.map(u => `${u.username} (${u.id})`).join(', ') || 'none'}
+Roles: ${resolved.roles.map(r => `${r.name} (${r.id})`).join(', ') || 'none'}
+Channels: ${resolved.channels.map(c => `${c.name} (${c.id})`).join(', ') || 'none'}
 
 PARAMETERS: ${JSON.stringify(analysis.parameters)}
 
-CONTEXT:
-- Guild ID: ${message.guild.id}
-- Channel ID: ${message.channel.id}
-- Author ID: ${message.author.id}
+AVAILABLE VARIABLES:
+- message (the Discord message object)
+- guild (message.guild)
+- channel (message.channel)
+- client (message.client)
+- PermissionFlagsBits, ChannelType, EmbedBuilder, Colors (all imported)
 
-${repliedData ? `REPLIED MESSAGE:
-- Author: ${repliedData.author.username}
-- Content: ${repliedData.content}` : ''}
+RULES:
+1. Use Discord.js v14 syntax ONLY
+2. Return format: { success: true/false, results: [{title: "Title", description: "Text"}] }
+3. Keep descriptions under 4096 chars
+4. Handle all errors with try-catch
+5. Return the code as an IIFE: (async () => { your code here })()
 
-DISCORD.JS V14+ REQUIREMENTS:
-- Use message.guild, message.channel, message.author
-- Use PermissionFlagsBits for permissions
-- Use ChannelType for channel types  
-- Use EmbedBuilder for embeds
-- Use Colors for embed colors
-- All dependencies are available, no require() needed
+EXAMPLES:
 
-OUTPUT FORMAT:
-- Must return: { success: boolean, results: Array }
-- Each result object becomes an embed: { title: string, description: string, fields?: Array }
-- Handle Discord limits: descriptions max 4096 chars, field values max 1024 chars
-- Use try-catch for error handling
-- Return as IIFE: (async () => { ... })()
+For "2+2":
+(async () => {
+  try {
+    const result = 2 + 2;
+    return {
+      success: true,
+      results: [{
+        title: '🧮 Calculation Result',
+        description: \`2 + 2 = \${result}\`
+      }]
+    };
+  } catch (error) {
+    return { success: false, results: [{title: 'Error', description: error.message}] };
+  }
+})()
 
-CODE GENERATION RULES:
-1. Generate clean, efficient Discord.js v14+ code
-2. Use the available entities and parameters
-3. Handle errors gracefully
-4. Follow Discord.js best practices
-5. Make the code executable and safe
+For "list users":
+(async () => {
+  try {
+    const members = await guild.members.fetch();
+    const userList = members.map(m => \`• \${m.user.username}\`).slice(0, 50).join('\\n');
+    return {
+      success: true,
+      results: [{
+        title: '👥 Server Members',
+        description: userList || 'No members found'
+      }]
+    };
+  } catch (error) {
+    return { success: false, results: [{title: 'Error', description: error.message}] };
+  }
+})()
 
-Generate the Discord.js v14+ code now:`;
+Now generate code for the action described above. Return ONLY the IIFE code, nothing else:`;
 
         try {
             const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-7B",
+                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
                     {
                         role: "system",
-                        content: "You are a Discord.js v14+ expert code generator. Generate clean, efficient, and safe JavaScript code that follows Discord.js v14+ patterns and best practices. Return ONLY executable JavaScript code."
+                        content: "You are an expert Discord.js v14 code generator. Generate ONLY executable JavaScript code as an IIFE. No explanations, no markdown, just code."
                     },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 1500,
-                temperature: 0.2
+                max_tokens: 2000,
+                temperature: 0.1
             });
 
             const aiResponse = response.choices[0].message.content;
+            console.log('🤖 AI Code Response:', aiResponse.substring(0, 300));
 
             let code = this.extractCodeFromResponse(aiResponse);
 
             if (!code) {
                 console.error('❌ Failed to extract code, using fallback');
-                // Fallback: create a simple response
                 code = `(async () => {
-                    return {
-                        success: true,
-                        results: [{
-                            title: '✅ Action Processed',
-                            description: 'The action was processed. Original request: ${analysis.description}'
-                        }]
-                    };
-                })()`;
+                        return {
+                            success: true,
+                            results: [{
+                                title: '✅ Action Processed',
+                                description: '${analysis.description.replace(/'/g, "\\'")}\\n\\nAction: ${analysis.action}'
+                            }]
+                        };
+                    })()`;
             }
+
+            // Clean up the code
+            code = code.trim();
 
             // Validate code syntax
             try {
@@ -414,18 +429,18 @@ Generate the Discord.js v14+ code now:`;
                 return code;
             } catch (error) {
                 console.error('❌ Code validation failed:', error.message);
-                console.error('Generated code:', code.substring(0, 200));
+                console.error('Problematic code:', code.substring(0, 500));
 
                 // Return safe fallback code
                 return `(async () => {
-                    return {
-                        success: false,
-                        results: [{
-                            title: '⚠️ Code Generation Issue',
-                            description: 'The AI generated invalid code. Error: ${error.message.replace(/'/g, "\\'")}\\n\\nOriginal request: ${analysis.description}'
-                        }]
-                    };
-                })()`;
+                        return {
+                            success: true,
+                            results: [{
+                                title: '⚠️ Simplified Execution',
+                                description: 'Action: ${analysis.action}\\n\\n${analysis.description.replace(/'/g, "\\'")}'
+                            }]
+                        };
+                    })()`;
             }
 
         } catch (error) {
