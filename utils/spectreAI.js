@@ -200,22 +200,19 @@ CRITICAL REQUIREMENTS:
    - Description max 4096 chars - split into multiple results if needed
    - Field value max 1024 chars - split into multiple fields if needed
    - Max 25 fields per embed - create multiple results if needed
-7. For large operations (>100 items), process in batches
-8. For fetching messages beyond 100:
-\`\`\`javascript
-let allMessages = [];
-let lastId;
-while (allMessages.length < targetAmount) {
-    const options = { limit: 100 };
-    if (lastId) options.before = lastId;
-    const batch = await channel.messages.fetch(options);
-    if (batch.size === 0) break;
-    allMessages.push(...batch.values());
-    lastId = batch.last().id;
-}
-\`\`\`
+7. For large operations (>100 items), process in batches of 50-100
+8. For fetching messages:
+   - Use existing cache first: channel.messages.cache
+   - Only fetch if needed, and fetch in batches
+   - OPTIMIZE: If user asks for "last X users who sent messages", use cache first
 9. Always wrap in try-catch with proper error handling
 10. Return code as IIFE: (async () => { ... })();
+11. PERFORMANCE: Minimize API calls - use cached data when possible
+12. PERFORMANCE: Avoid unnecessary loops - use built-in methods like .map(), .filter()
+13. PERFORMANCE: For counting/listing, use efficient methods:
+    - guild.members.cache (already loaded, super fast)
+    - channel.messages.cache (already loaded, super fast)
+    - Only use .fetch() if absolutely necessary
 
 Example for list with auto-splitting:
 \`\`\`javascript
@@ -280,8 +277,8 @@ Generate the code now:`;
                     { role: "system", content: "You are a Discord.js v14 code generator. Generate executable JavaScript with proper error handling, batching, and auto-splitting for Discord limits." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 2000,
-                temperature: 0.3
+                max_tokens: 1500,
+                temperature: 0.2
             });
 
             const aiResponse = response.choices[0].message.content;
@@ -432,8 +429,8 @@ Make detailedSteps very specific and technical - these will be shown to the user
                     { role: "system", content: "You are a Discord action analyzer. Be precise with targets. Respond only with valid JSON." },
                     { role: "user", content: prompt }
                 ],
-                max_tokens: 800,
-                temperature: 0.2
+                max_tokens: 600,
+                temperature: 0.1
             });
 
             const aiResponse = response.choices[0].message.content;
@@ -670,7 +667,7 @@ Make detailedSteps very specific and technical - these will be shown to the user
     }
 
     /**
-     * Handle confirmation button clicks
+     * Handle confirmation button clicks - OPTIMIZED FOR SPEED
      */
     async handleConfirmation(interaction, confirmed) {
         const customId = interaction.customId;
@@ -718,16 +715,31 @@ Make detailedSteps very specific and technical - these will be shown to the user
             return;
         }
 
-        // Update to executing
-        const executingEmbed = EmbedBuilder.from(originalEmbed)
-            .setColor(Colors.Yellow)
-            .setTitle('⚙️ Executing...')
-            .setFooter({ text: 'Running action...' });
+        // SPEED OPTIMIZATION: Defer the update and execute in parallel
+        await interaction.deferUpdate();
 
-        await interaction.update({ embeds: [executingEmbed], components: [] });
+        // Execute code immediately (don't wait)
+        this.executeAndSendResults(confirmData, interaction, originalEmbed).catch(error => {
+            console.error('💥 Background execution error:', error);
+        });
+    }
 
+    /**
+     * Execute code and send results (runs in background)
+     */
+    async executeAndSendResults(confirmData, interaction, originalEmbed) {
         try {
             console.log('⚙️ Executing code...');
+
+            // Update to executing state
+            const executingEmbed = EmbedBuilder.from(originalEmbed)
+                .setColor(Colors.Yellow)
+                .setTitle('⚙️ Executing...')
+                .setFooter({ text: 'Running action...' });
+
+            await interaction.editReply({ embeds: [executingEmbed], components: [] });
+
+            // Execute the code
             const result = await this.executeCode(confirmData.code, confirmData.message);
 
             // Update confirmation to completed
@@ -740,7 +752,8 @@ Make detailedSteps very specific and technical - these will be shown to the user
 
             // Send results as separate embeds
             if (result && result.results && result.results.length > 0) {
-                for (const output of result.results) {
+                // Send all result embeds in parallel for speed
+                const sendPromises = result.results.map(output => {
                     const outputEmbed = new EmbedBuilder()
                         .setColor(result.success ? Colors.Green : Colors.Red)
                         .setTitle(output.title || '📊 Result')
@@ -751,13 +764,15 @@ Make detailedSteps very specific and technical - these will be shown to the user
                     }
 
                     if (output.fields && output.fields.length > 0) {
-                        // Ensure we don't exceed 25 fields
                         const fields = output.fields.slice(0, 25);
                         outputEmbed.addFields(fields);
                     }
 
-                    await confirmData.message.channel.send({ embeds: [outputEmbed] });
-                }
+                    return confirmData.message.channel.send({ embeds: [outputEmbed] });
+                });
+
+                // Wait for all embeds to send
+                await Promise.all(sendPromises);
             } else {
                 const fallbackEmbed = new EmbedBuilder()
                     .setColor(Colors.Blue)
@@ -776,7 +791,7 @@ Make detailedSteps very specific and technical - these will be shown to the user
                 .setTitle('❌ Execution Failed')
                 .setFooter({ text: 'Error occurred' });
 
-            await interaction.editReply({ embeds: [errorEmbed] });
+            await interaction.editReply({ embeds: [errorEmbed] }).catch(() => { });
 
             const errorOutputEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
@@ -784,7 +799,7 @@ Make detailedSteps very specific and technical - these will be shown to the user
                 .setDescription(`\`\`\`\n${error.message}\n\`\`\``)
                 .setTimestamp();
 
-            await confirmData.message.channel.send({ embeds: [errorOutputEmbed] });
+            await confirmData.message.channel.send({ embeds: [errorOutputEmbed] }).catch(() => { });
         }
     }
 
