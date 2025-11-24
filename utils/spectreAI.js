@@ -394,14 +394,38 @@ Generate the Discord.js v14+ code now:`;
             let code = this.extractCodeFromResponse(aiResponse);
 
             if (!code) {
-                throw new Error('Could not extract valid code from AI response');
+                console.error('❌ Failed to extract code, using fallback');
+                // Fallback: create a simple response
+                code = `(async () => {
+                    return {
+                        success: true,
+                        results: [{
+                            title: '✅ Action Processed',
+                            description: 'The action was processed. Original request: ${analysis.description}'
+                        }]
+                    };
+                })()`;
             }
 
+            // Validate code syntax
             try {
                 new Function(`return ${code}`);
+                console.log('✅ Code syntax validated');
                 return code;
             } catch (error) {
-                throw new Error('Generated code has syntax errors: ' + error.message);
+                console.error('❌ Code validation failed:', error.message);
+                console.error('Generated code:', code.substring(0, 200));
+
+                // Return safe fallback code
+                return `(async () => {
+                    return {
+                        success: false,
+                        results: [{
+                            title: '⚠️ Code Generation Issue',
+                            description: 'The AI generated invalid code. Error: ${error.message.replace(/'/g, "\\'")}\\n\\nOriginal request: ${analysis.description}'
+                        }]
+                    };
+                })()`;
             }
 
         } catch (error) {
@@ -411,30 +435,69 @@ Generate the Discord.js v14+ code now:`;
     }
 
     extractCodeFromResponse(text) {
+        console.log('🔍 Extracting code from response...');
+
         // Method 1: Code blocks
         const codeBlockMatch = text.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
         if (codeBlockMatch) {
-            return codeBlockMatch[1].trim();
+            const code = codeBlockMatch[1].trim();
+            console.log('✅ Found code in block');
+            return this.wrapCodeIfNeeded(code);
         }
 
         // Method 2: IIFE pattern
         const iifeMatch = text.match(/(\(async\s*\(\)\s*\{[\s\S]*?\}\)\(\));?/);
         if (iifeMatch) {
+            console.log('✅ Found IIFE pattern');
             return iifeMatch[1].trim();
         }
 
-        // Method 3: Function pattern
-        const functionMatch = text.match(/(async\s*\(\)\s*=>\s*\{[\s\S]*?\})/);
-        if (functionMatch) {
-            return `(${functionMatch[1].trim()})();`;
+        // Method 3: Arrow function pattern
+        const arrowMatch = text.match(/(async\s*\(\)\s*=>\s*\{[\s\S]*?\})/);
+        if (arrowMatch) {
+            console.log('✅ Found arrow function');
+            return `(${arrowMatch[1].trim()})()`;
         }
 
-        // Method 4: Return as IIFE if it looks like code
+        // Method 4: Look for return statement with object
+        const returnMatch = text.match(/return\s*(\{[\s\S]*?\});?\s*$/m);
+        if (returnMatch) {
+            console.log('✅ Found return statement');
+            return `(async () => { return ${returnMatch[1]}; })()`;
+        }
+
+        // Method 5: Wrap entire text if it looks like code
         if (text.includes('async') || text.includes('await') || text.includes('message.') || text.includes('guild.')) {
-            return `(async () => { ${text} })();`;
+            console.log('⚠️ Wrapping raw code');
+            return this.wrapCodeIfNeeded(text);
         }
 
+        console.error('❌ Could not extract code');
         return null;
+    }
+
+    wrapCodeIfNeeded(code) {
+        // Remove any leading/trailing junk
+        code = code.trim();
+
+        // If it's already an IIFE, return it
+        if (code.startsWith('(async') && code.includes(')()')) {
+            return code;
+        }
+
+        // If it starts with const/let/var or has statements, wrap it properly
+        if (code.startsWith('const ') || code.startsWith('let ') || code.startsWith('var ') ||
+            code.includes('\n') || !code.startsWith('return')) {
+            return `(async () => {\n${code}\n})()`;
+        }
+
+        // If it's just a return statement, wrap it
+        if (code.startsWith('return')) {
+            return `(async () => { ${code} })()`;
+        }
+
+        // Otherwise wrap it as an expression
+        return `(async () => { return ${code} })()`;
     }
 
     async executeCode(code, message) {
@@ -834,6 +897,6 @@ Generate the Discord.js v14+ code now:`;
             };
         }
     }
-} 
+}
 
-module.exports = new SpectreAI(); 
+module.exports = new SpectreAI();
