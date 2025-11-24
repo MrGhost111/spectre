@@ -834,6 +834,6 @@ Generate the Discord.js v14+ code now:`;
             };
         }
     }
-}
+} 
 
-module.exports = new SpectreAI();
+module.exports = new SpectreAI(); 
