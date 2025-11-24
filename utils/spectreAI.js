@@ -1,5 +1,5 @@
 ﻿const { HfInference } = require('@huggingface/inference');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Colors } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Colors, PermissionFlagsBits, ChannelType } = require('discord.js');
 const entityResolver = require('./entityResolver');
 require('dotenv').config();
 
@@ -163,7 +163,7 @@ class SpectreAI {
         await progressMsg.edit({
             embeds: [new EmbedBuilder()
                 .setColor(Colors.Yellow)
-                .setTitle('⏳ Generating Code...')
+                .setTitle('⏳ Step 2/3: Generating Code')
                 .setDescription('Creating execution plan...')
                 .setTimestamp()]
         });
@@ -191,62 +191,65 @@ Context:
 - Message Author ID: ${message.author.id}
 
 CRITICAL REQUIREMENTS:
-1. Use ONLY Discord.js v14+ syntax
-2. DO NOT declare PermissionFlagsBits, ChannelType, EmbedBuilder, Colors, guild, client, or channel - they are already available
-3. Start your code with the IIFE: (async () => { ... })();
-4. Return: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
-5. ALL OUTPUT MUST BE IN EMBEDS - results array will be used to create multiple embeds
-6. Mentions in embeds DON'T PING - use <@userId>, <@&roleId>, <#channelId> freely
-7. Handle large data by splitting:
-   - If description > 4000 chars, split into multiple result objects
-   - If field value > 1024 chars, split into multiple fields
-   - If total fields > 25, split into multiple embeds
-8. For operations on >100 items, process in batches of 100
-9. For fetching messages beyond 100, use batching:
-   \`\`\`javascript
-   let allMessages = [];
-   let lastId;
-   while (allMessages.length < targetAmount) {
-       const options = { limit: 100 };
-       if (lastId) options.before = lastId;
-       const batch = await channel.messages.fetch(options);
-       if (batch.size === 0) break;
-       allMessages.push(...batch.values());
-       lastId = batch.last().id;
-   }
-   \`\`\`
-10. NEVER send plain text messages - only embeds via results array
-11. Handle ALL errors gracefully with try-catch
-12. Use Colors from discord.js for embed colors
+1. Variables available in scope: guild, client, channel, message, PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+2. DO NOT use require() - all dependencies are already available
+3. Return format: { success: boolean, results: Array<{title: string, description: string, fields?: Array}> }
+4. ALL output must be in results array - each result object becomes an embed
+5. Mentions in embeds don't ping: use <@userId>, <@&roleId>, <#channelId> freely in embeds
+6. Handle Discord limits:
+   - Description max 4096 chars - split into multiple results if needed
+   - Field value max 1024 chars - split into multiple fields if needed
+   - Max 25 fields per embed - create multiple results if needed
+7. For large operations (>100 items), process in batches
+8. For fetching messages beyond 100:
+\`\`\`javascript
+let allMessages = [];
+let lastId;
+while (allMessages.length < targetAmount) {
+    const options = { limit: 100 };
+    if (lastId) options.before = lastId;
+    const batch = await channel.messages.fetch(options);
+    if (batch.size === 0) break;
+    allMessages.push(...batch.values());
+    lastId = batch.last().id;
+}
+\`\`\`
+9. Always wrap in try-catch with proper error handling
+10. Return code as IIFE: (async () => { ... })();
 
-Example for splitting long lists:
+Example for list with auto-splitting:
 \`\`\`javascript
 (async () => {
     try {
+        const items = ['item1', 'item2', ...]; // your data
         const results = [];
-        const items = [...]; // large array
         
-        // Split items into chunks for embed fields (each field max 1024 chars)
-        const formatChunk = (chunk) => chunk.map(i => \`• \${i}\`).join('\\n');
-        
-        let currentChunk = [];
-        let currentLength = 0;
-        const fields = [];
-        
-        for (const item of items) {
-            const line = \`• \${item}\\n\`;
-            if (currentLength + line.length > 1024) {
-                fields.push({ name: 'Items', value: formatChunk(currentChunk) });
-                currentChunk = [item];
-                currentLength = line.length;
-            } else {
-                currentChunk.push(item);
-                currentLength += line.length;
+        // Auto-split into chunks that fit in 1024 char fields
+        const chunkItems = (arr, maxChars = 1000) => {
+            const chunks = [];
+            let current = [];
+            let currentLength = 0;
+            
+            for (const item of arr) {
+                const line = \`• \${item}\\n\`;
+                if (currentLength + line.length > maxChars) {
+                    if (current.length > 0) chunks.push([...current]);
+                    current = [item];
+                    currentLength = line.length;
+                } else {
+                    current.push(item);
+                    currentLength += line.length;
+                }
             }
-        }
-        if (currentChunk.length > 0) {
-            fields.push({ name: 'Items', value: formatChunk(currentChunk) });
-        }
+            if (current.length > 0) chunks.push(current);
+            return chunks;
+        };
+        
+        const chunks = chunkItems(items);
+        const fields = chunks.map((chunk, i) => ({
+            name: \`Part \${i + 1}/\${chunks.length}\`,
+            value: chunk.map(item => \`• \${item}\`).join('\\n')
+        }));
         
         // Split into multiple embeds if >25 fields
         while (fields.length > 0) {
@@ -262,10 +265,7 @@ Example for splitting long lists:
     } catch (error) {
         return { 
             success: false, 
-            results: [{
-                title: '❌ Error',
-                description: error.message
-            }]
+            results: [{ title: '❌ Error', description: error.message }]
         };
     }
 })();
@@ -277,7 +277,7 @@ Generate the code now:`;
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord.js v14 code generator. Generate only executable JavaScript code with proper error handling and batching." },
+                    { role: "system", content: "You are a Discord.js v14 code generator. Generate executable JavaScript with proper error handling, batching, and auto-splitting for Discord limits." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 2000,
@@ -303,24 +303,39 @@ Generate the code now:`;
     }
 
     /**
-     * Execute generated code safely
+     * Execute generated code safely with all dependencies injected
      */
     async executeCode(code, message) {
         try {
-            // Wrap code in an async function with all required dependencies
-            const wrappedCode = `
-                const { PermissionFlagsBits, ChannelType, EmbedBuilder, Colors } = require('discord.js');
-                const guild = message.guild;
-                const client = message.client;
-                const channel = message.channel;
-                
-                ${code}
-            `;
+            // Inject all required dependencies into the execution context
+            const guild = message.guild;
+            const client = message.client;
+            const channel = message.channel;
 
+            // Create async function with injected variables
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
-            const executor = new AsyncFunction('message', wrappedCode);
+            const executor = new AsyncFunction(
+                'message',
+                'guild',
+                'client',
+                'channel',
+                'PermissionFlagsBits',
+                'ChannelType',
+                'EmbedBuilder',
+                'Colors',
+                `return ${code}`
+            );
 
-            const result = await executor(message);
+            const result = await executor(
+                message,
+                guild,
+                client,
+                channel,
+                PermissionFlagsBits,
+                ChannelType,
+                EmbedBuilder,
+                Colors
+            );
 
             return result;
         } catch (error) {
@@ -329,20 +344,27 @@ Generate the code now:`;
                 success: false,
                 results: [{
                     title: '❌ Execution Error',
-                    description: `Error: ${error.message}\n\nPlease try rephrasing your request.`
+                    description: `\`\`\`\n${error.message}\n\`\`\`\n\nThe code failed to execute. This might be due to:\n• Missing permissions\n• Invalid entity references\n• Discord API rate limits\n\nPlease try rephrasing your request.`
                 }]
             };
         }
     }
 
     /**
-     * Analyze request and generate code BEFORE confirmation
+     * Analyze request with detailed execution steps
      */
-    async analyzeAndPrepare(message, userMessage, progressMsg) {
-        const contextInfo = this.buildContextInfo(message);
-        const repliedData = await this.getRepliedMessageData(message);
+    async analyzeRequest(message, userMessage, repliedData, progressMsg) {
+        await progressMsg.edit({
+            embeds: [new EmbedBuilder()
+                .setColor(Colors.Yellow)
+                .setTitle('⏳ Step 1/3: Analyzing Request')
+                .setDescription('Understanding what you want to do...')
+                .setTimestamp()]
+        });
 
-        const prompt = `You are a Discord action analyzer. Analyze what the user wants to do and extract all relevant information.
+        const contextInfo = this.buildContextInfo(message);
+
+        const prompt = `You are a Discord action analyzer. Analyze the user's request carefully.
 
 User Message: "${userMessage}"
 
@@ -350,76 +372,64 @@ Context:
 ${contextInfo}
 
 ${repliedData ? `Replied Message Data:
-- Author: ${repliedData.author.username}
+- Author: ${repliedData.author.username} (ID: ${repliedData.author.id})
 - Content: ${repliedData.content}
 - Embeds: ${JSON.stringify(repliedData.embeds)}` : ''}
 
-IMPORTANT CONTEXT TERMS:
-- "this channel" / "here" = current channel (${message.channel.name})
+CONTEXT TERMS (VERY IMPORTANT):
+- "this channel" / "here" = current channel (#${message.channel.name})
 - "this category" = current category (${message.channel.parent?.name || 'none'})
-- "this user" (when replying) = the user being replied to
-- "this message" (when replying) = the message being replied to
-- "me" / "my" = the command author (${message.author.username})
+- "this user" (when replying) = the replied user (${repliedData ? repliedData.author.username : 'none'})
+- "me" / "my" / "I" = command author (${message.author.username})
 
-IMPORTANT: Be careful with pronouns and context:
-- If user says "ban wolfy", target ONLY wolfy, NOT the message author
-- If user says "give me admin", target the message author
-- If user says "delete this channel", target current channel
-- If replying and says "ban this user", target the replied user
-
-Discord Entities:
-- Users: Members (mentioned with @username or by name)
-- Roles: Permission groups (@rolename or by name)
-- Channels: Text/voice channels (#channel or by name)
-- Categories: Groups of channels
+CRITICAL: Be precise with targets:
+- "ban wolfy" → target ONLY wolfy, NOT command author
+- "give me admin" → target command author
+- "kick this user" (when replying) → target replied user
+- "delete this channel" → target current channel
 
 Your Task:
-1. Identify the ACTION (what to do)
-2. Identify TARGET entities (users, roles, channels, categories)
-3. Extract PARAMETERS (names, values, settings)
-4. Describe DETAILED STEPS of execution (be specific about what will happen)
-5. Understand context correctly - don't confuse subjects
+1. Identify ACTION (what to do)
+2. Identify TARGET entities (be specific - don't confuse command author with target)
+3. Create DETAILED EXECUTION STEPS (explain exact technical steps)
+4. Extract PARAMETERS
 
 Respond with ONLY valid JSON:
 {
-  "action": "descriptive_action_name",
-  "description": "Brief human readable description",
+  "action": "action_name",
+  "description": "What I understood from your request",
   "detailedSteps": [
-    "Step 1: Specific action (e.g., 'Search for user named wolfy using entity resolver')",
-    "Step 2: Another action (e.g., 'Ban the user if found')",
-    "Step 3: Final step (e.g., 'Send result embed with ban confirmation')"
+    "Use entity resolver to find user 'wolfy' in guild",
+    "Check if user exists and is bannable",
+    "Execute guild.members.ban() with user ID",
+    "Create result embed with success/failure status",
+    "Return embed in results array"
   ],
   "entities": {
-    "users": ["username1"],
-    "roles": ["rolename1"],
-    "channels": ["channelname1"],
-    "categories": ["categoryname1"]
+    "users": ["wolfy"],
+    "roles": [],
+    "channels": [],
+    "categories": []
   },
   "parameters": {
-    "name": "value"
+    "reason": "Requested by admin"
   },
   "usesContext": {
-    "currentChannel": true/false,
-    "currentCategory": true/false,
-    "repliedUser": true/false,
-    "repliedMessage": true/false,
-    "messageAuthor": true/false
+    "currentChannel": false,
+    "currentCategory": false,
+    "repliedUser": false,
+    "repliedMessage": false,
+    "messageAuthor": false
   }
-}`;
+}
+
+Make detailedSteps very specific and technical - these will be shown to the user before execution.`;
 
         try {
-            await progressMsg.edit({
-                embeds: [new EmbedBuilder()
-                    .setColor(Colors.Yellow)
-                    .setTitle('⏳ Analyzing Request...')
-                    .setDescription('Understanding what you want to do...')
-                    .setTimestamp()]
-            });
-
             const response = await this.hf.chatCompletion({
                 model: "Qwen/Qwen2.5-Coder-32B-Instruct",
                 messages: [
-                    { role: "system", content: "You are a Discord action analyzer. Respond only with valid JSON. Be careful with context and don't confuse subjects." },
+                    { role: "system", content: "You are a Discord action analyzer. Be precise with targets. Respond only with valid JSON." },
                     { role: "user", content: prompt }
                 ],
                 max_tokens: 800,
@@ -433,23 +443,7 @@ Respond with ONLY valid JSON:
                 throw new Error('Failed to parse AI response');
             }
 
-            const analysis = JSON.parse(jsonMatch[0]);
-
-            // Resolve entities
-            await progressMsg.edit({
-                embeds: [new EmbedBuilder()
-                    .setColor(Colors.Yellow)
-                    .setTitle('⏳ Resolving Entities...')
-                    .setDescription('Finding users, roles, and channels...')
-                    .setTimestamp()]
-            });
-
-            const resolved = await this.resolveEntities(analysis, message, repliedData);
-
-            // Generate code BEFORE showing confirmation
-            const code = await this.generateCode(analysis, resolved, message, repliedData, progressMsg);
-
-            return { analysis, resolved, repliedData, code };
+            return JSON.parse(jsonMatch[0]);
         } catch (error) {
             console.error('Request analysis error:', error);
             throw error;
@@ -496,22 +490,29 @@ Respond with ONLY valid JSON:
     }
 
     /**
-     * Create confirmation with code already generated
+     * Create confirmation embed with all details
      */
-    async createConfirmation(message, analysis, resolved, repliedData, code) {
-        const confirmationId = `confirm_${Date.now()}_${message.author.id}`;
+    async createConfirmation(message, analysis, resolved, repliedData, code, progressMsg) {
+        await progressMsg.edit({
+            embeds: [new EmbedBuilder()
+                .setColor(Colors.Yellow)
+                .setTitle('⏳ Step 3/3: Preparing Confirmation')
+                .setDescription('Building action details...')
+                .setTimestamp()]
+        });
 
-        // Check for dangerous actions
+        const confirmationId = `confirm_${Date.now()}_${message.author.id}`;
         const dangers = this.isDangerousAction(analysis, resolved);
 
         const embed = new EmbedBuilder()
             .setColor(dangers.isBlocked ? Colors.Red : Colors.Orange)
             .setTitle(dangers.isBlocked ? '🚫 Action Blocked' : '⚠️ Confirmation Required')
-            .setFooter({ text: dangers.isBlocked ? 'This action has been blocked for safety.' : 'You have 60 seconds to respond.' });
+            .setFooter({ text: dangers.isBlocked ? 'This action has been blocked for safety.' : 'You have 60 seconds to respond.' })
+            .setTimestamp();
 
         // Show what AI understood
         embed.addFields({
-            name: '🎯 Action Understanding',
+            name: '🎯 What I Understood',
             value: analysis.description,
             inline: false
         });
@@ -524,23 +525,23 @@ Respond with ONLY valid JSON:
                 const chunks = this.splitText(stepsText, 1024);
                 chunks.forEach((chunk, i) => {
                     embed.addFields({
-                        name: i === 0 ? '📋 Execution Plan' : '📋 Continued',
+                        name: i === 0 ? '📋 What Bot Will Do' : '📋 Continued',
                         value: chunk,
                         inline: false
                     });
                 });
             } else {
                 embed.addFields({
-                    name: '📋 Execution Plan',
+                    name: '📋 What Bot Will Do',
                     value: stepsText,
                     inline: false
                 });
             }
         }
 
-        // Show affected entities (parameters)
+        // Show affected entities
         if (resolved.users.length > 0) {
-            const userList = resolved.users.map(u => `• ${u.username} (${u.id})`).join('\n');
+            const userList = resolved.users.map(u => `• ${u.username} (\`${u.id}\`)`).join('\n');
             embed.addFields({
                 name: '👥 Target Users',
                 value: this.truncateText(userList, 1024),
@@ -549,7 +550,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.roles.length > 0) {
-            const roleList = resolved.roles.map(r => `• ${r.name} (${r.id})`).join('\n');
+            const roleList = resolved.roles.map(r => `• ${r.name} (\`${r.id}\`)`).join('\n');
             embed.addFields({
                 name: '🎭 Target Roles',
                 value: this.truncateText(roleList, 1024),
@@ -558,7 +559,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.channels.length > 0) {
-            const channelList = resolved.channels.map(c => `• #${c.name} (${c.id})`).join('\n');
+            const channelList = resolved.channels.map(c => `• #${c.name} (\`${c.id}\`)`).join('\n');
             embed.addFields({
                 name: '📝 Target Channels',
                 value: this.truncateText(channelList, 1024),
@@ -567,7 +568,7 @@ Respond with ONLY valid JSON:
         }
 
         if (resolved.categories.length > 0) {
-            const catList = resolved.categories.map(c => `• ${c.name} (${c.id})`).join('\n');
+            const catList = resolved.categories.map(c => `• ${c.name} (\`${c.id}\`)`).join('\n');
             embed.addFields({
                 name: '📁 Target Categories',
                 value: this.truncateText(catList, 1024),
@@ -611,9 +612,11 @@ Respond with ONLY valid JSON:
                     .setEmoji('❌')
             );
 
+        // Delete progress message and send confirmation
+        await progressMsg.delete();
         const confirmMsg = await message.reply({ embeds: [embed], components: [row] });
 
-        // Store confirmation with pre-generated code
+        // Store confirmation data
         this.pendingConfirmations.set(confirmationId, {
             analysis,
             resolved,
@@ -622,12 +625,12 @@ Respond with ONLY valid JSON:
             code,
             authorId: message.author.id,
             expiresAt: Date.now() + 60000,
-            blocked: dangers.isBlocked,
-            confirmMsgId: confirmMsg.id
+            blocked: dangers.isBlocked
         });
 
         console.log(`✅ Confirmation created: ${confirmationId}`);
 
+        // Auto-expire after 60 seconds
         setTimeout(() => {
             if (this.pendingConfirmations.has(confirmationId)) {
                 this.pendingConfirmations.delete(confirmationId);
@@ -686,16 +689,6 @@ Respond with ONLY valid JSON:
             });
         }
 
-        if (Date.now() > confirmData.expiresAt) {
-            this.pendingConfirmations.delete(confirmationId);
-            return interaction.reply({
-                embeds: [new EmbedBuilder()
-                    .setColor(Colors.Red)
-                    .setDescription('❌ This confirmation has expired.')],
-                ephemeral: true
-            });
-        }
-
         if (confirmData.authorId !== interaction.user.id) {
             return interaction.reply({
                 embeds: [new EmbedBuilder()
@@ -734,7 +727,6 @@ Respond with ONLY valid JSON:
         await interaction.update({ embeds: [executingEmbed], components: [] });
 
         try {
-            // Execute the pre-generated code
             console.log('⚙️ Executing code...');
             const result = await this.executeCode(confirmData.code, confirmData.message);
 
@@ -746,7 +738,7 @@ Respond with ONLY valid JSON:
 
             await interaction.editReply({ embeds: [completedEmbed] });
 
-            // Send results
+            // Send results as separate embeds
             if (result && result.results && result.results.length > 0) {
                 for (const output of result.results) {
                     const outputEmbed = new EmbedBuilder()
@@ -759,7 +751,9 @@ Respond with ONLY valid JSON:
                     }
 
                     if (output.fields && output.fields.length > 0) {
-                        outputEmbed.addFields(output.fields);
+                        // Ensure we don't exceed 25 fields
+                        const fields = output.fields.slice(0, 25);
+                        outputEmbed.addFields(fields);
                     }
 
                     await confirmData.message.channel.send({ embeds: [outputEmbed] });
@@ -767,8 +761,8 @@ Respond with ONLY valid JSON:
             } else {
                 const fallbackEmbed = new EmbedBuilder()
                     .setColor(Colors.Blue)
-                    .setTitle('📊 Result')
-                    .setDescription('Action completed.')
+                    .setTitle('✅ Action Completed')
+                    .setDescription('Action completed successfully.')
                     .setTimestamp();
 
                 await confirmData.message.channel.send({ embeds: [fallbackEmbed] });
@@ -776,6 +770,7 @@ Respond with ONLY valid JSON:
 
         } catch (error) {
             console.error('💥 Execution error:', error);
+
             const errorEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(Colors.Red)
                 .setTitle('❌ Execution Failed')
@@ -786,7 +781,7 @@ Respond with ONLY valid JSON:
             const errorOutputEmbed = new EmbedBuilder()
                 .setColor(Colors.Red)
                 .setTitle('❌ Error')
-                .setDescription(error.message || 'Unknown error occurred')
+                .setDescription(`\`\`\`\n${error.message}\n\`\`\``)
                 .setTimestamp();
 
             await confirmData.message.channel.send({ embeds: [errorOutputEmbed] });
@@ -794,11 +789,11 @@ Respond with ONLY valid JSON:
     }
 
     /**
-     * Main process handler
+     * Main process handler with live progress updates
      */
     async process(message, userMessage) {
         try {
-            // Silent permission check - no response if failed
+            // Silent permission check
             if (!this.hasPermission(message.member, message.author.id)) {
                 return { type: 'no_permission' };
             }
@@ -807,23 +802,25 @@ Respond with ONLY valid JSON:
             const progressMsg = await message.reply({
                 embeds: [new EmbedBuilder()
                     .setColor(Colors.Yellow)
-                    .setTitle('⏳ Processing...')
-                    .setDescription('Starting analysis...')
+                    .setTitle('⏳ Processing Request')
+                    .setDescription('Starting...')
                     .setTimestamp()]
             });
 
-            // Analyze, resolve, and generate code
-            const { analysis, resolved, repliedData, code } = await this.analyzeAndPrepare(
-                message,
-                userMessage,
-                progressMsg
-            );
+            // Step 1: Get replied data
+            const repliedData = await this.getRepliedMessageData(message);
 
-            // Delete progress message
-            await progressMsg.delete();
+            // Step 2: Analyze request
+            const analysis = await this.analyzeRequest(message, userMessage, repliedData, progressMsg);
 
-            // Create confirmation with all info ready
-            await this.createConfirmation(message, analysis, resolved, repliedData, code);
+            // Step 3: Resolve entities
+            const resolved = await this.resolveEntities(analysis, message, repliedData);
+
+            // Step 4: Generate code
+            const code = await this.generateCode(analysis, resolved, message, repliedData, progressMsg);
+
+            // Step 5: Create confirmation (deletes progress message)
+            await this.createConfirmation(message, analysis, resolved, repliedData, code, progressMsg);
 
             return { type: 'confirmation_created' };
 
@@ -833,7 +830,9 @@ Respond with ONLY valid JSON:
                 type: 'error',
                 embed: new EmbedBuilder()
                     .setColor(Colors.Red)
-                    .setDescription(`❌ An error occurred: ${error.message}`)
+                    .setTitle('❌ Error')
+                    .setDescription(`An error occurred: ${error.message}`)
+                    .setTimestamp()
             };
         }
     }
