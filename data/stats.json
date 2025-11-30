@@ -353,6 +353,12 @@
             "totalUses": 18,
             "successes": 14,
             "fails": 4
+        },
+        {
+            "userId": "866918496251019316",
+            "totalUses": 1,
+            "successes": 1,
+            "fails": 0
         }
     ],
     "totalDonations": 36254744508
