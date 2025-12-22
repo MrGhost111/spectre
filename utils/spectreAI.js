@@ -183,21 +183,30 @@ Common Discord Actions:
 - Information: list, show, display, summarize, analyze, count
 - Moderation: mute, unmute, ban, kick, warn, timeout
 
+CRITICAL: When user asks to "summarize", "analyze", "understand", or "read" messages:
+- This requires AI comprehension, not just data fetching
+- You MUST indicate this needs AI analysis in the action name
+- Include "analyze" or "comprehend" in the action name
+- Set parameters to indicate AI processing is needed
+
 Your Task:
 1. Identify the EXACT ACTION with precision
 2. Identify ALL TARGET entities correctly (consider context!)
 3. Extract PARAMETERS with correct values
-4. Create DETAILED STEPS explaining what will happen
+4. Create DETAILED STEPS explaining what will happen (include AI analysis step if needed)
 5. Mark which context elements are being used
 
 Respond with ONLY valid JSON (no markdown, no explanations):
 {
-  "action": "descriptive_action_name",
+  "action": "ai_analyze_and_summarize_messages", // Use "ai_" prefix for AI tasks
   "description": "Clear human-readable description of what will happen",
   "detailedSteps": [
-    "Step 1: Exact action with specific details",
-    "Step 2: Another exact action with details",
-    "Step 3: Final result or output"
+    "Step 1: Fetch the last X messages from the channel",
+    "Step 2: Sort messages chronologically (oldest to newest)",
+    "Step 3: Use AI to read and comprehend all messages in context",
+    "Step 4: AI analyzes discussions, topics, and key points",
+    "Step 5: Generate comprehensive summary with user contributions",
+    "Step 6: Display results in an embed"
   ],
   "entities": {
     "users": ["username1", "username2"],
@@ -224,16 +233,37 @@ EXAMPLES OF GOOD ANALYSIS:
 
 Input: "summarize the last 100 messages"
 Output: {
-  "action": "summarize_message_history",
-  "description": "Fetch and summarize the last 100 messages from current channel",
+  "action": "ai_analyze_and_summarize_messages",
+  "description": "Use AI to read and comprehensively summarize the last 100 messages from current channel",
   "detailedSteps": [
     "Fetch the last 100 messages from #${message.channel.name}",
-    "Analyze message content, authors, and patterns",
-    "Generate a comprehensive summary with key topics and statistics",
-    "Display summary in an embed"
+    "Sort messages chronologically from oldest to newest",
+    "Send all message content to AI for comprehensive analysis",
+    "AI reads and understands the full conversation context",
+    "AI identifies key topics, discussions, and participant contributions",
+    "Generate detailed summary showing what each user discussed",
+    "Display summary in a formatted embed"
   ],
   "entities": { "users": [], "roles": [], "channels": [], "categories": [] },
-  "parameters": { "count": 100, "messageType": "all" },
+  "parameters": { "count": 100, "requiresAI": true, "sortOrder": "oldest-first" },
+  "usesContext": { "currentChannel": true, "currentCategory": false, "repliedUser": false, "repliedMessage": false, "messageAuthor": false }
+}
+
+Input: "read last 50 messages and tell me what lootchest said about the event"
+Output: {
+  "action": "ai_analyze_specific_user_messages",
+  "description": "Use AI to analyze last 50 messages and extract what lootchest discussed about the event",
+  "detailedSteps": [
+    "Fetch the last 50 messages from #${message.channel.name}",
+    "Filter messages from user 'lootchest'",
+    "Sort chronologically (oldest to newest)",
+    "Send lootchest's messages to AI for analysis",
+    "AI comprehends the context and extracts event-related discussions",
+    "Summarize lootchest's contributions and suggestions",
+    "Display formatted summary"
+  ],
+  "entities": { "users": ["lootchest"], "roles": [], "channels": [], "categories": [] },
+  "parameters": { "count": 50, "requiresAI": true, "focusUser": "lootchest", "topic": "event" },
   "usesContext": { "currentChannel": true, "currentCategory": false, "repliedUser": false, "repliedMessage": false, "messageAuthor": false }
 }
 
@@ -424,7 +454,7 @@ Output: {
     }
 
     /**
-     * Enhanced code generation with better Discord.js v14 support
+     * Enhanced code generation with better Discord.js v14 support and AI analysis
      */
     async generateCode(analysis, resolved, message, repliedData) {
         const resolvedUserIds = resolved.users.map(u => u.id);
@@ -457,6 +487,7 @@ AVAILABLE VARIABLES (pre-defined, DO NOT redeclare):
 - client: Discord client
 - channel: Current channel (message.channel)
 - PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
+- hfClient: HuggingFace Inference client (CRITICAL: Use this for AI analysis!)
 
 DISCORD.JS V14 CRITICAL RULES:
 1. Fetch members: await guild.members.fetch(userId) or guild.members.cache.get(userId)
@@ -470,18 +501,100 @@ DISCORD.JS V14 CRITICAL RULES:
 9. NEVER use deprecated methods: .isText(), .isTextBased(), .isThread()
 10. Check channel type: channel.type === ChannelType.GuildText
 
+AI ANALYSIS CAPABILITIES (VERY IMPORTANT):
+When the action involves UNDERSTANDING, ANALYZING, SUMMARIZING, or COMPREHENDING content:
+- You MUST use hfClient.chatCompletion() to analyze the content with AI
+- Build a comprehensive prompt with ALL the data to analyze
+- The AI can understand context, relationships, and meaning across multiple messages
+- Use this for: summaries, sentiment analysis, topic extraction, pattern recognition
+
+CRITICAL: For summarization/analysis tasks, you MUST:
+1. Fetch ALL the messages first
+2. Build them into a chronological conversation (oldest to newest)
+3. Send the ENTIRE conversation to hfClient for analysis
+4. Let the AI read and understand the full context
+
+AI ANALYSIS EXAMPLE:
+\`\`\`javascript
+// Fetch messages
+const fetchedMsgs = await channel.messages.fetch({ limit: 101 }); // Fetch +1 to account for command message
+const sortedMsgs = Array.from(fetchedMsgs.values())
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp) // oldest to newest
+    .filter(m => m.id !== message.id); // Exclude the command message itself
+
+// Take only the requested amount
+const messagesToAnalyze = sortedMsgs.slice(-100); // Last 100 messages
+
+// Build conversation history with user context
+const conversation = messagesToAnalyze
+    .filter(m => !m.author.bot && m.content.trim().length > 0)
+    .map((m, idx) => {
+        const timestamp = new Date(m.createdTimestamp).toLocaleTimeString();
+        return \`Message \${idx + 1} [\${timestamp}] [\${m.author.username}]: \${m.content}\`;
+    })
+    .join('\\n');
+
+// Use AI to analyze with detailed instructions
+const response = await hfClient.chatCompletion({
+    model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+    messages: [
+        {
+            role: "system",
+            content: "You are a conversation analyzer. Read the ENTIRE conversation from oldest to newest, understand the context and flow, then provide a detailed summary."
+        },
+        {
+            role: "user",
+            content: \`Analyze this conversation chronologically (oldest to newest).
+
+CONVERSATION:
+\${conversation}
+
+TASK:
+1. Read ALL messages in order to understand the full context
+2. Identify what each unique user discussed and contributed
+3. Find key topics, decisions, and important points
+4. Understand message chains - later messages may reference earlier ones
+5. Exclude redundant or trivial messages
+6. Provide a comprehensive summary in this format:
+
+**Discussion Summary:**
+[Overall topic and context]
+
+**Key Participants:**
+- **[Username1]**: [What they discussed, their contributions, suggestions]
+- **[Username2]**: [What they discussed, their contributions, suggestions]
+
+**Important Points:**
+1. [Key point or decision]
+2. [Another key point]
+3. [Another key point]
+
+Be specific and detailed. Quote important parts if needed.\`
+        }
+    ],
+    max_tokens: 2000,
+    temperature: 0.3
+});
+
+const summary = response.choices[0].message.content;
+\`\`\`
+
 COMMON OPERATIONS:
 
-// Fetch and summarize messages
+// Fetch and analyze messages with AI
 const messages = await channel.messages.fetch({ limit: 100 });
-const summary = {
-  totalMessages: messages.size,
-  uniqueUsers: new Set(messages.map(m => m.author.id)).size,
-  mostActive: [...messages.reduce((acc, m) => {
-    acc.set(m.author.id, (acc.get(m.author.id) || 0) + 1);
-    return acc;
-  }, new Map())].sort((a, b) => b[1] - a[1])[0]
-};
+const sorted = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+const conversation = sorted.map(m => \`[\${m.author.username}]: \${m.content}\`).join('\\n');
+
+const aiResponse = await hfClient.chatCompletion({
+    model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+    messages: [
+        { role: "system", content: "Analyze this conversation" },
+        { role: "user", content: conversation }
+    ],
+    max_tokens: 1000,
+    temperature: 0.3
+});
 
 // Bulk delete messages
 const fetchedMessages = await channel.messages.fetch({ limit: 100 });
@@ -526,6 +639,7 @@ IMPORTANT:
 - Include actual data in results (counts, names, etc.)
 - Format lists and data clearly
 - Handle errors gracefully with informative messages
+- When analyzing/summarizing: ALWAYS use hfClient, sort messages oldest→newest, send full context
 
 Generate the complete, production-ready code now:`;
 
@@ -591,7 +705,7 @@ Generate the complete, production-ready code now:`;
     }
 
     /**
-     * Execute generated code safely with sandbox
+     * Execute generated code safely with sandbox and AI client access
      */
     async executeCode(code, message) {
         try {
@@ -599,16 +713,17 @@ Generate the complete, production-ready code now:`;
             const guild = message.guild;
             const client = message.client;
             const channel = message.channel;
+            const hfClient = this.hf; // Pass HuggingFace client for AI analysis
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
             const executor = new AsyncFunction(
-                'message', 'guild', 'client', 'channel',
+                'message', 'guild', 'client', 'channel', 'hfClient',
                 'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
                 `return ${code}`
             );
 
             const result = await executor(
-                message, guild, client, channel,
+                message, guild, client, channel, hfClient,
                 PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
             );
 
