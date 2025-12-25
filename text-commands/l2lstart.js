@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { PermissionFlagsBits } = require('discord.js');
 const { createStatusEmbed, startStatusUpdates } = require('../utils/helpers');
-
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
+
 const VOICE_CHANNEL_ID = '944924720158085190';
 const HOST_ROLE_ID = '712970141834674207';
 
@@ -21,7 +21,7 @@ module.exports = {
 
         try {
             const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-            
+
             // Check if there's a waiting event
             if (!eventsData[voiceChannel.id] || eventsData[voiceChannel.id].status !== 'waiting') {
                 return message.reply('Please set up the event first using the `,l2l` command.');
@@ -32,6 +32,7 @@ module.exports = {
             eventData.startTime = Date.now();
 
             const currentParticipants = voiceChannel.members;
+
             // Register all current participants
             currentParticipants.forEach(member => {
                 eventData.participants[member.id] = {
@@ -60,10 +61,13 @@ module.exports = {
                 [PermissionFlagsBits.ManageChannels]: true
             });
 
-            // Create and send status embed
-            const { embed } = await createStatusEmbed(eventData);
-            const statusMessage = await message.channel.send({ embeds: [embed] });
+            // Create and send status embeds (multiple if needed)
+            const embedsData = await createStatusEmbed(eventData);
+            const embeds = Array.isArray(embedsData.embed) ? embedsData.embed : [embedsData.embed];
+
+            const statusMessage = await message.channel.send({ embeds: embeds });
             eventData.statusMessageId = statusMessage.id;
+            eventData.logChannelId = message.channel.id;
 
             // Start automatic status updates
             startStatusUpdates(message.client, voiceChannel.id, eventData);
@@ -73,10 +77,10 @@ module.exports = {
             fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
 
             return message.reply(`Event started! The voice channel <#${VOICE_CHANNEL_ID}> has been locked with ${currentParticipants.size} participants.`);
+
         } catch (error) {
             console.error(error);
-            return message.reply('An error occurred while starting the event.');
+            return message.reply(`An error occurred while starting the event: ${error.message}`);
         }
     }
 };
-

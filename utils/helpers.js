@@ -3,10 +3,10 @@ const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
 
-// Calculate max participants that can fit in embed (considering 2000 char limit)
-// Average participant line: "✅ Username (1h 30m+) - Last updated 2 hours ago\n" ≈ 50 chars
-// Keeping space for header/footer and safety margin
-const MAX_PARTICIPANTS = 35;
+// Discord embed limits
+const MAX_FIELD_VALUE_LENGTH = 1024;
+const MAX_FIELDS_PER_EMBED = 25;
+const MAX_EMBEDS = 10;
 
 function formatDuration(ms, isActive = false) {
     const seconds = Math.floor((ms / 1000) % 60);
@@ -19,7 +19,7 @@ function formatDuration(ms, isActive = false) {
     if (hours > 0) duration += `${hours}h `;
     if (minutes > 0) duration += `${minutes}m `;
     duration += `${seconds}s`;
-    
+
     return isActive ? `${duration}+` : duration;
 }
 
@@ -37,42 +37,87 @@ async function createStatusEmbed(eventData) {
             return (b.leaveTime || Date.now()) - (a.leaveTime || Date.now());
         });
 
-    const embed = new EmbedBuilder()
-        .setTitle(eventData.status === 'waiting' ? 
-            '<:YJ_streak:1259258046924853421> Last to Leave Event - Waiting to Start' :
-            '<:power:1064835342160625784> Last to Leave Event - Active')
-        .setColor(eventData.status === 'waiting' ? '#6666ff' : '#FF0000')
-        .setTimestamp();
-
+    // If waiting status, return single embed
     if (eventData.status === 'waiting') {
-        embed.setDescription('Event Setup Complete!\nThe voice channel is now unlocked and ready for participants.\nThe event will begin when the host uses ,start');
-        return { embed };
+        const embed = new EmbedBuilder()
+            .setTitle('<:YJ_streak:1259258046924853421> Last to Leave Event - Waiting to Start')
+            .setColor('#6666ff')
+            .setDescription('Event Setup Complete!\nThe voice channel is now unlocked and ready for participants.\nThe event will begin when the host uses ,start')
+            .setTimestamp();
+        return { embed: [embed] };
     }
+
+    // Create embeds array
+    const embeds = [];
+
+    // Main embed with event info
+    const mainEmbed = new EmbedBuilder()
+        .setTitle('<:power:1064835342160625784> Last to Leave Event - Active')
+        .setColor('#FF0000')
+        .setTimestamp();
 
     let description = `Event Started: <t:${Math.floor(eventData.startTime / 1000)}:F>\n`;
     description += `<:time:1000024854478721125> Event Duration: ${duration}\n`;
     description += `<:user:1273754877646082048> Participants Remaining: ${activeParticipants.length}/${totalParticipants}\n`;
     description += `Last Updated: <t:${currentTimestamp}:R>\n\n`;
     description += '<:user:1273754877646082048> Participants Status:';
-    embed.setDescription(description);
+    mainEmbed.setDescription(description);
 
-    let participantsList = '';
-    sortedParticipants.slice(0, MAX_PARTICIPANTS).forEach(participant => {
+    embeds.push(mainEmbed);
+
+    // Build participant list
+    let currentFieldValue = '';
+    let fieldCount = 0;
+    let embedIndex = 0;
+
+    for (let i = 0; i < sortedParticipants.length; i++) {
+        const participant = sortedParticipants[i];
         const status = participant.status === 'active' ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
-        const timeSpent = participant.status === 'active' ? 
-            `(${formatDuration(Date.now() - participant.joinTime, true)})` : 
+        const timeSpent = participant.status === 'active' ?
+            `(${formatDuration(Date.now() - participant.joinTime, true)})` :
             `(${formatDuration(participant.leaveTime - participant.joinTime)})`;
-        participantsList += `${status} ${participant.username} ${timeSpent}\n`;
-    });
+        const line = `${status} ${participant.username} ${timeSpent}\n`;
 
-    if (participantsList) {
-        embed.addFields({ 
-            name: '\u200b', 
-            value: participantsList
+        // Check if adding this line would exceed field value limit
+        if ((currentFieldValue + line).length > MAX_FIELD_VALUE_LENGTH) {
+            // Add current field to current embed
+            if (fieldCount < MAX_FIELDS_PER_EMBED) {
+                embeds[embedIndex].addFields({
+                    name: fieldCount === 0 ? '\u200b' : 'Continued...',
+                    value: currentFieldValue || '\u200b'
+                });
+                fieldCount++;
+                currentFieldValue = line;
+            } else {
+                // Current embed is full, create new embed
+                if (embedIndex < MAX_EMBEDS - 1) {
+                    embedIndex++;
+                    const continueEmbed = new EmbedBuilder()
+                        .setColor('#FF0000')
+                        .setTitle('Participants (continued)');
+                    embeds.push(continueEmbed);
+                    fieldCount = 0;
+                    currentFieldValue = line;
+                } else {
+                    // Reached max embeds, truncate
+                    currentFieldValue += `\n... and ${sortedParticipants.length - i} more participants`;
+                    break;
+                }
+            }
+        } else {
+            currentFieldValue += line;
+        }
+    }
+
+    // Add remaining field value
+    if (currentFieldValue) {
+        embeds[embedIndex].addFields({
+            name: fieldCount === 0 ? '\u200b' : 'Continued...',
+            value: currentFieldValue
         });
     }
 
-    return { embed };
+    return { embed: embeds };
 }
 
 async function updateStatusMessage(client, eventData) {
@@ -80,7 +125,8 @@ async function updateStatusMessage(client, eventData) {
         const channel = await client.channels.fetch(eventData.logChannelId);
         const statusMessage = await channel.messages.fetch(eventData.statusMessageId);
         const { embed } = await createStatusEmbed(eventData);
-        await statusMessage.edit({ embeds: [embed] });
+        const embeds = Array.isArray(embed) ? embed : [embed];
+        await statusMessage.edit({ embeds: embeds });
         console.log(`[${new Date().toISOString()}] Status message updated successfully`);
     } catch (error) {
         console.error('Error updating status message:', error);
@@ -146,12 +192,15 @@ async function announceWinner(client, eventData) {
 
         const winnerMessage = await channel.send({ embeds: [winnerEmbed] });
         eventData.winnerMessageId = winnerMessage.id;
-        
+
         // Save the updated event data with winner message ID
         const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-        eventsData[Object.keys(eventsData)[0]] = eventData;
-        fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
-        
+        const channelId = Object.keys(eventsData).find(key => eventsData[key] === eventData);
+        if (channelId) {
+            eventsData[channelId] = eventData;
+            fs.writeFileSync(dataPath, JSON.stringify(eventsData, null, 2));
+        }
+
         return winnerMessage.id;
     } catch (error) {
         console.error('Error announcing winner:', error);
@@ -165,17 +214,17 @@ function startStatusUpdates(client, channelId, eventData) {
     if (updateIntervals.has(channelId)) {
         clearInterval(updateIntervals.get(channelId));
     }
-    
+
     // Perform initial update
     updateStatusMessage(client, eventData).catch(console.error);
     console.log(`[${new Date().toISOString()}] Starting status updates for channel ${channelId}`);
-    
+
     const interval = setInterval(async () => {
         try {
             // Read fresh data each time
             const eventsData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
             const currentEventData = eventsData[channelId];
-            
+
             if (currentEventData && currentEventData.status === 'active') {
                 await updateStatusMessage(client, currentEventData);
                 console.log(`[${new Date().toISOString()}] Status update performed for channel ${channelId}`);
@@ -187,7 +236,7 @@ function startStatusUpdates(client, channelId, eventData) {
             console.error('Error in status update interval:', error);
         }
     }, 60000); // Every minute
-    
+
     updateIntervals.set(channelId, interval);
 }
 
