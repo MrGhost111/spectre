@@ -1,17 +1,8 @@
 {
   "944924720158085190": {
-    "status": "active",
+    "status": "waiting",
     "logChannelId": "1317394552033775626",
-    "participants": {
-      "753491023208120321": {
-        "username": "ghost.2628",
-        "joinTime": 1766459203498,
-        "leaveTime": 1766459223408,
-        "status": "left",
-        "rank": null
-      }
-    },
-    "statusMessageId": "1452859946176614442",
-    "startTime": 1766459203498
+    "participants": {},
+    "statusMessageId": "1453771572799082517"
   }
 }
