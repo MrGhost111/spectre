@@ -4,6 +4,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType,
 const spectreAI = require('../utils/spectreAI');
 
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
+const YOUR_USER_ID = '753491023208120321'; // Your user ID for testing exception
 
 module.exports = {
     name: 'interactionCreate',
@@ -90,7 +91,7 @@ module.exports = {
                     const channel = await guild.channels.create({
                         name: '⭐│story-submissions',
                         type: ChannelType.GuildText,
-                        topic: `Story submissions for: ${storyData.words.join(', ')}`,
+                        topic: `Story submissions for: ${storyData.words.join(', ')}${storyData.theme ? ` (${storyData.theme} theme)` : ''}`,
                         permissionOverwrites: [
                             {
                                 id: guild.id,
@@ -109,7 +110,7 @@ module.exports = {
                     // Post introduction
                     const introEmbed = new EmbedBuilder()
                         .setColor('#FFD700')
-                        .setTitle('📖 Story Voting Has Begun!')
+                        .setTitle(`📖 Story Voting Has Begun!${storyData.theme ? ` (${storyData.theme.toUpperCase()} Theme)` : ''}`)
                         .setDescription(`Vote for your favorite story below!\n\n**Required words were:** ${storyData.words.map(w => `**${w}**`).join(' • ')}\n\n**Rules:**\n• You can only vote once\n• You cannot vote for your own story\n• Click the 👍 button to vote`)
                         .setFooter({ text: `${Object.keys(storyData.submissions).length} stories submitted` })
                         .setTimestamp();
@@ -179,23 +180,38 @@ module.exports = {
                     return interaction.reply({ content: '❌ Voting is not active!', ephemeral: true });
                 }
 
-                // Check if user is trying to vote for their own story
-                if (voterId === authorId) {
+                // Check if user is trying to vote for their own story (with exception for you)
+                if (voterId === authorId && voterId !== YOUR_USER_ID) {
                     return interaction.reply({ content: '❌ You cannot vote for your own story!', ephemeral: true });
                 }
 
                 // Check if user already voted
                 if (storyData.votes[voterId]) {
                     const previousVote = storyData.votes[voterId];
-                    return interaction.reply({
-                        content: `❌ You already voted for **${storyData.submissions[previousVote].anonymousName}**!\n\nYou can only vote once.`,
-                        ephemeral: true
-                    });
+
+                    // Allow you to change your vote for testing
+                    if (voterId === YOUR_USER_ID) {
+                        // Remove previous vote and allow new one
+                        delete storyData.votes[voterId];
+                    } else {
+                        return interaction.reply({
+                            content: `❌ You already voted for **${storyData.submissions[previousVote].anonymousName}**!\n\nYou can only vote once.`,
+                            ephemeral: true
+                        });
+                    }
                 }
 
                 // Record vote
                 storyData.votes[voterId] = authorId;
                 fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
+
+                // Special message for you
+                if (voterId === YOUR_USER_ID && voterId === authorId) {
+                    return interaction.reply({
+                        content: `✅ Vote recorded for **${storyData.submissions[authorId].anonymousName}** (Testing mode - you can vote for yourself and change votes)`,
+                        ephemeral: true
+                    });
+                }
 
                 return interaction.reply({
                     content: `✅ Your vote for **${storyData.submissions[authorId].anonymousName}** has been recorded!`,
@@ -261,8 +277,13 @@ module.exports = {
                     voteCounts[authorId] = (voteCounts[authorId] || 0) + 1;
                 }
 
-                // Find winner
+                // Find winner (highest votes)
                 const sortedAuthors = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+
+                if (sortedAuthors.length === 0) {
+                    return interaction.editReply({ content: '❌ No votes were cast!' });
+                }
+
                 const [winnerId, winnerVotes] = sortedAuthors[0];
                 const winnerData = storyData.submissions[winnerId];
 
@@ -274,7 +295,7 @@ module.exports = {
                     .addFields(
                         { name: '📝 Required Words', value: storyData.words.map(w => `**${w}**`).join(' • ') }
                     )
-                    .setFooter({ text: `Total votes: ${Object.keys(storyData.votes).length}` })
+                    .setFooter({ text: `Total votes: ${Object.keys(storyData.votes).length} | ${storyData.theme ? `Theme: ${storyData.theme}` : 'Random theme'}` })
                     .setTimestamp();
 
                 // Show all results
