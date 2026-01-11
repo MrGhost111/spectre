@@ -5,10 +5,12 @@ const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const spectreAI = require('../utils/spectreAI');
+const { validateStoryWords, generateAnonymousName } = require('../utils/storyUtils');
 
 require('dotenv').config();
 
 let lastStickyMessageId = null;
+const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 
 module.exports = {
     name: 'messageCreate',
@@ -23,8 +25,59 @@ module.exports = {
             return;
         }
 
-        // Ignore DM messages
+        // ===========================================
+        // STORY GAME DM HANDLER
+        // ===========================================
         if (!message.guild) {
+            // This is a DM - check if story game is active
+            if (fs.existsSync(storyDataPath)) {
+                const storyData = JSON.parse(fs.readFileSync(storyDataPath, 'utf8'));
+
+                if (storyData.active) {
+                    // Check if user already submitted
+                    if (storyData.submissions[message.author.id]) {
+                        return message.reply('❌ You have already submitted a story! You can only submit once per game.');
+                    }
+
+                    // Validate story length (minimum 50 characters)
+                    if (message.content.length < 50) {
+                        return message.reply('❌ Your story is too short! Please write at least 50 characters.');
+                    }
+
+                    // Validate that story contains all required words using AI
+                    const validation = await validateStoryWords(message.content, storyData.words);
+
+                    if (!validation.valid) {
+                        return message.reply(`❌ Your story is missing the following words: **${validation.missingWords.join(', ')}**\n\nPlease include ALL 5 words: **${storyData.words.join(', ')}**`);
+                    }
+
+                    // Generate anonymous name
+                    const anonymousName = generateAnonymousName();
+
+                    // Save submission
+                    storyData.submissions[message.author.id] = {
+                        story: message.content,
+                        anonymousName: anonymousName,
+                        timestamp: Date.now()
+                    };
+                    fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
+
+                    // Confirm submission
+                    const confirmEmbed = new EmbedBuilder()
+                        .setColor('#00FF00')
+                        .setTitle('✅ Story Submitted Successfully!')
+                        .setDescription(`Your story has been submitted anonymously as **${anonymousName}**\n\nWait for the moderators to finish the submission period and start voting!`)
+                        .addFields(
+                            { name: '📝 Your Story Preview', value: message.content.substring(0, 200) + (message.content.length > 200 ? '...' : '') }
+                        )
+                        .setFooter({ text: 'Good luck!' })
+                        .setTimestamp();
+
+                    return message.reply({ embeds: [confirmEmbed] });
+                }
+            }
+
+            // No active story game - ignore DM
             return;
         }
 
