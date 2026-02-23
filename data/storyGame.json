@@ -1,11 +1,29 @@
 {
   "active": false,
-  "words": [],
-  "submissions": {},
-  "votes": {},
-  "guildId": null,
-  "channelId": null,
-  "votingChannelId": null,
+  "words": [
+    "bridge",
+    "dark",
+    "dance",
+    "hide",
+    "hope"
+  ],
+  "submissions": {
+    "753491023208120321": {
+      "story": "**bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope****bridge** • **dark** • **dance** • **hide** • **hope**",
+      "anonymousName": "Midnight Eagle",
+      "timestamp": 1770238526976,
+      "messageId": "1468711562729619720"
+    }
+  },
+  "votes": {
+    "753491023208120321": "753491023208120321"
+  },
+  "guildId": "1428463832518627421",
+  "channelId": "1430258088686125087",
+  "votingChannelId": "1468711644145123359",
   "votingActive": false,
-  "storyMessages": {}
+  "storyMessages": {
+    "753491023208120321": "1468711646854643753"
+  },
+  "theme": null
 }

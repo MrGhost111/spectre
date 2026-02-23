@@ -34,9 +34,9 @@ module.exports = {
                 const storyData = JSON.parse(fs.readFileSync(storyDataPath, 'utf8'));
 
                 if (storyData.active) {
-                    // Check if user already submitted
-                    if (storyData.submissions[message.author.id]) {
-                        return message.reply('❌ You have already submitted a story! You can only submit once per game.');
+                    // Check if voting has already started
+                    if (storyData.votingActive) {
+                        return message.reply('❌ Voting has already started! You can no longer submit or update your story.');
                     }
 
                     // Validate story length (minimum 50 characters)
@@ -48,29 +48,36 @@ module.exports = {
                     const validation = await validateStoryWords(message.content, storyData.words);
 
                     if (!validation.valid) {
-                        return message.reply(`❌ Your story is missing the following words: **${validation.missingWords.join(', ')}**\n\nPlease include ALL 5 words: **${storyData.words.join(', ')}**`);
+                        return message.reply(`❌ Your story is missing the following words: **${validation.missingWords.join(', ')}**\n\nPlease include ALL 5 words: **${storyData.words.join(', ')}**\n\n💡 **Tip:** Send a new message with all the words included!`);
                     }
 
-                    // Generate anonymous name
-                    const anonymousName = generateAnonymousName();
+                    // Check if this is an update or new submission
+                    const isUpdate = storyData.submissions[message.author.id] !== undefined;
+                    
+                    // Use existing anonymous name or generate new one
+                    const anonymousName = isUpdate 
+                        ? storyData.submissions[message.author.id].anonymousName
+                        : generateAnonymousName();
 
-                    // Save submission
+                    // Save/update submission
                     storyData.submissions[message.author.id] = {
                         story: message.content,
                         anonymousName: anonymousName,
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        messageId: message.id
                     };
                     fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
 
                     // Confirm submission
                     const confirmEmbed = new EmbedBuilder()
-                        .setColor('#00FF00')
-                        .setTitle('✅ Story Submitted Successfully!')
-                        .setDescription(`Your story has been submitted anonymously as **${anonymousName}**\n\nWait for the moderators to finish the submission period and start voting!`)
+                        .setColor(isUpdate ? '#FFA500' : '#00FF00')
+                        .setTitle(isUpdate ? '✏️ Story Updated!' : '✅ Story Submitted Successfully!')
+                        .setDescription(`Your story has been ${isUpdate ? 'updated' : 'submitted'} anonymously as **${anonymousName}**\n\n✨ **You can update your submission anytime before voting starts!**\nJust send a new message here with your updated story.\n\nWait for the moderators to finish the submission period and start voting!`)
                         .addFields(
-                            { name: '📝 Your Story Preview', value: message.content.substring(0, 200) + (message.content.length > 200 ? '...' : '') }
+                            { name: '📝 Your Story Preview', value: message.content.substring(0, 200) + (message.content.length > 200 ? '...' : '') },
+                            { name: '🎯 Required Words', value: storyData.words.map(w => `**${w}**`).join(' • '), inline: false }
                         )
-                        .setFooter({ text: 'Good luck!' })
+                        .setFooter({ text: isUpdate ? 'Your previous submission was replaced' : 'Good luck!' })
                         .setTimestamp();
 
                     return message.reply({ embeds: [confirmEmbed] });

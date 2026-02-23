@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
 const spectreAI = require('../utils/spectreAI');
@@ -12,12 +12,12 @@ module.exports = {
         // Handle SpectreAI confirmation buttons
         if (interaction.isButton()) {
             const customId = interaction.customId;
-
+            
             // Check if it's a SpectreAI confirmation button
             if (customId.startsWith('confirm_')) {
                 const isConfirm = customId.endsWith('_confirm');
                 const isCancel = customId.endsWith('_cancel');
-
+                
                 if (isConfirm || isCancel) {
                     await spectreAI.handleConfirmation(interaction, isConfirm);
                     return;
@@ -27,7 +27,7 @@ module.exports = {
             // ===========================================
             // STORY GAME BUTTON HANDLERS
             // ===========================================
-
+            
             // Handle "Finish Submissions" button
             if (customId === 'story_finish') {
                 // Check permissions
@@ -87,9 +87,10 @@ module.exports = {
                 const guild = interaction.guild;
 
                 try {
-                    // Create story submissions channel
+                    // Create a new story submissions channel (always creates a fresh one)
+                    const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
                     const channel = await guild.channels.create({
-                        name: '⭐│story-submissions',
+                        name: `⭐│story-submissions-${timestamp}`,
                         type: ChannelType.GuildText,
                         topic: `Story submissions for: ${storyData.words.join(', ')}${storyData.theme ? ` (${storyData.theme} theme)` : ''}`,
                         permissionOverwrites: [
@@ -119,7 +120,7 @@ module.exports = {
 
                     // Post each story
                     const submissions = Object.entries(storyData.submissions);
-
+                    
                     for (const [userId, data] of submissions) {
                         const storyEmbed = new EmbedBuilder()
                             .setColor('#4169E1')
@@ -138,7 +139,7 @@ module.exports = {
                             );
 
                         const storyMessage = await channel.send({ embeds: [storyEmbed], components: [voteButton] });
-
+                        
                         // Save message ID for vote counting
                         storyData.storyMessages[userId] = storyMessage.id;
                     }
@@ -147,10 +148,10 @@ module.exports = {
                     fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
 
                     // Update original message
-                    await interaction.message.edit({
+                    await interaction.message.edit({ 
                         content: '✅ **Submission period ended! Voting has started in the new channel.**',
-                        embeds: [],
-                        components: []
+                        embeds: [], 
+                        components: [] 
                     });
 
                     await interaction.editReply({ content: `✅ Successfully created ${channel} and posted all stories!` });
@@ -188,15 +189,15 @@ module.exports = {
                 // Check if user already voted
                 if (storyData.votes[voterId]) {
                     const previousVote = storyData.votes[voterId];
-
+                    
                     // Allow you to change your vote for testing
                     if (voterId === YOUR_USER_ID) {
                         // Remove previous vote and allow new one
                         delete storyData.votes[voterId];
                     } else {
-                        return interaction.reply({
-                            content: `❌ You already voted for **${storyData.submissions[previousVote].anonymousName}**!\n\nYou can only vote once.`,
-                            ephemeral: true
+                        return interaction.reply({ 
+                            content: `❌ You already voted for **${storyData.submissions[previousVote].anonymousName}**!\n\nYou can only vote once.`, 
+                            ephemeral: true 
                         });
                     }
                 }
@@ -207,15 +208,15 @@ module.exports = {
 
                 // Special message for you
                 if (voterId === YOUR_USER_ID && voterId === authorId) {
-                    return interaction.reply({
-                        content: `✅ Vote recorded for **${storyData.submissions[authorId].anonymousName}** (Testing mode - you can vote for yourself and change votes)`,
-                        ephemeral: true
+                    return interaction.reply({ 
+                        content: `✅ Vote recorded for **${storyData.submissions[authorId].anonymousName}** (Testing mode - you can vote for yourself and change votes)`, 
+                        ephemeral: true 
                     });
                 }
 
-                return interaction.reply({
-                    content: `✅ Your vote for **${storyData.submissions[authorId].anonymousName}** has been recorded!`,
-                    ephemeral: true
+                return interaction.reply({ 
+                    content: `✅ Your vote for **${storyData.submissions[authorId].anonymousName}** has been recorded!`, 
+                    ephemeral: true 
                 });
             }
 
@@ -279,7 +280,7 @@ module.exports = {
 
                 // Find winner (highest votes)
                 const sortedAuthors = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
-
+                
                 if (sortedAuthors.length === 0) {
                     return interaction.editReply({ content: '❌ No votes were cast!' });
                 }
@@ -328,10 +329,10 @@ module.exports = {
 
                 // Update original message
                 try {
-                    await interaction.message.edit({
+                    await interaction.message.edit({ 
                         content: '✅ **Game ended! Winner has been announced.**',
-                        embeds: [],
-                        components: []
+                        embeds: [], 
+                        components: [] 
                     });
                 } catch (err) {
                     console.error('Error updating original message:', err);
@@ -349,7 +350,7 @@ module.exports = {
         // Handle slash commands
         if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
-
+            
             if (!command) {
                 console.error(`No command matching ${interaction.commandName} was found.`);
                 return;
@@ -360,9 +361,9 @@ module.exports = {
             } catch (error) {
                 console.error(`Error executing ${interaction.commandName}`);
                 console.error(error);
-
+                
                 const errorMessage = { content: 'There was an error while executing this command!', ephemeral: true };
-
+                
                 if (interaction.replied || interaction.deferred) {
                     await interaction.followUp(errorMessage);
                 } else {
@@ -374,7 +375,7 @@ module.exports = {
         // Handle autocomplete interactions
         if (interaction.isAutocomplete()) {
             const command = client.commands.get(interaction.commandName);
-
+            
             if (!command || !command.autocomplete) {
                 console.error(`No autocomplete handler for ${interaction.commandName} was found.`);
                 return;

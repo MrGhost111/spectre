@@ -7,7 +7,7 @@ const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
  * Check if a story contains all required words using AI
  * @param {string} story - The story text to check
  * @param {string[]} requiredWords - Array of words that must be in the story
- * @returns {Promise<{valid: boolean, missingWords: string[], message: string}>}
+ * @returns {Promise<{valid: boolean, missingWords: string[], reason: string}>}
  */
 async function validateStoryWords(story, requiredWords) {
     const prompt = `You are a word validator. Check if the following story contains ALL of these required words (or their variations like plural, past tense, etc.):
@@ -18,7 +18,7 @@ Story:
 ${story}
 
 IMPORTANT RULES:
-- Accept word variations (e.g., "castle" matches "castles", "run" matches "running/ran")
+- Accept word variations (e.g., "sunset" matches "sunsets", "swim" matches "swimming/swam")
 - Accept different forms (e.g., "create" matches "created/creating/creation")
 - Words must appear in the story content, not just mentioned
 - Be flexible with word forms but strict about presence
@@ -43,6 +43,8 @@ Respond ONLY with valid JSON:
         });
 
         const aiResponse = response.choices[0].message.content;
+        console.log('AI Validation Response:', aiResponse);
+        
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
 
         if (!jsonMatch) {
@@ -52,14 +54,14 @@ Respond ONLY with valid JSON:
         const result = JSON.parse(jsonMatch[0]);
 
         return {
-            valid: result.allWordsFound,
+            valid: result.allWordsFound === true,
             missingWords: result.missingWords || [],
-            message: result.explanation || 'Validation complete'
+            reason: result.explanation || 'Validation complete'
         };
 
     } catch (error) {
         console.error('AI validation error:', error);
-
+        
         // Fallback to simple validation if AI fails
         const storyLower = story.toLowerCase();
         const missingWords = requiredWords.filter(word => {
@@ -79,15 +81,15 @@ Respond ONLY with valid JSON:
         return {
             valid: missingWords.length === 0,
             missingWords: missingWords,
-            message: missingWords.length === 0
-                ? 'All words found!'
-                : `Missing words: ${missingWords.join(', ')}`
+            reason: missingWords.length === 0 
+                ? 'All words found (fallback validation)' 
+                : `Fallback validation: Missing ${missingWords.join(', ')}`
         };
     }
 }
 
 /**
- * Generate a random anonymous author name
+ * Generate a random anonymous author name (without number)
  * @returns {string}
  */
 function generateAnonymousName() {
@@ -97,7 +99,7 @@ function generateAnonymousName() {
         'Silver', 'Crimson', 'Azure', 'Emerald', 'Violet', 'Cosmic', 'Ethereal',
         'Radiant', 'Twilight', 'Midnight', 'Dawn', 'Dusk', 'Frozen', 'Blazing'
     ];
-
+    
     const nouns = [
         'Writer', 'Scribe', 'Poet', 'Author', 'Storyteller', 'Bard', 'Chronicler',
         'Wordsmith', 'Narrator', 'Sage', 'Oracle', 'Dreamer', 'Wanderer', 'Soul',
@@ -107,9 +109,8 @@ function generateAnonymousName() {
 
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    const number = Math.floor(Math.random() * 999) + 1;
 
-    return `${adj} ${noun} #${number}`;
+    return `${adj} ${noun}`;
 }
 
 module.exports = {
