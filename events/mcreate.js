@@ -6,11 +6,16 @@ const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
 const spectreAI = require('../utils/spectreAI');
 const { validateStoryWords, generateAnonymousName } = require('../utils/storyUtils');
+const { handleCountingMessage } = require('../utils/countingSystem');
 
 require('dotenv').config();
 
 let lastStickyMessageId = null;
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
+
+// ── Set your counting channel ID here ────────────────────────────────────────
+const COUNTING_CHANNEL_ID = 'YOUR_COUNTING_CHANNEL_ID_HERE';
+// ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
     name: 'messageCreate',
@@ -53,9 +58,9 @@ module.exports = {
 
                     // Check if this is an update or new submission
                     const isUpdate = storyData.submissions[message.author.id] !== undefined;
-                    
+
                     // Use existing anonymous name or generate new one
-                    const anonymousName = isUpdate 
+                    const anonymousName = isUpdate
                         ? storyData.submissions[message.author.id].anonymousName
                         : generateAnonymousName();
 
@@ -86,6 +91,14 @@ module.exports = {
 
             // No active story game - ignore DM
             return;
+        }
+
+        // ===========================================
+        // COUNTING GAME HANDLER
+        // ===========================================
+        if (message.channelId === COUNTING_CHANNEL_ID) {
+            await handleCountingMessage(message, COUNTING_CHANNEL_ID);
+            // Don't return — highlights and other passive features can still run below
         }
 
         // ===========================================
