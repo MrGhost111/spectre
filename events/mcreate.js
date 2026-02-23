@@ -203,6 +203,7 @@ module.exports = {
         ];
 
         if (!message.author.bot &&
+            message.guild?.id === '673970118744735764' &&
             message.channelId !== faceRevealChannelId &&
             message.channel.parentId &&
             !blacklistedCategories.includes(message.channel.parentId)) {
