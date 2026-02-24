@@ -111,7 +111,7 @@ Your tasks:
    - Math expression in words: "4 plus 16", "100 minus 80", "4 times 5", "40 divided by 2", "2 to the power of 4 plus 4"
    - Any valid expression that equals ${expectedCount}
 2. If it DOES equal or contain ${expectedCount}, suggest ONE creative default Discord emoji
-   matching the theme/context (e.g. 🥞 🍕 🎉 🐶 🚀 🧮 ➕). Do NOT suggest ✅. try to suggest everytime there is a word with number
+   matching the theme/context (e.g. 🥞 🍕 🎉 🐶 🚀 🧮 ➕). Do NOT suggest ✅.
 3. If it does NOT equal ${expectedCount}, return numberFound: false.
 
 Respond ONLY with valid JSON:
