@@ -7,16 +7,6 @@ require('dotenv').config();
 const COUNT_DATA_PATH = path.join(__dirname, '../data/count.json');
 const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
-// ─── Word-to-number map ───────────────────────────────────────────────────────
-const WORD_MAP = {
-    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
-    six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-    eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
-    sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
-    thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70,
-    eighty: 80, ninety: 90, hundred: 100, thousand: 1000
-};
-
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 function loadCountData() {
     if (!fs.existsSync(COUNT_DATA_PATH)) {
@@ -33,46 +23,98 @@ function saveCountData(data) {
     fs.writeFileSync(COUNT_DATA_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-// ─── Quick plain-number extraction ───────────────────────────────────────────
-// Looks for a standalone integer in the message (e.g. "20" or "one of the 20")
-function extractPlainNumber(content) {
-    const matches = content.match(/\b(\d+)\b/g);
-    if (!matches) return null;
-    // Return the first number found
-    return parseInt(matches[0], 10);
-}
+// ─── Safe math evaluator (no eval) ───────────────────────────────────────────
+// Supports: + - * / ^ ** root sqrt and brackets
+function safeMath(expr) {
+    try {
+        let e = expr
+            .replace(/\s+/g, '')
+            .replace(/\^/g, '**')
+            .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
+            .replace(/root\(([^)]+)\)/g, 'Math.sqrt($1)');
 
-// ─── Quick word-number extraction ────────────────────────────────────────────
-// Checks if the FIRST standalone word in the message is a number word (e.g. "one", "twenty")
-function extractWordNumber(content) {
-    const words = content.toLowerCase().trim().split(/\s+/);
-    // Only trigger if the very first token is a number word (pure count messages like "twenty one")
-    let total = 0;
-    let found = false;
-    for (const word of words) {
-        if (WORD_MAP.hasOwnProperty(word)) {
-            total += WORD_MAP[word];
-            found = true;
-        } else if (found) {
-            // stop accumulating once we hit a non-number word
-            break;
-        }
+        // Only allow safe characters
+        const stripped = e.replace(/Math\.sqrt/g, '').replace(/Math\.pow/g, '');
+        if (!/^[0-9+\-*/().\s]+$/.test(stripped)) return null;
+
+        const result = new Function('"use strict"; return (' + e + ')')();
+        if (typeof result !== 'number' || !isFinite(result)) return null;
+
+        // Return integer if whole number
+        return Math.abs(result - Math.round(result)) < 1e-9 ? Math.round(result) : result;
+    } catch {
+        return null;
     }
-    return found ? total : null;
 }
 
-// ─── AI: extract number + suggest emoji ──────────────────────────────────────
+// ─── Word math → expression converter ────────────────────────────────────────
+// Handles: "4 minus 2", "3 plus 1", "10 divided by 2", "2 squared", "sqrt of 9"
+function wordMathToExpr(content) {
+    let e = content.toLowerCase().trim()
+        .replace(/\bplus\b/g, '+')
+        .replace(/\bminus\b/g, '-')
+        .replace(/\btimes\b/g, '*')
+        .replace(/\bmultiplied by\b/g, '*')
+        .replace(/\bdivided by\b/g, '/')
+        .replace(/\bover\b/g, '/')
+        .replace(/\bto the power of\b/g, '**')
+        .replace(/\bsquared\b/g, '**2')
+        .replace(/\bcubed\b/g, '**3')
+        .replace(/\bsquare root of\b/g, 'sqrt(')
+        .replace(/\broot of\b/g, 'sqrt(')
+        .replace(/\bsqrt of\b/g, 'sqrt(');
+
+    // Close any unclosed sqrt( parens
+    const openCount = (e.match(/\(/g) || []).length;
+    const closeCount = (e.match(/\)/g) || []).length;
+    if (openCount > closeCount) e += ')'.repeat(openCount - closeCount);
+
+    return e;
+}
+
+// ─── Try to evaluate the message as a math expression ────────────────────────
+function tryEvalMath(content) {
+    // Try direct expression first (2+2, (3+4)*2, 2**3, sqrt(9), etc.)
+    const direct = safeMath(content);
+    if (direct !== null) return direct;
+
+    // Try word-math conversion (4 minus 2, square root of 9, etc.)
+    const converted = wordMathToExpr(content);
+    if (converted !== content.toLowerCase().trim()) {
+        const result = safeMath(converted);
+        if (result !== null) return result;
+    }
+
+    return null;
+}
+
+// ─── Extract a plain number from message ─────────────────────────────────────
+function extractPlainNumber(content) {
+    const trimmed = content.trim();
+    if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+    const matches = trimmed.match(/\b(\d+)\b/g);
+    if (matches) return parseInt(matches[0], 10);
+    return null;
+}
+
+// ─── AI: analyze message for number + suggest emoji ──────────────────────────
 async function aiAnalyzeMessage(content, expectedCount) {
     const prompt = `You are analyzing a Discord counting game message. The expected next number is ${expectedCount}.
 
 Message: "${content}"
 
 Your tasks:
-1. Figure out if this message contains the number ${expectedCount} — either as a digit (${expectedCount}) or as a word (e.g. "twenty" for 20). It may be embedded in a sentence like "one of the ${expectedCount}" or "let's count to ${expectedCount}".
-2. If the number IS present, suggest ONE creative default Discord emoji (like 🥞 🍕 🎉 🐶 etc.) that matches the theme/context of the message. Do NOT suggest ✅ — that's reserved.
-3. If the number is NOT present, return null for the emoji.
+1. Determine if this message evaluates to or contains the number ${expectedCount}.
+   This includes:
+   - Plain number: "${expectedCount}" or word form like "twenty" for 20
+   - Number in a sentence: "one of the ${expectedCount}" or "let's get to ${expectedCount}"
+   - Math expression in words: "4 plus 16", "100 minus 80", "4 times 5", "40 divided by 2", "2 to the power of 4 plus 4"
+   - Any valid expression that equals ${expectedCount}
+2. If it DOES equal or contain ${expectedCount}, suggest ONE creative default Discord emoji
+   matching the theme/context (e.g. 🥞 🍕 🎉 🐶 🚀 🧮 ➕). Do NOT suggest ✅.
+3. If it does NOT equal ${expectedCount}, return numberFound: false.
 
-Respond ONLY with valid JSON, no explanation:
+Respond ONLY with valid JSON:
 {
   "numberFound": true or false,
   "suggestedEmoji": "🥞" or null
@@ -82,11 +124,11 @@ Respond ONLY with valid JSON, no explanation:
         const response = await hf.chatCompletion({
             model: "Qwen/Qwen2.5-Coder-32B-Instruct",
             messages: [
-                { role: "system", content: "You are a precise message analyzer. Respond only with valid JSON." },
+                { role: "system", content: "You are a precise message and math analyzer. Respond only with valid JSON." },
                 { role: "user", content: prompt }
             ],
             max_tokens: 100,
-            temperature: 0.2
+            temperature: 0.1
         });
 
         const raw = response.choices[0].message.content;
@@ -100,11 +142,6 @@ Respond ONLY with valid JSON, no explanation:
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
-/**
- * Call this from your messageCreate event.
- * @param {import('discord.js').Message} message
- * @param {string} countingChannelId  - the channel ID where counting happens
- */
 async function handleCountingMessage(message, countingChannelId) {
     if (message.channelId !== countingChannelId) return;
     if (message.author.bot) return;
@@ -113,57 +150,66 @@ async function handleCountingMessage(message, countingChannelId) {
     const expected = data.currentCount + 1;
     const content = message.content.trim();
 
-    // ── Fast path: message is ONLY a plain number ─────────────────────────────
-    const isOnlyNumber = /^\d+$/.test(content);
-    if (isOnlyNumber) {
+    // ── Fast path 1: message is ONLY a plain number ───────────────────────────
+    if (/^\d+$/.test(content)) {
         const num = parseInt(content, 10);
         if (num === expected) {
-            // React tick instantly
-            await message.react('✅').catch(() => {});
+            await message.react('✅').catch(() => { });
             data.currentCount = expected;
             saveCountData(data);
-
-            // AI emoji in background (non-blocking)
-            // Pure number — no extra context, skip AI emoji to keep it clean
         }
-        // Wrong number → just ignore (no reaction)
         return;
     }
 
-    // ── Fast path: message contains a plain number somewhere ─────────────────
-    const plainNum = extractPlainNumber(content);
-    if (plainNum !== null) {
-        if (plainNum === expected) {
-            // React tick instantly (don't wait for AI)
-            await message.react('✅').catch(() => {});
+    // ── Fast path 2: local math evaluator (handles +,-,*,/,^,sqrt,brackets) ──
+    const mathResult = tryEvalMath(content);
+    if (mathResult !== null) {
+        if (mathResult === expected) {
+            await message.react('✅').catch(() => { });
             data.currentCount = expected;
             saveCountData(data);
 
             // AI emoji in background
             aiAnalyzeMessage(content, expected).then(async (aiResult) => {
                 if (aiResult.suggestedEmoji) {
-                    await message.react(aiResult.suggestedEmoji).catch(() => {});
+                    await message.react(aiResult.suggestedEmoji).catch(() => { });
                 }
-            }).catch(() => {});
+            }).catch(() => { });
         }
-        // Wrong plain number → ignore
+        // Wrong math result → ignore silently
         return;
     }
 
-    // ── Slow path: no plain number found — ask AI ─────────────────────────────
-    // (handles word numbers like "twenty" or numbers buried in sentences without digits)
-    const aiResult = await aiAnalyzeMessage(content, expected);
+    // ── Fast path 3: contains a plain number somewhere in the message ─────────
+    const plainNum = extractPlainNumber(content);
+    if (plainNum !== null) {
+        if (plainNum === expected) {
+            await message.react('✅').catch(() => { });
+            data.currentCount = expected;
+            saveCountData(data);
 
+            // AI emoji in background
+            aiAnalyzeMessage(content, expected).then(async (aiResult) => {
+                if (aiResult.suggestedEmoji) {
+                    await message.react(aiResult.suggestedEmoji).catch(() => { });
+                }
+            }).catch(() => { });
+        }
+        return;
+    }
+
+    // ── Slow path: no digits at all — let AI figure it out ───────────────────
+    // Handles: "twenty", "four plus sixteen", "one hundred minus eighty", etc.
+    const aiResult = await aiAnalyzeMessage(content, expected);
     if (aiResult.numberFound) {
-        await message.react('✅').catch(() => {});
+        await message.react('✅').catch(() => { });
         data.currentCount = expected;
         saveCountData(data);
 
         if (aiResult.suggestedEmoji) {
-            await message.react(aiResult.suggestedEmoji).catch(() => {});
+            await message.react(aiResult.suggestedEmoji).catch(() => { });
         }
     }
-    // Doesn't contain expected number → ignore silently
 }
 
 module.exports = { handleCountingMessage };
