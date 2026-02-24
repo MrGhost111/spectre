@@ -14,7 +14,7 @@ let lastStickyMessageId = null;
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 
 // ── Set your counting channel ID here ────────────────────────────────────────
-const COUNTING_CHANNEL_ID = 'YOUR_COUNTING_CHANNEL_ID_HERE';
+const COUNTING_CHANNEL_ID = '1473339737044553953';
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
