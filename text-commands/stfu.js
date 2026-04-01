@@ -230,14 +230,19 @@ module.exports = {
                 return message.channel.send(`${targetUser.username} is already muted.`);
             }
 
-            // Check if target was recently muted
+            // Check if target was successfully muted within the last 2 minutes
+            // Only triggers if the previous mute was a success (i.e. target was actually muted)
+            // If it was a fail, the author got muted instead so no protection needed
             const mutes = await message.client.muteManager.getMutes();
             const recentMute = mutes.users.find(mute =>
-                mute.userId === targetUser.id && (currentTime - mute.muteStartTime) < 120
+                mute.userId === targetUser.id &&
+                mute.issuerId !== targetUser.id && // exclude cases where target muted themselves (fail = author muted)
+                (currentTime - mute.muteStartTime) < 120
             );
 
             if (recentMute) {
-                return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh.`);
+                const unlocksAt = recentMute.muteStartTime + 120;
+                return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh. You can go again <t:${unlocksAt}:R>.`);
             }
 
             // Load bars data
