@@ -1,0 +1,11 @@
+[Wed Apr  1 14:31:21 GMT 2026] Git pull output: From https://github.com/MrGhost111/spectre
+   bcb2658e6..ad89a76bd  main       -> origin/main
+error: Unable to create '/home/opc/spectre/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+Updating bcb2658e6..ad89a76bd
+[Wed Apr  1 14:31:21 GMT 2026] ERROR: Git pull failed
