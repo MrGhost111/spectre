@@ -1,3 +1,4 @@
+﻿// JavaScript source code
 const fs = require('fs');
 const path = require('path');
 const { HfInference } = require('@huggingface/inference');
@@ -289,5 +290,3 @@ async function handleCountingMessage(message, countingChannelId) {
 }
 
 module.exports = { handleCountingMessage };
-
-    // this is bs
