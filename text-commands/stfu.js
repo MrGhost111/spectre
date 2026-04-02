@@ -278,7 +278,7 @@ module.exports = {
                 Math.min(50, Math.floor(Math.random() * 51));
 
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
-            const muteUser = success ? message.author.id : targetUser.id;
+            const muteUser = success ? targetUser.id : message.author.id;
 
             const resultMessage = success ?
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
