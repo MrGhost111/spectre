@@ -271,7 +271,7 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
 
-            // Calculate rolls and result message
+            // Calculate rolls and result message 
             const powerRoll = Math.floor(Math.random() * 71) + 30;
             const accuracyRoll = success ?
                 Math.floor(Math.random() * 51) + 50 :
