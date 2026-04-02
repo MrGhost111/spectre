@@ -1,0 +1,187 @@
+{
+  "944924720158085190": {
+    "status": "active",
+    "logChannelId": "1317394552033775626",
+    "participants": {
+      "296817551567093760": {
+        "username": "rush5",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766702657033,
+        "status": "left",
+        "rank": null
+      },
+      "621379895104372757": {
+        "username": "m4ck3r3l",
+        "joinTime": 1766685182402,
+        "leaveTime": 1767391571994,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1767298280107
+      },
+      "635547489730166784": {
+        "username": "f7shgang",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766745114384,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766690932242
+      },
+      "667269787818131456": {
+        "username": "philipnotphillip",
+        "joinTime": 1766685182402,
+        "leaveTime": 1767395091124,
+        "status": "left",
+        "rank": null
+      },
+      "682122261758869504": {
+        "username": "skitty8428",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766714949128,
+        "status": "left",
+        "rank": null
+      },
+      "743855708059205723": {
+        "username": "kook1e9607",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766734436142,
+        "status": "left",
+        "rank": null
+      },
+      "753091612300542014": {
+        "username": "satan9003",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766746136073,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766686308870
+      },
+      "762530003190677534": {
+        "username": "justinbarber2910",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766783719466,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766700630823
+      },
+      "772371637755707394": {
+        "username": "gd_zyxo",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766685461469,
+        "status": "left",
+        "rank": null
+      },
+      "784764536673796126": {
+        "username": "purplephoenix.",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766691351180,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766688771805
+      },
+      "828522857125380097": {
+        "username": "vabs9691",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766691914396,
+        "status": "left",
+        "rank": null
+      },
+      "850243908163469333": {
+        "username": "aryan123._",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766697068807,
+        "status": "left",
+        "rank": null
+      },
+      "858047410336694293": {
+        "username": "narutoopajjubhai",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766689677389,
+        "status": "left",
+        "rank": null
+      },
+      "877191798433415179": {
+        "username": "smurfy_2445",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766687304371,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766685250488
+      },
+      "918097380291772416": {
+        "username": "isaiahah",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766703232748,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766692306486
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766693707731,
+        "status": "left",
+        "rank": null
+      },
+      "966667825022373898": {
+        "username": "harshmakkar",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766695732165,
+        "status": "left",
+        "rank": null
+      },
+      "1141919105272787006": {
+        "username": "yuno.fan",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766700350515,
+        "status": "left",
+        "rank": null
+      },
+      "1184075935637581905": {
+        "username": "margaretcore",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766762406100,
+        "status": "left",
+        "rank": null
+      },
+      "1223622854537646172": {
+        "username": "zeraxy11",
+        "joinTime": 1766685182402,
+        "leaveTime": 1767391569380,
+        "status": "left",
+        "rank": null
+      },
+      "1259413537919336509": {
+        "username": "mikec123123456s",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766687660937,
+        "status": "left",
+        "rank": null
+      },
+      "1289753416070987867": {
+        "username": "shotgungmr2k_",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766710067005,
+        "status": "left",
+        "rank": null
+      },
+      "1334981047456108595": {
+        "username": "poppyyiee",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766706782700,
+        "status": "left",
+        "rank": null
+      },
+      "1345656080096690196": {
+        "username": "wayhanlikehampter",
+        "joinTime": 1766685182402,
+        "leaveTime": 1766694968874,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1766685877068
+      }
+    },
+    "statusMessageId": "1453807770586579238",
+    "startTime": 1766685182402,
+    "winnerMessageId": "1456770583089119242"
+  }
+}

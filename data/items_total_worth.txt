@@ -1,0 +1,197 @@
+Item	Quantity	Total Worth
+------------------------------
+Bean Seeds	23743	2,682,959,000
+Cursed Pepe	21	2,520,000,000
+Cupid's Big Toe	2444	2,444,000,000
+Pepe Ribbon	3	2,250,000,000
+Pepe Crown	42	2,127,720,000
+Chill Pill	771	1,696,200,000
+Daily Box	730	1,399,410,000
+Candy Corn	357	1,249,500,000
+Fart In A Bottle	101	1,232,806,000
+Alien Sample	732	1,220,976,000
+Pepe Sus	1	730,000,000
+Tool Box	50	700,000,000
+Friend's Gift	125	650,000,000
+Tidepod	4035	605,250,000
+Fidget Spinner	1886	565,800,000
+Bank Note	2133	533,250,000
+Pizza Slice	943	518,650,000
+Jar Of Singularity	204	489,600,000
+Black Hole	385	487,410,000
+Snowflake	689	487,123,000
+New Years Popper	5366	429,280,000
+Coin Bomb	518	408,184,000
+Normie Box	253	392,909,000
+Fool's Notif	445	356,000,000
+Santa's Bag	21	328,566,000
+Boxed Chocolates	6	306,000,000
+God Box	7	273,987,000
+Vote Pack	286	250,250,000
+Adventure Voucher	85	235,535,000
+Golden Plastic Bits	253	235,290,000
+Robbers Wishlist	577	231,954,000
+Motivational Poster	12	228,000,000
+Laptop	2681	225,204,000
+Cowboy Boots	21	210,000,000
+Ornament	119	190,400,000
+Fake ID	4187	184,228,000
+Blue's Plane	17	170,000,000
+Snowball	421	168,821,000
+Adventure Ticket	815	165,445,000
+Lotus Seeds	25	162,500,000
+Dank Box	23	159,459,000
+Alcohol	2097	146,790,000
+Christmas Gift	23	139,150,000
+Badosz's Card	11	132,000,000
+Ammo	26	130,000,000
+Apron	16	124,800,000
+Shredded Cheese	828	116,748,000
+Lucky Horseshoe	288	115,200,000
+Blue Plastic Bits	1384	110,720,000
+Duct Tape	213	106,500,000
+A Plus	13	104,000,000
+Pepe Coin	72	100,800,000
+Ban Hammer	33	99,000,000
+Candy Cane	522	94,482,000
+Pepe Medal	15	90,000,000
+Binary	10	90,000,000
+Aiphey's Gemstone	14	85,400,000
+Bolt Cutters	1	85,263,000
+Voodoo Doll	2	80,000,000
+Life Saver	393	70,740,000
+Stonk Coin	1	70,000,000
+Bean Mp3 Player	1	68,672,000
+Santa's Hat	212	67,416,000
+Landmine	825	66,825,000
+Deer	327	65,400,000
+Bottle of Whiskey	21	63,000,000
+Chocolate Cake	8	62,848,000
+Shop Coupon	26	61,594,000
+Membership Box	1	60,000,000
+Membership Pack	4	60,000,000
+Seaweed	74	59,200,000
+Potato	1013	58,754,000
+Tip Jar	4	57,432,000
+Camera	9	56,700,000
+Kable's Sunglasses	4	56,000,000
+Jacky o' Lanty	7	56,000,000
+Headphones	2	54,978,000
+Meme Box	26	53,534,000
+Beaker of Sus Fluid	8	52,880,000
+Dragon	92	52,072,000
+Energy Drink	4	50,620,000
+Robbers Mask	5	50,000,000
+Reversal Card	1	48,384,000
+Box of Sand	2833	48,161,000
+Rare Butterfly	2	48,000,000
+Sugar Skull	1	47,500,000
+Sanic Hot Dog	35	42,000,000
+Holiday Stocking	3	37,500,000
+Apple	1934	36,746,000
+Pepe Box	3	36,000,000
+ZomB's ZomBee	4	36,000,000
+Spooky Mask	1	35,000,000
+Shooting Star	4	34,992,000
+Coin Voucher	3	33,600,000
+Streak Freeze	8	32,000,000
+Wedding Gift	3	31,422,000
+Pepe Trophy	2	31,056,000
+Old Cowboy Revolver	17	30,600,000
+Candy	61	30,500,000
+Baby	16	30,400,000
+School Urinal	4	30,000,000
+Developer Box	1	28,654,000
+Engagement Ring	8	28,584,000
+The Letter	1	28,000,000
+Prestige Pack	2	27,600,000
+Aetheryx' Flower	6	27,000,000
+The Megaphone	1	26,500,000
+Literally Karen	1	25,000,000
+Plastic Box	2	24,000,000
+Skunk	780	23,400,000
+Melmsie's Beard	1	23,000,000
+Padlock	519	20,760,000
+Garbage	148	19,980,000
+Old Box	1	18,000,000
+Royal Scepter	3	18,000,000
+Corncob	176	17,600,000
+Star Fragment	7	17,500,000
+Cookie	237	17,301,000
+Cell Phone	1631	16,310,000
+Literally a Tree	2	15,000,000
+Armpit Hair	5	15,000,000
+Bait Box	1	14,935,000
+Vaccine	1	14,000,000
+Green Screen	2	14,000,000
+Townie's Eyes	1	13,100,000
+Space Adventure Box	3	12,969,000
+Prestige Coin	5	12,500,000
+Ladybug	28	12,320,000
+Out West Adventure Box	4	12,200,000
+Ectoplasm	1	11,000,000
+Bean	110	11,000,000
+Gift Box	1	10,525,000
+Stack of Cash	3	10,500,000
+Carrot Seeds	101	10,100,000
+Designer Hoodie	3	9,675,000
+Fossil	40	9,600,000
+Crunchy Taco	1	9,439,000
+Golden Nugget	20	9,380,000
+Police Badge	3	9,300,000
+Diamond	3	8,400,000
+Pet Saddle	16	8,000,000
+Barrel of Sludge	4	7,400,000
+Berries and Cream	1	6,524,000
+Potato Seeds	152	6,384,000
+Shovel	306	6,120,000
+Meteorite	4	6,000,000
+Rare Pepe	81	5,670,000
+Duck	69	5,175,000
+Menorah	2	5,000,000
+Purple Plastic Bits	11	4,510,000
+Junk	44	4,400,000
+Treasure Map	2	4,082,000
+Used Diaper	1	4,000,000
+Fresh Bread	11	3,718,000
+Lasso	8	3,616,000
+Zig's Capybara	9	3,600,000
+Spider	16	3,360,000
+Broccoli	9	3,294,000
+Worm	174	2,784,000
+Stickbug	80	2,720,000
+Like Button	2	2,666,000
+Rabbit	125	2,625,000
+Ant	60	2,100,000
+Tumbleweed	3	1,572,000
+Anti-Rob Pack	1	1,500,000
+Cactus	3	1,500,000
+Boar	26	1,014,000
+Pepe Statue	6	864,000
+Water Bucket	2	800,000
+Golden Corndog	1	800,000
+Fertilizer Bag	4	800,000
+Gravestone	3	750,000
+Pet Feces	5	640,000
+Pet Food	3	600,000
+Carrot	3	540,000
+Mole Man	1	410,000
+Multi Colored Plastic Bits	2	410,000
+Christmas Tree	1	400,000
+Legacy Common Fish	378	378,000
+Hunting Rifle	3	252,000
+Watering Can	3	222,000
+Orange Plastic Bits	1	200,000
+Corn Seeds	2	170,000
+Legacy Rare Fish	144	144,000
+Corndog	1	125,000
+Hoe	1	119,000
+Legacy Kraken	101	101,000
+Keyboard	1	83,000
+Legacy Legendary Fish	47	47,000
+Legacy Exotic Fish	46	46,000
+Legacy Jelly Fish	27	27,000
+Legacy Fishing Bait	3	3,000
+Legacy Fishing Pole	3	3,000
+------------------------------
+Total of all items:		34,698,445,000
