@@ -7,7 +7,8 @@
     "blacklist": {
       "words": [
         "GhostSip",
-        "ghosting"
+        "ghosting",
+        "ghostblade"
       ],
       "users": [
         "408785106942164992",
@@ -593,6 +594,19 @@
       "users": [
         "691693416664531085"
       ],
+      "channels": []
+    }
+  },
+  "906926852453584906": {
+    "words": [
+      "toi",
+      "<@906926852453584906>",
+      "906926852453584906",
+      ",hl add"
+    ],
+    "blacklist": {
+      "words": [],
+      "users": [],
       "channels": []
     }
   }
