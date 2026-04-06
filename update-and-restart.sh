@@ -129,10 +129,5 @@ if [[ -n "$COMMIT_MESSAGE" ]]; then
 else
     send_dm "<a:tickloop:926319357288648784> Update pulled and restarted"
 fi
-
 echo "[$(date)] Done" >> "$LOG"
-<<<<<<< HEAD
 exit 0
-=======
-exit 0
->>>>>>> origin/main
