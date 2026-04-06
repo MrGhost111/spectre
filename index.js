@@ -143,117 +143,73 @@ client.once('ready', () => {
 });
 
 // Setup weekly cron jobs
+// ── Replace your setupWeeklyCronJobs() function in index.js with this ─────────
+// Also update the top import: change
+//   const { weeklyReset } = require('./events/mupdate.js');
+// to
+//   const { weeklyReset } = require('./events/resetweekly.js');
+
 function setupWeeklyCronJobs() {
     try {
         logToConsole('========================================');
         logToConsole('📅 SETTING UP WEEKLY CRON JOBS');
         logToConsole('========================================');
 
-        // Clear require cache to ensure fresh modules
-        const mupdatePath = path.resolve(__dirname, './events/mupdate.js');
-        const autochPath = path.resolve(__dirname, './utils/autoch.js');
-
-        delete require.cache[mupdatePath];
-        delete require.cache[autochPath];
-
-        const { weeklyReset } = require('./events/mupdate.js');
+        const { weeklyReset } = require('./events/resetweekly.js');
         const { weeklyChannelCheck } = require('./utils/autoch.js');
 
-        // Verify functions are loaded
-        if (typeof weeklyReset !== 'function') {
-            throw new Error('weeklyReset is not a function!');
-        }
-        if (typeof weeklyChannelCheck !== 'function') {
-            throw new Error('weeklyChannelCheck is not a function!');
-        }
+        if (typeof weeklyReset !== 'function') throw new Error('weeklyReset is not a function!');
+        if (typeof weeklyChannelCheck !== 'function') throw new Error('weeklyChannelCheck is not a function!');
 
         logToConsole('✅ Weekly reset functions loaded successfully');
 
-        // Schedule: Every Sunday at 00:00 UTC (midnight)
-        const cronSchedule = '0 0 * * 0';
-        logToConsole(`📅 Cron schedule: "${cronSchedule}" (Every Sunday at midnight UTC)`);
-
-        const job = cron.schedule(cronSchedule, async () => {
-            const triggerTime = new Date().toISOString();
+        // Every Sunday at 00:00 UTC
+        const job = cron.schedule('0 0 * * 0', async () => {
             logToConsole('========================================');
-            logToConsole(`⏰ WEEKLY CRON JOB TRIGGERED`);
-            logToConsole(`⏰ Time: ${triggerTime}`);
+            logToConsole(`⏰ WEEKLY CRON JOB TRIGGERED — ${new Date().toISOString()}`);
             logToConsole('========================================');
 
             try {
-                // Clear require cache before running to get fresh data
-                delete require.cache[mupdatePath];
-                delete require.cache[autochPath];
-
-                const { weeklyReset: freshWeeklyReset } = require('./events/mupdate.js');
-                const { weeklyChannelCheck: freshWeeklyChannelCheck } = require('./utils/autoch.js');
-
-                // Run the weekly reset
                 logToConsole('🔄 Starting weekly reset...');
-                const resetSuccess = await freshWeeklyReset(client);
+                const resetSuccess = await weeklyReset(client);
+                logToConsole(resetSuccess
+                    ? '✅ Weekly reset completed successfully'
+                    : '⚠️ Weekly reset completed with errors'
+                );
 
-                if (resetSuccess) {
-                    logToConsole('✅ Weekly reset completed successfully');
-                } else {
-                    logToConsole('⚠️ Weekly reset completed with errors', true);
-                }
-
-                // Run the weekly channel eligibility check with logging to specified channel
                 const logChannelId = '843413781409169412';
                 logToConsole('🔄 Starting weekly channel check...');
-                const checkResults = await freshWeeklyChannelCheck(client, logChannelId);
-                logToConsole(`✅ Channel check completed: ${checkResults.channelsChecked} channels checked, ${checkResults.friendsRemoved} friends removed`);
+                const checkResults = await weeklyChannelCheck(client, logChannelId);
+                logToConsole(`✅ Channel check: ${checkResults.channelsChecked} checked, ${checkResults.friendsRemoved} removed`);
 
-                logToConsole('========================================');
-                logToConsole('✅ WEEKLY TASKS COMPLETED SUCCESSFULLY');
-                logToConsole('========================================');
             } catch (error) {
-                logToConsole('========================================', true);
-                logToConsole(`❌ CRITICAL ERROR DURING WEEKLY TASKS`, true);
-                logToConsole(`❌ Error: ${error.message}`, true);
-                logToConsole(`❌ Stack: ${error.stack}`, true);
-                logToConsole('========================================', true);
-
-                // Try to notify admin channel
+                logToConsole(`❌ CRITICAL ERROR DURING WEEKLY TASKS: ${error.message}`, true);
+                console.error(error);
                 try {
                     const adminChannel = await client.channels.fetch('966598961353850910');
                     if (adminChannel) {
-                        await adminChannel.send(`<:xmark:934659388386451516> **CRITICAL ERROR DURING AUTOMATED WEEKLY RESET**\n\`\`\`\n${error.message}\n\`\`\`\nPlease check logs and consider running \`,resetweekly\` manually.`);
+                        await adminChannel.send(
+                            `<:xmark:934659388386451516> **CRITICAL ERROR DURING AUTOMATED WEEKLY RESET**\n\`\`\`\n${error.message}\n\`\`\`\nRun \`,resetweekly\` manually.`
+                        );
                     }
-                } catch (notifyError) {
-                    logToConsole(`Failed to send error notification: ${notifyError.message}`, true);
-                }
+                } catch { /* couldn't notify */ }
             }
-        }, {
-            timezone: "UTC",
-            scheduled: true,
-            runOnInit: false
-        });
+        }, { timezone: 'UTC', scheduled: true, runOnInit: false });
 
-        // Verify job was created
-        if (!job) {
-            throw new Error('Cron job was not created!');
-        }
+        if (!job) throw new Error('Cron job was not created!');
 
-        logToConsole('✅ Cron job created successfully');
-
-        // Calculate next Sunday
         const now = new Date();
         const daysUntilSunday = (7 - now.getUTCDay()) % 7 || 7;
         const nextSunday = new Date(now);
         nextSunday.setUTCDate(now.getUTCDate() + daysUntilSunday);
         nextSunday.setUTCHours(0, 0, 0, 0);
 
-        logToConsole(`📅 Next scheduled run: ${nextSunday.toISOString()}`);
-        logToConsole(`📅 Days until next run: ${daysUntilSunday} days`);
+        logToConsole(`✅ Cron job created — next run: ${nextSunday.toISOString()} (in ${daysUntilSunday} days)`);
         logToConsole('========================================');
 
     } catch (error) {
-        logToConsole('========================================', true);
-        logToConsole('❌ FAILED TO SET UP CRON JOBS', true);
-        logToConsole(`❌ Error: ${error.message}`, true);
-        logToConsole(`❌ Stack: ${error.stack}`, true);
-        logToConsole('========================================', true);
+        logToConsole(`❌ FAILED TO SET UP CRON JOBS: ${error.message}`, true);
+        console.error(error);
     }
 }
 
