@@ -131,4 +131,8 @@ else
 fi
 
 echo "[$(date)] Done" >> "$LOG"
+<<<<<<< HEAD
 exit 0
+=======
+exit 0
+>>>>>>> origin/main
