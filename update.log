@@ -5731,3 +5731,5 @@
 /bin/bash: /home/opc/spectre/update-and-restart.sh: No such file or directory
 /bin/bash: /home/opc/spectre/update-and-restart.sh: No such file or directory
 /bin/bash: /home/opc/spectre/update-and-restart.sh: No such file or directory
+/home/opc/spectre/update-and-restart.sh: line 134: syntax error near unexpected token `<<<'
+/home/opc/spectre/update-and-restart.sh: line 134: `<<<<<<< HEAD'
