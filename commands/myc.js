@@ -56,7 +56,7 @@ async function handleMyChannelCommand(interaction) {
         try {
             const channel = await interaction.guild.channels.fetch(userChannel.channelId);
             if (channel) {
-                return handleExistingChannel(interaction, channel, userChannel, channelsData);
+                return handleExistingChannel(interaction, channel, userChannel);
             }
         } catch (error) {
             console.error('Error fetching channel:', error);
@@ -83,29 +83,16 @@ async function handleMyChannelCommand(interaction) {
     await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
-async function handleExistingChannel(interaction, channel, userChannel, channelsData) {
+async function handleExistingChannel(interaction, channel, userChannel) {
     const maxFriends = calculateMaxFriends(interaction.member);
 
-    // Check for friends who have left the server and remove them from the list
+    // Notify about friends who have left — do NOT modify the list
     const leftNotices = [];
-    const validFriends = [];
     for (const friendId of userChannel.friends) {
         const member = await interaction.guild.members.fetch(friendId).catch(() => null);
         if (!member) {
-            leftNotices.push(`<@${friendId}> has left the server and was removed from your friends list.`);
-            // Also clean up their permission overwrite if it still exists
-            const overwrite = channel.permissionOverwrites.cache.get(friendId);
-            if (overwrite) await overwrite.delete().catch(console.error);
-        } else {
-            validFriends.push(friendId);
+            leftNotices.push(`<@${friendId}> has left the server. They will be re-added if they rejoin.`);
         }
-    }
-
-    // Save updated friends list if anyone was removed
-    if (leftNotices.length > 0) {
-        userChannel.friends = validFriends;
-        channelsData[interaction.user.id] = userChannel;
-        fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2), 'utf8');
     }
 
     const rolesList = Object.entries(ROLE_CONFIG).map(([roleId, config]) => {
@@ -120,7 +107,7 @@ async function handleExistingChannel(interaction, channel, userChannel, channels
             `**Channel:** <#${channel.id}>\n\n` +
             `**Owner:** <@${interaction.user.id}>\n\n` +
             `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-            `**Invited Friends:** ${validFriends.length} / ${maxFriends}\n\n` +
+            `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
             `**Role Thresholds:**\n${rolesList}\n\n` +
             `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage channel members**`
         )
@@ -145,7 +132,6 @@ async function handleExistingChannel(interaction, channel, userChannel, channels
     const row = new ActionRowBuilder().addComponents(renameButton, viewFriendsButton);
     await interaction.reply({ embeds: [embed], components: [row] });
 
-    // Notify about removed friends in a follow-up (ephemeral so only the owner sees it)
     if (leftNotices.length > 0) {
         await interaction.followUp({
             content: leftNotices.join('\n'),

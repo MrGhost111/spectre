@@ -54,24 +54,13 @@ module.exports = {
 
             const maxFriends = calculateMaxFriends(message.member);
 
-            // Check for friends who have left the server and remove them
+            // Notify about friends who have left — do NOT modify the list
             const leftNotices = [];
-            const validFriends = [];
             for (const friendId of userChannel.friends) {
                 const member = await message.guild.members.fetch(friendId).catch(() => null);
                 if (!member) {
-                    leftNotices.push(`<@${friendId}> has left the server and was removed from your friends list.`);
-                    const overwrite = channel.permissionOverwrites.cache.get(friendId);
-                    if (overwrite) await overwrite.delete().catch(console.error);
-                } else {
-                    validFriends.push(friendId);
+                    leftNotices.push(`<@${friendId}> has left the server. They will be re-added if they rejoin.`);
                 }
-            }
-
-            if (leftNotices.length > 0) {
-                userChannel.friends = validFriends;
-                channels[message.author.id] = userChannel;
-                fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2), 'utf8');
             }
 
             const roleThresholds = Object.entries(ROLE_CONFIG).map(([roleId, config]) => {
@@ -86,7 +75,7 @@ module.exports = {
                     `**Channel:** <#${userChannel.channelId}>\n\n` +
                     `**Owner:** <@${message.author.id}>\n\n` +
                     `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-                    `**Invited Friends:** ${validFriends.length} / ${maxFriends}\n\n` +
+                    `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
                     `**Role Thresholds:**\n${roleThresholds}\n\n` +
                     `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage the channel members**`
                 )
@@ -115,11 +104,10 @@ module.exports = {
                 allowedMentions: { repliedUser: false },
             });
 
-            // Send left-server notices as a follow-up
             if (leftNotices.length > 0) {
                 await message.reply({
                     content: leftNotices.join('\n'),
-                    allowedMentions: { parse: [] }, // Don't ping removed users
+                    allowedMentions: { parse: [] },
                 });
             }
 

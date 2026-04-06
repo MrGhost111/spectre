@@ -3,11 +3,22 @@ const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
 
+const ROLE_CONFIG = {
+    '768448955804811274': { limit: 5 },
+    '768449168297033769': { limit: 5 },
+    '946729964328337408': { limit: 5 },
+    '1028256286560763984': { limit: 5 },
+    '1028256279124250624': { limit: 5 },
+    '1038106794200932512': { limit: 5 },
+    '783032959350734868': { limit: 10 },
+    '1038888209440067604': { limit: 5, requiresRole: '783032959350734868' },
+    '1349716423706148894': { limit: 5 },
+};
+
 module.exports = {
     name: 'viewc',
     description: 'Admin command to view channel info',
     async execute(message, args) {
-        // Check for admin permissions
         if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return message.reply('This command is only available to admins.');
         }
@@ -34,56 +45,48 @@ module.exports = {
             return message.reply('Channel not found or it may have been deleted.');
         }
 
-        // Determine owner status
+        // Fetch owner — handle if they've left
         let ownerStatus;
         let ownerRoles;
         try {
             const owner = await message.guild.members.fetch(userChannel.userId);
             ownerStatus = `<@${userChannel.userId}>`;
             ownerRoles = owner.roles.cache;
-        } catch (error) {
-            // Owner not in the server
+        } catch {
             ownerStatus = `${userChannel.userId} (left the server)`;
-            ownerRoles = new Collection(); // Empty collection if user is not in the server
+            ownerRoles = new Collection();
         }
 
-        // Calculate the maximum number of friends
         const maxFriends = calculateMaxFriends(ownerRoles);
-        const currentFriendsCount = userChannel.friends.length;
 
-        // Define role thresholds
-        const roles = [
-            { id: '768448955804811274', limit: 5 },
-            { id: '768449168297033769', limit: 5 },
-            { id: '946729964328337408', limit: 5 },
-            { id: '1028256286560763984', limit: 5 },
-            { id: '1028256279124250624', limit: 5 },
-            { id: '1038106794200932512', limit: 5 },
-            { id: '1038888209440067604', limit: 5 },
-            { id: '783032959350734868', limit: 10 },
-            { id: '1349716423706148894', limit: 5 }
-        ];
-
-        const roleThresholds = roles.map(role => {
-            const hasRole = ownerRoles.has(role.id);
+        const roleThresholds = Object.entries(ROLE_CONFIG).map(([roleId, config]) => {
+            const hasRole = ownerRoles.has(roleId);
             const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
-            console.log(`Role ${role.id} detected for owner: ${hasRole}`);
-            return `${emoji} <@&${role.id}> ${role.limit}`;
+            return `${emoji} <@&${roleId}> ${config.limit}`;
         }).join('\n');
 
-        // Prepare the friends list
-        const friendsList = userChannel.friends.length > 0
-            ? userChannel.friends.map(id => `<@${id}>`).join(', ')
+        // Build friends list, noting who has left the server
+        const friendsListLines = [];
+        for (const friendId of userChannel.friends) {
+            const member = await message.guild.members.fetch(friendId).catch(() => null);
+            if (member) {
+                friendsListLines.push(`<@${friendId}>`);
+            } else {
+                friendsListLines.push(`<@${friendId}> *(left the server)*`);
+            }
+        }
+        const friendsList = friendsListLines.length > 0
+            ? friendsListLines.join('\n')
             : 'No friends in the channel.';
 
-        // Create the embed
         const embed = new EmbedBuilder()
             .setTitle('Channel Information')
             .setDescription(
-                `<:invisible:1277372701710749777>\n**Channel:** <#${channelInfo.id}>\n\n` +
+                `<:invisible:1277372701710749777>\n` +
+                `**Channel:** <#${channelInfo.id}>\n\n` +
                 `**Owner:** ${ownerStatus}\n\n` +
                 `**Created On:** <t:${Math.floor(channelInfo.createdTimestamp / 1000)}:D>\n\n` +
-                `**Friends:** ${currentFriendsCount}/${maxFriends}\n\n` +
+                `**Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
                 `**Invited Friends:**\n${friendsList}\n\n` +
                 `**Role Thresholds:**\n${roleThresholds}`
             )
@@ -93,26 +96,16 @@ module.exports = {
     }
 };
 
-// Helper function to calculate the maximum number of friends based on roles
 function calculateMaxFriends(rolesCache) {
-    const roles = [
-            { id: '768448955804811274', limit: 5 },
-            { id: '768449168297033769', limit: 5 },
-            { id: '946729964328337408', limit: 5 },
-            { id: '1028256286560763984', limit: 5 },
-            { id: '1028256279124250624', limit: 5 },
-            { id: '1038106794200932512', limit: 5 },
-            { id: '1038888209440067604', limit: 5 },
-            { id: '783032959350734868', limit: 10 },
-            { id: '1349716423706148894', limit: 5 },
-    ];
-
-    let totalLimit = 0;
-    roles.forEach(role => {
-        if (rolesCache.has(role.id)) {
-            totalLimit += role.limit;
+    let total = 0;
+    for (const [roleId, config] of Object.entries(ROLE_CONFIG)) {
+        if (rolesCache.has(roleId)) {
+            if (config.requiresRole) {
+                if (rolesCache.has(config.requiresRole)) total += config.limit;
+            } else {
+                total += config.limit;
+            }
         }
-    });
-
-    return totalLimit;
+    }
+    return total;
 }
