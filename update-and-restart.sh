@@ -107,7 +107,7 @@ fi
 echo "[$(date)] New update detected, deploying..." >> "$LOG"
 
 COMMIT_MESSAGE=$($GIT log "$BEFORE_PULL..HEAD" --pretty=format:"%s" | grep -Ev "^(Merge branch|Auto-commit|Merge pull request|Daily backup)" | head -1)
-
+sleep 3
 $NODE deploy.js >> "$LOG" 2>&1 || {
     echo "[$(date)] WARNING: deploy.js failed" >> "$LOG"
     send_dm "❌ [Spectre] Failed to deploy commands"

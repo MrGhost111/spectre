@@ -2,36 +2,40 @@ const { ActionRowBuilder, ButtonBuilder, EmbedBuilder, ButtonStyle } = require('
 const fs = require('fs');
 const dataPath = './data/channels.json';
 
+const ROLE_CONFIG = {
+    '768448955804811274': { limit: 5 },
+    '768449168297033769': { limit: 5 },
+    '946729964328337408': { limit: 5 },
+    '1028256286560763984': { limit: 5 },
+    '1028256279124250624': { limit: 5 },
+    '1038106794200932512': { limit: 5 },
+    '783032959350734868': { limit: 10 },
+    '1038888209440067604': { limit: 5, requiresRole: '783032959350734868' },
+    '1349716423706148894': { limit: 5 },
+};
+
 module.exports = {
     name: 'myc',
     async execute(message, args) {
-        const requiredRoles = [
-            '768448955804811274',
-            '768449168297033769',
-            '946729964328337408',
-            '1028256286560763984',
-            '1028256279124250624',
-            '1038106794200932512',
-            '1038888209440067604',
-            '783032959350734868',
-            '1349716423706148894',
-        ];
+        const requiredRoles = Object.keys(ROLE_CONFIG);
 
         if (!message.member.roles.cache.some(role => requiredRoles.includes(role.id))) {
-            return message.reply({ content: 'You do not have the required role to run this command.', allowedMentions: { repliedUser: false } });
+            return message.reply({
+                content: 'You do not have the required role to run this command.',
+                allowedMentions: { repliedUser: false },
+            });
         }
 
         let channels;
         try {
-            const data = fs.readFileSync(dataPath, 'utf8');
-            channels = JSON.parse(data);
-
-            if (typeof channels !== 'object' || channels === null) {
-                throw new Error('Channels data is not an object');
-            }
+            channels = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            if (typeof channels !== 'object' || channels === null) throw new Error('Invalid data');
         } catch (error) {
             console.error('Error reading channels data:', error);
-            return message.reply({ content: 'There was an error reading the channels data.', allowedMentions: { repliedUser: false } });
+            return message.reply({
+                content: 'There was an error reading the channels data.',
+                allowedMentions: { repliedUser: false },
+            });
         }
 
         const userChannel = channels[message.author.id];
@@ -42,30 +46,39 @@ module.exports = {
                 channel = await message.client.channels.fetch(userChannel.channelId);
             } catch (error) {
                 console.error('Error fetching channel:', error);
-                return message.reply({ content: 'There was an error fetching the channel.', allowedMentions: { repliedUser: false } });
+                return message.reply({
+                    content: 'There was an error fetching the channel.',
+                    allowedMentions: { repliedUser: false },
+                });
             }
 
             const maxFriends = calculateMaxFriends(message.member);
 
-            const roles = [
-                { id: '768448955804811274', limit: 5 },
-                { id: '768449168297033769', limit: 5 },
-                { id: '946729964328337408', limit: 5 },
-                { id: '1028256286560763984', limit: 5 },
-                { id: '1028256279124250624', limit: 5 },
-                { id: '1038106794200932512', limit: 5 },
-                { id: '1038888209440067604', limit: 5 },
-                { id: '783032959350734868', limit: 10 },
-                { id: '1349716423706148894', limit: 5 }
-           ];
+            // Check for friends who have left the server and remove them
+            const leftNotices = [];
+            const validFriends = [];
+            for (const friendId of userChannel.friends) {
+                const member = await message.guild.members.fetch(friendId).catch(() => null);
+                if (!member) {
+                    leftNotices.push(`<@${friendId}> has left the server and was removed from your friends list.`);
+                    const overwrite = channel.permissionOverwrites.cache.get(friendId);
+                    if (overwrite) await overwrite.delete().catch(console.error);
+                } else {
+                    validFriends.push(friendId);
+                }
+            }
 
-            const roleThresholds = roles.map(role => {
-                const hasRole = message.member.roles.cache.has(role.id);
+            if (leftNotices.length > 0) {
+                userChannel.friends = validFriends;
+                channels[message.author.id] = userChannel;
+                fs.writeFileSync(dataPath, JSON.stringify(channels, null, 2), 'utf8');
+            }
+
+            const roleThresholds = Object.entries(ROLE_CONFIG).map(([roleId, config]) => {
+                const hasRole = message.member.roles.cache.has(roleId);
                 const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
-                return `${emoji} <@&${role.id}> ${role.limit}`;
+                return `${emoji} <@&${roleId}> ${config.limit}`;
             }).join('\n');
-
-            const currentFriendsCount = userChannel.friends.length;
 
             const embed = new EmbedBuilder()
                 .setTitle('Channel Information')
@@ -73,27 +86,42 @@ module.exports = {
                     `**Channel:** <#${userChannel.channelId}>\n\n` +
                     `**Owner:** <@${message.author.id}>\n\n` +
                     `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-                    `**Invited Friends:** ${currentFriendsCount} / ${maxFriends}\n\n` +
+                    `**Invited Friends:** ${validFriends.length} / ${maxFriends}\n\n` +
                     `**Role Thresholds:**\n${roleThresholds}\n\n` +
                     `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage the channel members**`
                 )
                 .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
                 .setColor(0x6666ff);
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('rename_channel')
-                        .setLabel('Rename Channel')
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId('view_friends')
-                        .setLabel('View Friends')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setEmoji('<:user:1273754877646082048>')
-                );
+            const isOwner = message.author.id === userChannel.userId;
 
-            await message.reply({ embeds: [embed], components: [row] });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('rename_channel')
+                    .setLabel('Rename Channel')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(!isOwner),
+                new ButtonBuilder()
+                    .setCustomId('view_friends')
+                    .setLabel('View Friends')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('<:user:1273754877646082048>')
+                    .setDisabled(!isOwner),
+            );
+
+            await message.reply({
+                embeds: [embed],
+                components: [row],
+                allowedMentions: { repliedUser: false },
+            });
+
+            // Send left-server notices as a follow-up
+            if (leftNotices.length > 0) {
+                await message.reply({
+                    content: leftNotices.join('\n'),
+                    allowedMentions: { parse: [] }, // Don't ping removed users
+                });
+            }
 
         } else {
             const embed = new EmbedBuilder()
@@ -107,31 +135,25 @@ module.exports = {
                 .setStyle(ButtonStyle.Primary);
 
             const row = new ActionRowBuilder().addComponents(button);
-            await message.reply({ embeds: [embed], components: [row] });
+            await message.reply({
+                embeds: [embed],
+                components: [row],
+                allowedMentions: { repliedUser: false },
+            });
         }
-    }
+    },
 };
 
 function calculateMaxFriends(member) {
-    const roleLimits = {
-        '768448955804811274': 5,
-        '768449168297033769': 5,
-        '946729964328337408': 5,
-        '1028256286560763984': 5,
-        '1028256279124250624': 5,
-        '1038106794200932512': 5,
-        '1038888209440067604': 5,
-        '783032959350734868': 10,
-        '1349716423706148894': 5,
-    };
-
-    let maxFriends = 0;
-
-    for (const [roleId, limit] of Object.entries(roleLimits)) {
+    let total = 0;
+    for (const [roleId, config] of Object.entries(ROLE_CONFIG)) {
         if (member.roles.cache.has(roleId)) {
-            maxFriends += limit;
+            if (config.requiresRole) {
+                if (member.roles.cache.has(config.requiresRole)) total += config.limit;
+            } else {
+                total += config.limit;
+            }
         }
     }
-
-    return maxFriends;
+    return total;
 }

@@ -2,35 +2,31 @@ const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, Butt
 const fs = require('fs');
 const dataPath = './data/channels.json';
 
-// Centralized role configuration
 const ROLE_CONFIG = {
-    // Original roles
     '768448955804811274': { limit: 5 },
     '768449168297033769': { limit: 5 },
     '946729964328337408': { limit: 5 },
     '1028256286560763984': { limit: 5 },
     '1028256279124250624': { limit: 5 },
     '1038106794200932512': { limit: 5 },
-    // New roles
     '783032959350734868': { limit: 10 },
     '1038888209440067604': { limit: 5, requiresRole: '783032959350734868' },
-    '1349716423706148894': { limit: 5 }
+    '1349716423706148894': { limit: 5 },
 };
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('mychannel')
         .setDescription('Manage your channel'),
+
     async execute(interaction) {
         const requiredRoles = Object.keys(ROLE_CONFIG);
-
         if (!interaction.member.roles.cache.some(role => requiredRoles.includes(role.id))) {
-            return interaction.reply({ 
-                content: 'You do not have the required role to run this command.', 
-                ephemeral: true 
+            return interaction.reply({
+                content: 'You do not have the required role to run this command.',
+                ephemeral: true,
             });
         }
-
         await handleMyChannelCommand(interaction);
     },
 };
@@ -47,34 +43,32 @@ async function readChannelsData() {
 async function handleMyChannelCommand(interaction) {
     const channelsData = await readChannelsData();
     if (!channelsData) {
-        return interaction.reply({ 
-            content: 'Error reading channel data. Please contact an administrator.', 
-            ephemeral: true 
+        return interaction.reply({
+            content: 'Error reading channel data. Please contact an administrator.',
+            ephemeral: true,
         });
     }
 
-    const userChannel = channelsData[interaction.user.id] || 
+    const userChannel = channelsData[interaction.user.id] ||
         Object.values(channelsData).find(ch => ch.userId === interaction.user.id);
 
     if (userChannel) {
         try {
             const channel = await interaction.guild.channels.fetch(userChannel.channelId);
             if (channel) {
-                return handleExistingChannel(interaction, channel, userChannel);
+                return handleExistingChannel(interaction, channel, userChannel, channelsData);
             }
         } catch (error) {
             console.error('Error fetching channel:', error);
             delete channelsData[interaction.user.id];
             fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
-            
-            return interaction.reply({ 
+            return interaction.reply({
                 content: 'Your channel could not be found. The data has been cleared. Please use the command again to create a new channel.',
-                ephemeral: true 
+                ephemeral: true,
             });
         }
     }
 
-    // Create new channel offer
     const embed = new EmbedBuilder()
         .setTitle('No Channel Found')
         .setDescription('You do not own any channel. Would you like to create one?')
@@ -89,15 +83,36 @@ async function handleMyChannelCommand(interaction) {
     await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
-async function handleExistingChannel(interaction, channel, userChannel) {
+async function handleExistingChannel(interaction, channel, userChannel, channelsData) {
     const maxFriends = calculateMaxFriends(interaction.member);
+
+    // Check for friends who have left the server and remove them from the list
+    const leftNotices = [];
+    const validFriends = [];
+    for (const friendId of userChannel.friends) {
+        const member = await interaction.guild.members.fetch(friendId).catch(() => null);
+        if (!member) {
+            leftNotices.push(`<@${friendId}> has left the server and was removed from your friends list.`);
+            // Also clean up their permission overwrite if it still exists
+            const overwrite = channel.permissionOverwrites.cache.get(friendId);
+            if (overwrite) await overwrite.delete().catch(console.error);
+        } else {
+            validFriends.push(friendId);
+        }
+    }
+
+    // Save updated friends list if anyone was removed
+    if (leftNotices.length > 0) {
+        userChannel.friends = validFriends;
+        channelsData[interaction.user.id] = userChannel;
+        fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2), 'utf8');
+    }
+
     const rolesList = Object.entries(ROLE_CONFIG).map(([roleId, config]) => {
         const hasRole = interaction.member.roles.cache.has(roleId);
         const emoji = hasRole ? '<a:tick:1276746433495830620>' : '<a:crossmark:1276746067026903061>';
         return `${emoji} <@&${roleId}> ${config.limit}`;
     }).join('\n');
-
-    const responses = await ensureFriendsInChannel(userChannel.friends, channel, maxFriends);
 
     const embed = new EmbedBuilder()
         .setTitle('Channel Information')
@@ -105,7 +120,7 @@ async function handleExistingChannel(interaction, channel, userChannel) {
             `**Channel:** <#${channel.id}>\n\n` +
             `**Owner:** <@${interaction.user.id}>\n\n` +
             `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
-            `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
+            `**Invited Friends:** ${validFriends.length} / ${maxFriends}\n\n` +
             `**Role Thresholds:**\n${rolesList}\n\n` +
             `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage channel members**`
         )
@@ -130,53 +145,25 @@ async function handleExistingChannel(interaction, channel, userChannel) {
     const row = new ActionRowBuilder().addComponents(renameButton, viewFriendsButton);
     await interaction.reply({ embeds: [embed], components: [row] });
 
-    if (responses.length > 0) {
-        await interaction.followUp({ content: responses.join('\n'), ephemeral: true });
+    // Notify about removed friends in a follow-up (ephemeral so only the owner sees it)
+    if (leftNotices.length > 0) {
+        await interaction.followUp({
+            content: leftNotices.join('\n'),
+            ephemeral: true,
+        });
     }
-}
-
-async function ensureFriendsInChannel(friends, channel, maxFriends) {
-    const responses = [];
-    let currentFriendsCount = friends.length;
-
-    for (const friendId of friends) {
-        if (!channel.permissionOverwrites.cache.has(friendId)) {
-            if (currentFriendsCount >= maxFriends) {
-                responses.push(`Tried to add <@${friendId}> back to the channel, but the max friends limit has been reached.`);
-                continue;
-            }
-            try {
-                await channel.permissionOverwrites.create(friendId, {
-                    [PermissionsBitField.Flags.ViewChannel]: true,
-                });
-                currentFriendsCount++;
-                responses.push(`Added <@${friendId}> back to the channel.`);
-            } catch (error) {
-                console.error('Error creating permission overwrite:', error);
-                responses.push(`Failed to add <@${friendId}> back to the channel.`);
-            }
-        }
-    }
-
-    return responses;
 }
 
 function calculateMaxFriends(member) {
-    let maxFriends = 0;
-
-    // Calculate base friends limit from roles
+    let total = 0;
     for (const [roleId, config] of Object.entries(ROLE_CONFIG)) {
         if (member.roles.cache.has(roleId)) {
-            // For roles that require another role, only add the extra limit
             if (config.requiresRole) {
-                if (member.roles.cache.has(config.requiresRole)) {
-                    maxFriends += config.limit;
-                }
+                if (member.roles.cache.has(config.requiresRole)) total += config.limit;
             } else {
-                maxFriends += config.limit;
+                total += config.limit;
             }
         }
     }
-
-    return maxFriends;
+    return total;
 }
