@@ -12,7 +12,7 @@ const client = new Client({
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     try {
-        const { weeklyReset } = require('./events/mupdate.js');
+        const { weeklyReset } = require('./events/resetweekly.js');
         const success = await weeklyReset(client);
         console.log(success ? 'Reset completed successfully' : 'Reset finished with errors');
     } catch (e) {
