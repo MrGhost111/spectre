@@ -14,7 +14,6 @@ const {
     updateStatusBoard,
     TIER_1_ROLE_ID,
     TIER_2_ROLE_ID,
-    PRO_MAKER_ROLE_ID,
     TIER_1_REQUIREMENT,
     TIER_2_REQUIREMENT,
     ACTIVITY_CHANNEL_ID,
@@ -23,7 +22,7 @@ const {
 const ANNOUNCEMENT_CHANNEL_ID = '833241820959473724';
 const TRANSACTION_CHANNEL_ID  = '833246120389902356';
 const ADMIN_CHANNEL_ID        = '966598961353850910';
-const PRO_MAKER_ROLE_ID_LOCAL = '838478632451178506'; // donationSystem doesn't export this one
+const PRO_MAKER_ROLE_ID       = '838478632451178506';
 
 async function weeklyReset(client) {
     try {
@@ -36,7 +35,7 @@ async function weeklyReset(client) {
         const announcementChannel = await client.channels.fetch(ANNOUNCEMENT_CHANNEL_ID);
         const adminChannel        = await client.channels.fetch(ADMIN_CHANNEL_ID);
 
-        const summary  = { promotions: [], demotions: [] };
+        const summary          = { promotions: [], demotions: [] };
         const promotionUserIds = [];
 
         let weeklyDonations = 0;
@@ -46,21 +45,37 @@ async function weeklyReset(client) {
         const tier1Donations = [];
         const tier2Donations = [];
 
-        // Fetch all members once (force-refresh cache)
-        console.log('[RESET] Fetching guild members...');
-        const members = await guild.members.fetch({ force: true, time: 120000 });
-        console.log(`[RESET] Fetched ${members.size} members`);
+        // Fetch only members who are in usersData — avoids fetching all 15k members
+        console.log('[RESET] Fetching relevant members...');
+        const members = new Map();
+        for (const userId of Object.keys(usersData)) {
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (member) members.set(userId, member);
+        }
+        console.log(`[RESET] Fetched ${members.size} relevant members`);
 
-        // ── Build donation totals & find top donor ────────────────────────────
+        // ── Build donation totals, find top donor, collect tier lists ─────────
         for (const [userId, userData] of Object.entries(usersData)) {
-            weeklyDonations += userData.weeklyDonated || 0;
+            const donated = userData.weeklyDonated || 0;
+            weeklyDonations += donated;
 
-            if (userData.weeklyDonated > topDonation) {
-                topDonors   = [{ id: userId, donation: userData.weeklyDonated, timestamp: userData.lastDonation || new Date().toISOString() }];
-                topDonation = userData.weeklyDonated;
-            } else if (userData.weeklyDonated === topDonation && topDonation > 0) {
-                topDonors.push({ id: userId, donation: userData.weeklyDonated, timestamp: userData.lastDonation || new Date().toISOString() });
+            if (donated > topDonation) {
+                topDonors   = [{ id: userId, donation: donated, timestamp: userData.lastDonation || new Date().toISOString() }];
+                topDonation = donated;
+            } else if (donated === topDonation && topDonation > 0) {
+                topDonors.push({ id: userId, donation: donated, timestamp: userData.lastDonation || new Date().toISOString() });
             }
+
+            if (donated === 0) continue;
+
+            const member = members.get(userId);
+            if (!member) continue;
+
+            const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+            const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+
+            if (hasTier2)      tier2Donations.push({ id: userId, donated });
+            else if (hasTier1) tier1Donations.push({ id: userId, donated });
         }
 
         // Earliest timestamp wins ties
@@ -68,17 +83,6 @@ async function weeklyReset(client) {
         const topDonor = topDonors[0]?.id ?? null;
 
         statsData.totalDonations += weeklyDonations;
-
-        // Collect per-tier donation lists for admin logging
-        for (const [memberId, member] of members) {
-            const hasTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
-            const hasTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
-            const donated  = usersData[memberId]?.weeklyDonated || 0;
-            if (donated === 0) continue;
-
-            if (hasTier2)      tier2Donations.push({ id: memberId, donated });
-            else if (hasTier1) tier1Donations.push({ id: memberId, donated });
-        }
 
         // ── Weekly stats embed (pre-reset numbers) ────────────────────────────
         const { tier1Users, tier2Users } = await getWeeklyStats(client);
@@ -90,7 +94,7 @@ async function weeklyReset(client) {
 
         if (tier2Users.length > 0) {
             weeklyStatsEmbed.addFields({
-                name: '<:streak:1064909945373458522>  Tier 2',
+                name:  '<:streak:1064909945373458522>  Tier 2',
                 value: tier2Users.map((u, i) =>
                     `\`${i + 1}.\` <@${u.id}> ⏣ ${formatNumber(u.weeklyDonated)}/${formatNumber(u.requirement)}`
                 ).join('\n'),
@@ -99,7 +103,7 @@ async function weeklyReset(client) {
 
         if (tier1Users.length > 0) {
             weeklyStatsEmbed.addFields({
-                name: '<:YJ_streak:1259258046924853421>  Tier 1',
+                name:  '<:YJ_streak:1259258046924853421>  Tier 1',
                 value: tier1Users.map((u, i) =>
                     `\`${i + 1}.\` <@${u.id}> ⏣ ${formatNumber(u.weeklyDonated)}/${formatNumber(u.requirement)}`
                 ).join('\n'),
@@ -115,12 +119,12 @@ async function weeklyReset(client) {
         );
         await announcementChannel.send({ embeds: [weeklyStatsEmbed] });
 
-        // ── Remove Pro Maker from everyone ───────────────────────────────────
+        // ── Remove Pro Maker from everyone who has it ─────────────────────────
         try {
             console.log('[RESET] Removing Pro Maker roles');
             for (const [, member] of members) {
-                if (member.roles.cache.has(PRO_MAKER_ROLE_ID_LOCAL)) {
-                    await member.roles.remove(PRO_MAKER_ROLE_ID_LOCAL).catch(console.error);
+                if (member.roles.cache.has(PRO_MAKER_ROLE_ID)) {
+                    await member.roles.remove(PRO_MAKER_ROLE_ID).catch(console.error);
                 }
             }
         } catch (e) {
@@ -135,7 +139,7 @@ async function weeklyReset(client) {
             if (topDonor) {
                 const topDonorMember = members.get(topDonor) ?? null;
                 if (topDonorMember) {
-                    await topDonorMember.roles.add(PRO_MAKER_ROLE_ID_LOCAL);
+                    await topDonorMember.roles.add(PRO_MAKER_ROLE_ID);
                     const wasTie = topDonors.length > 1;
 
                     await announcementChannel.send({ embeds: [
@@ -144,7 +148,7 @@ async function weeklyReset(client) {
                             .setColor('#4c00b0')
                             .setDescription(
                                 `> Congratulations to <@${topDonor}> for being the top donor this week with ⏣ ${formatNumber(topDonation)}! ` +
-                                `They will keep the <@&${PRO_MAKER_ROLE_ID_LOCAL}> role for the next week.` +
+                                `They will keep the <@&${PRO_MAKER_ROLE_ID}> role for the next week.` +
                                 (wasTie ? `\n> *There was a tie! <@${topDonor}> was selected as they donated first.*` : '')
                             )
                             .setTimestamp(),
@@ -161,12 +165,10 @@ async function weeklyReset(client) {
 
         // ── Promotions & demotions ────────────────────────────────────────────
         for (const [userId, userData] of Object.entries(usersData)) {
-            // Use the bulk-fetched members Map only — never re-fetch individually
-            // (individual fetches on a 15k+ member server cause GuildMembersTimeout)
             const member = members.get(userId) ?? null;
 
             if (!member) {
-                // User left — reset their weekly total but keep their record
+                // User left server — reset their weekly but keep their record
                 userData.weeklyDonated = 0;
                 continue;
             }
@@ -223,7 +225,7 @@ async function weeklyReset(client) {
                 ]}).catch(() => { /* DMs closed */ });
 
                 delete usersData[userId];
-                continue; // entry deleted — don't reset weeklyDonated below
+                continue; // entry deleted — skip weeklyDonated reset below
             }
 
             userData.weeklyDonated = 0;
@@ -307,7 +309,7 @@ async function weeklyReset(client) {
         ];
 
         if (donationSyntaxes.length > 0) {
-            // Discord embed field has a 1024 char limit — chunk if needed
+            // Chunk to stay under Discord's 1024 char field limit
             const chunks = [];
             let current  = '';
             for (const line of donationSyntaxes) {
@@ -332,7 +334,7 @@ async function weeklyReset(client) {
             }
         }
 
-        // ── Delete old leaderboard and send a fresh one ───────────────────────
+        // ── Delete old leaderboard and post a fresh one ───────────────────────
         try {
             const activityChannel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
             const messages        = await activityChannel.messages.fetch({ limit: 20 });
