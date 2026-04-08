@@ -21,6 +21,17 @@
             "issuerId": "736599653373706262",
             "muteChainId": "chain_1775641783193_lyenak",
             "usedRiskInChain": false
+        },
+        {
+            "userId": "682122261758869504",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1775653512,
+            "muteEndTime": 1775653556,
+            "button_clicked": false,
+            "issuerId": "826115461623054336",
+            "muteChainId": "chain_1775653512130_o488f9",
+            "usedRiskInChain": false
         }
     ]
 }
