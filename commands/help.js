@@ -32,7 +32,7 @@ module.exports = {
             ];
 
             const adminCommands = [
-                { name: 'Admin Command: `,updatedb`', description: 'to update bots database if a channel / user was added manually ' },
+                { name: 'Admin Command: `,updatedb`', description: 'to update bots database if a channel / user was added manuallyn ' },
                 { name: 'Admin Command: `,editmm`', description: 'Add/remove donation notes from a money maker' },
                 { name: 'Admin Command: `,resetweekly`', description: 'Reset money makers week manually' },
                 { name: 'Admin Command: `,touchc`', description: 'Scan and fix channels with extra friends or missing owner/req' },
