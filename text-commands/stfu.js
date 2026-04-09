@@ -189,7 +189,7 @@ module.exports = {
 
                 // Priority 3: Check args for user ID or username
                 if (args.length > 0) {
-                    const userArg = args.join(' '); // Join all args to handle multi-word usernames
+                    const userArg = args.join(' ');
 
                     // Try to fetch by ID first
                     if (/^\d{17,19}$/.test(args[0])) {
@@ -220,30 +220,40 @@ module.exports = {
                 return message.channel.send("You can't use this command on a bot smh");
             }
 
-            // Check if target is already muted
             const targetMember = await getMemberFromUser(message.guild, targetUser.id);
             if (!targetMember) {
                 return message.channel.send('Could not find the target user in this server.');
             }
 
-            if (targetMember.roles.cache.has(MUTED_ROLE_ID)) {
-                return message.channel.send(`${targetUser.username} is already muted.`);
+            // ── Immunity checks ──────────────────────────────────────────────
+            const mutes = await message.client.muteManager.getMutes();
+            const targetMuteEntry = mutes.users.find(mute => mute.userId === targetUser.id);
+
+            // 1. Currently muted (has the role OR has an active mute entry)
+            if (targetMember.roles.cache.has(MUTED_ROLE_ID) || (targetMuteEntry && targetMuteEntry.muteEndTime > currentTime)) {
+                const unmuteTime = targetMuteEntry ? targetMuteEntry.muteEndTime : null;
+                const timeMsg = unmuteTime
+                    ? ` They'll be free <t:${unmuteTime}:R>.`
+                    : '';
+                return message.channel.send(`${targetUser.username} is already muted, stop targeting smh.${timeMsg}`);
             }
 
-            // Check if target was successfully muted within the last 2 minutes
-            // Only triggers if the previous mute was a success (i.e. target was actually muted)
-            // If it was a fail, the author got muted instead so no protection needed
-            const mutes = await message.client.muteManager.getMutes();
+            // 2. Was muted recently (within the last 2 minutes) — post-mute immunity window
+            //    Only applies when a real issuer muted them (exclude self-inflicted fails where issuerId === userId)
             const recentMute = mutes.users.find(mute =>
                 mute.userId === targetUser.id &&
-                mute.issuerId !== targetUser.id && // exclude cases where target muted themselves (fail = author muted)
+                mute.issuerId !== targetUser.id &&
                 (currentTime - mute.muteStartTime) < 120
             );
 
+            // Note: entries are cleaned up on unmute, so we also check a "lastUnmuted" stamp if you
+            // ever add one. For now, the role check above covers the active case and we keep this
+            // for any edge-case entries that linger briefly after role removal.
             if (recentMute) {
                 const unlocksAt = recentMute.muteStartTime + 120;
                 return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh. You can go again <t:${unlocksAt}:R>.`);
             }
+            // ─────────────────────────────────────────────────────────────────
 
             // Load bars data
             const barsData = await readJsonFile(DATA_PATHS.bars);
@@ -256,7 +266,7 @@ module.exports = {
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
 
-            // Calculate luck without streak bonus
+            // Calculate luck
             const totalLuck = calculateLuck(message.member);
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
@@ -271,7 +281,7 @@ module.exports = {
             }
             await writeJsonFile(DATA_PATHS.streaks, streaks);
 
-            // Calculate rolls and result message 
+            // Calculate rolls
             const powerRoll = Math.floor(Math.random() * 71) + 30;
             const accuracyRoll = success ?
                 Math.floor(Math.random() * 51) + 50 :
@@ -284,13 +294,13 @@ module.exports = {
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
                 `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
-            // Handle mute with the new muteManager - pass the issuer's ID as well
+            // Apply mute
             const muteSuccess = await message.client.muteManager.addMute(
                 muteUser,
                 message.guild.id,
                 MUTED_ROLE_ID,
                 muteDuration,
-                message.author.id  // Add the issuer's ID
+                message.author.id
             );
 
             if (!muteSuccess) {
@@ -322,15 +332,12 @@ module.exports = {
                         .setEmoji('<:creepypp:1060554596310843553>')
                 );
 
-            // Modify streak display for failed attempts
             const streakDisplay = success
                 ? `**${currentStreak}**`
                 : `**${previousStreak} → 0**`;
 
-            // Create embed without streak bonus info
             let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
 
-            // Choose image based on success or failure
             const imageUrl = success
                 ? 'https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166'
                 : 'https://media.discordapp.net/attachments/1014096605059756032/1350242262256320592/goku.gif?ex=67d60699&is=67d4b519&hm=2a2c950931f683d10b93238a554132fce5d95fc31b39da5663d4c7876e03d912&=&width=798&height=340';
@@ -361,6 +368,7 @@ module.exports = {
                 });
             }
             await writeJsonFile(DATA_PATHS.cooldowns, cooldowns);
+
         } catch (error) {
             console.error('Error in stfu command:', error);
             message.channel.send('An error occurred while executing the command. Please try again later.');
