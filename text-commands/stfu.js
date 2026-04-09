@@ -9,7 +9,7 @@ const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 // Role configurations
 const ROLE_CONFIGS = {
     special: {
-        roles: ['1349716423706148894'], // Special role with 80% luck
+        roles: ['1349716423706148894'],
         luck: 80
     },
     tier1: {
@@ -39,7 +39,6 @@ const REQUIRED_ROLES = [
     ...ROLE_CONFIGS.tier4.roles
 ];
 
-// Constants
 const MUTED_ROLE_ID = '673978861335085107';
 const DATA_PATHS = {
     streaks: path.join(__dirname, '../data/streaks.json'),
@@ -48,20 +47,19 @@ const DATA_PATHS = {
     bars: path.join(__dirname, '../data/bars.json')
 };
 
-// Helper functions
-async function readJsonFile(path, defaultValue = { users: [] }) {
+async function readJsonFile(filePath, defaultValue = { users: [] }) {
     try {
-        const data = await require('fs').promises.readFile(path, 'utf8');
+        const data = await require('fs').promises.readFile(filePath, 'utf8');
         return JSON.parse(data);
     } catch (error) {
-        console.error(`Error reading ${path}:`, error);
-        await require('fs').promises.writeFile(path, JSON.stringify(defaultValue), 'utf8');
+        console.error(`Error reading ${filePath}:`, error);
+        await require('fs').promises.writeFile(filePath, JSON.stringify(defaultValue), 'utf8');
         return defaultValue;
     }
 }
 
-async function writeJsonFile(path, data) {
-    await require('fs').promises.writeFile(path, JSON.stringify(data, null, 4), 'utf8');
+async function writeJsonFile(filePath, data) {
+    await require('fs').promises.writeFile(filePath, JSON.stringify(data, null, 4), 'utf8');
 }
 
 function getBar(value, bars, barType) {
@@ -80,14 +78,9 @@ function getBar(value, bars, barType) {
 function calculateLuck(member) {
     const cacheKey = `luck_${member.id}`;
     const cachedLuck = roleCache.get(cacheKey);
-
-    if (cachedLuck !== undefined) {
-        return cachedLuck;
-    }
+    if (cachedLuck !== undefined) return cachedLuck;
 
     let luck = 0;
-
-    // Check tier roles (including special role)
     for (const tier of Object.values(ROLE_CONFIGS)) {
         if (tier.roles.some(roleId => member.roles.cache.has(roleId))) {
             luck = tier.luck;
@@ -95,13 +88,11 @@ function calculateLuck(member) {
         }
     }
 
-    // Add booster luck
     const boosterLuck = BOOSTER_ROLES.reduce((acc, roleId) =>
         acc + (member.roles.cache.has(roleId) ? 5 : 0), 0);
 
     const totalLuck = Math.min(luck + boosterLuck, 100);
     roleCache.set(cacheKey, totalLuck);
-
     return totalLuck;
 }
 
@@ -115,18 +106,12 @@ async function updateUserStats(userId, success) {
     };
 
     userStats.totalUses++;
-    if (success) {
-        userStats.successes++;
-    } else {
-        userStats.fails++;
-    }
+    if (success) userStats.successes++;
+    else userStats.fails++;
 
     const existingIndex = stats.users.findIndex(user => user.userId === userId);
-    if (existingIndex !== -1) {
-        stats.users[existingIndex] = userStats;
-    } else {
-        stats.users.push(userStats);
-    }
+    if (existingIndex !== -1) stats.users[existingIndex] = userStats;
+    else stats.users.push(userStats);
 
     await writeJsonFile(DATA_PATHS.stats, stats);
     return userStats;
@@ -160,44 +145,35 @@ module.exports = {
                 return message.channel.send('You cannot use this command. Check <#862927749802885150> for more info.');
             }
 
-            // Check cooldown
             const currentTime = Math.floor(Date.now() / 1000);
+
+            // Check cooldown
             const cooldowns = await readJsonFile(DATA_PATHS.cooldowns);
             const userCooldown = cooldowns.users.find(cd => cd.userId === message.author.id);
-
             if (userCooldown && userCooldown.endTime > currentTime) {
                 return message.channel.send(`You can use it again at <t:${userCooldown.endTime}:t> (<t:${userCooldown.endTime}:R>)`);
             }
 
-            // Get target user with improved detection
+            // Get target user
             const targetUser = await (async () => {
-                // Priority 1: Check for mentioned users
                 const mentionedUser = message.mentions.users.filter(user => !user.bot).first();
                 if (mentionedUser) return mentionedUser;
 
-                // Priority 2: Check if replying to someone
                 if (message.reference) {
                     try {
                         const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                        if (repliedMessage && !repliedMessage.author.bot) {
-                            return repliedMessage.author;
-                        }
+                        if (repliedMessage && !repliedMessage.author.bot) return repliedMessage.author;
                     } catch (error) {
                         console.error('Error fetching replied message:', error);
                     }
                 }
 
-                // Priority 3: Check args for user ID or username
                 if (args.length > 0) {
                     const userArg = args.join(' ');
-
-                    // Try to fetch by ID first
                     if (/^\d{17,19}$/.test(args[0])) {
                         const member = await getMemberFromUser(message.guild, args[0]);
                         if (member) return member.user;
                     }
-
-                    // Try to find by username (case-insensitive)
                     const memberByUsername = message.guild.members.cache.find(member =>
                         member.user.username.toLowerCase() === userArg.toLowerCase() ||
                         member.displayName.toLowerCase() === userArg.toLowerCase()
@@ -208,47 +184,34 @@ module.exports = {
                 return null;
             })();
 
-            if (!targetUser) {
-                return message.channel.send('Please specify a valid user to mute.');
-            }
-
-            if (targetUser.id === message.author.id) {
-                return message.channel.send("You can't use this command on yourself.");
-            }
-
-            if (targetUser.bot) {
-                return message.channel.send("You can't use this command on a bot smh");
-            }
+            if (!targetUser) return message.channel.send('Please specify a valid user to mute.');
+            if (targetUser.id === message.author.id) return message.channel.send("You can't use this command on yourself.");
+            if (targetUser.bot) return message.channel.send("You can't use this command on a bot smh");
 
             const targetMember = await getMemberFromUser(message.guild, targetUser.id);
-            if (!targetMember) {
-                return message.channel.send('Could not find the target user in this server.');
-            }
+            if (!targetMember) return message.channel.send('Could not find the target user in this server.');
 
             // ── Immunity checks ──────────────────────────────────────────────
             const mutes = await message.client.muteManager.getMutes();
             const targetMuteEntry = mutes.users.find(mute => mute.userId === targetUser.id);
 
-            // 1. Currently muted (has the role OR has an active mute entry)
-            if (targetMember.roles.cache.has(MUTED_ROLE_ID) || (targetMuteEntry && targetMuteEntry.muteEndTime > currentTime)) {
+            // Currently muted: has the role OR has an active mute entry in the data
+            const isCurrentlyMuted = targetMember.roles.cache.has(MUTED_ROLE_ID) ||
+                (targetMuteEntry && targetMuteEntry.muteEndTime > currentTime);
+
+            if (isCurrentlyMuted) {
                 const unmuteTime = targetMuteEntry ? targetMuteEntry.muteEndTime : null;
-                const timeMsg = unmuteTime
-                    ? ` They'll be free <t:${unmuteTime}:R>.`
-                    : '';
+                const timeMsg = unmuteTime ? ` They'll be free <t:${unmuteTime}:R>.` : '';
                 return message.channel.send(`${targetUser.username} is already muted, stop targeting smh.${timeMsg}`);
             }
 
-            // 2. Was muted recently (within the last 2 minutes) — post-mute immunity window
-            //    Only applies when a real issuer muted them (exclude self-inflicted fails where issuerId === userId)
+            // Post-mute 2-minute immunity window (entry may linger briefly after unmute)
+            // Exclude self-inflicted mutes (where issuerId === userId, meaning author failed)
             const recentMute = mutes.users.find(mute =>
                 mute.userId === targetUser.id &&
                 mute.issuerId !== targetUser.id &&
                 (currentTime - mute.muteStartTime) < 120
             );
-
-            // Note: entries are cleaned up on unmute, so we also check a "lastUnmuted" stamp if you
-            // ever add one. For now, the role check above covers the active case and we keep this
-            // for any edge-case entries that linger briefly after role removal.
             if (recentMute) {
                 const unlocksAt = recentMute.muteStartTime + 120;
                 return message.channel.send(`${targetUser.username} was muted recently. Stop targeting smh. You can go again <t:${unlocksAt}:R>.`);
@@ -257,16 +220,14 @@ module.exports = {
 
             // Load bars data
             const barsData = await readJsonFile(DATA_PATHS.bars);
-            if (!barsData.bars) {
-                return message.channel.send('Error loading bars data. Please try again later.');
-            }
+            if (!barsData.bars) return message.channel.send('Error loading bars data. Please try again later.');
 
             // Get user streak
             const streaks = await readJsonFile(DATA_PATHS.streaks);
             const userStreak = streaks.users.find(entry => entry.userId === message.author.id);
             const previousStreak = userStreak ? userStreak.streak : 0;
 
-            // Calculate luck
+            // Calculate luck and roll
             const totalLuck = calculateLuck(message.member);
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
@@ -274,11 +235,8 @@ module.exports = {
             // Update streak
             const currentStreak = success ? (previousStreak + 1) : 0;
             const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
-            if (existingUserIndex !== -1) {
-                streaks.users[existingUserIndex].streak = currentStreak;
-            } else {
-                streaks.users.push({ userId: message.author.id, streak: currentStreak });
-            }
+            if (existingUserIndex !== -1) streaks.users[existingUserIndex].streak = currentStreak;
+            else streaks.users.push({ userId: message.author.id, streak: currentStreak });
             await writeJsonFile(DATA_PATHS.streaks, streaks);
 
             // Calculate rolls
@@ -288,19 +246,22 @@ module.exports = {
                 Math.min(50, Math.floor(Math.random() * 51));
 
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
+
+            // Who gets muted:
+            // success → target gets muted, issuerId = author
+            // fail    → author gets muted, issuerId = author (self-inflicted, so risk success just frees them)
             const muteUser = success ? targetUser.id : message.author.id;
 
             const resultMessage = success ?
                 `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
                 `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
-            // Apply mute
             const muteSuccess = await message.client.muteManager.addMute(
                 muteUser,
                 message.guild.id,
                 MUTED_ROLE_ID,
                 muteDuration,
-                message.author.id
+                message.author.id // always store author as issuerId
             );
 
             if (!muteSuccess) {
@@ -308,14 +269,11 @@ module.exports = {
                 return message.channel.send('An error occurred while trying to mute. Please try again later.');
             }
 
-            // Update stats
-            const userStats = await updateUserStats(message.author.id, success);
+            await updateUserStats(message.author.id, success);
 
-            // Get bars
             const powerBar = getBar(powerRoll, barsData.bars, 'power');
             const accuracyBar = getBar(accuracyRoll, barsData.bars, 'accuracy');
 
-            // Create action row
             const actionRow = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -332,11 +290,8 @@ module.exports = {
                         .setEmoji('<:creepypp:1060554596310843553>')
                 );
 
-            const streakDisplay = success
-                ? `**${currentStreak}**`
-                : `**${previousStreak} → 0**`;
-
-            let luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
+            const streakDisplay = success ? `**${currentStreak}**` : `**${previousStreak} → 0**`;
+            const luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
 
             const imageUrl = success
                 ? 'https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166'
@@ -359,14 +314,8 @@ module.exports = {
             // Update cooldown
             const cooldownEnd = currentTime + 3600;
             const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
-            if (cooldownIndex !== -1) {
-                cooldowns.users[cooldownIndex].endTime = cooldownEnd;
-            } else {
-                cooldowns.users.push({
-                    userId: message.author.id,
-                    endTime: cooldownEnd
-                });
-            }
+            if (cooldownIndex !== -1) cooldowns.users[cooldownIndex].endTime = cooldownEnd;
+            else cooldowns.users.push({ userId: message.author.id, endTime: cooldownEnd });
             await writeJsonFile(DATA_PATHS.cooldowns, cooldowns);
 
         } catch (error) {

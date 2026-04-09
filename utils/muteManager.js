@@ -1,4 +1,4 @@
-const { scheduleJob } = require('node-schedule');
+﻿const { scheduleJob } = require('node-schedule');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -6,7 +6,7 @@ class MuteManager {
     constructor(client) {
         this.client = client;
         this.mutesPath = path.join(__dirname, '../data/mutes.json');
-        this.activeJobs = new Map(); // Store active unmute jobs
+        this.activeJobs = new Map();
         this.loadAndScheduleMutes();
     }
 
@@ -15,13 +15,10 @@ class MuteManager {
             const mutesData = await this.getMutes();
             const currentTime = Math.floor(Date.now() / 1000);
 
-            // Clear any existing jobs
             this.activeJobs.forEach(job => job.cancel());
             this.activeJobs.clear();
 
-            // Schedule unmutes for all active mutes
             const activeMutes = mutesData.users.filter(mute => mute.muteEndTime > currentTime);
-
             for (const mute of activeMutes) {
                 this.scheduleMuteExpiration(mute);
             }
@@ -56,37 +53,32 @@ class MuteManager {
             const currentTime = Math.floor(Date.now() / 1000);
             const muteEndTime = currentTime + duration;
 
-            // Remove existing mute if present
+            // Remove any existing mute entry for this user
             mutesData.users = mutesData.users.filter(mute => mute.userId !== userId);
 
-            // Create muteChainId if not provided (first mute in a chain)
             if (!muteChainId) {
                 muteChainId = `chain_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
             }
 
-            // Add new mute
             const muteData = {
                 userId,
                 guildId,
                 roleId,
                 muteStartTime: currentTime,
                 muteEndTime,
-                button_clicked: false,   // fresh mute always allows one risk attempt
+                button_clicked: false, // fresh mute always allows one risk attempt
                 issuerId,
-                muteChainId,
-                usedRiskInChain: false    // reset per-mute; chain continuity tracked by muteChainId
+                muteChainId
             };
 
             console.log(`Mute data created:`, JSON.stringify(muteData));
 
-            // IMPORTANT: Actually apply the mute role
             const guild = this.client.guilds.cache.get(guildId);
             if (!guild) {
                 console.error(`Guild ${guildId} not found`);
                 return null;
             }
 
-            // Fetch member and apply role with retry logic
             let member;
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
@@ -106,7 +98,6 @@ class MuteManager {
                 return null;
             }
 
-            // Apply mute role with retry
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     await member.roles.add(roleId);
@@ -121,11 +112,8 @@ class MuteManager {
                 }
             }
 
-            // Save to database and schedule unmute
             mutesData.users.push(muteData);
             await this.saveMutes(mutesData);
-
-            // Schedule the unmute
             this.scheduleMuteExpiration(muteData);
 
             return muteData;
@@ -139,42 +127,34 @@ class MuteManager {
         const { userId, guildId, roleId, muteEndTime } = muteData;
         const jobId = `unmute_${userId}`;
 
-        // Cancel existing job if present
         if (this.activeJobs.has(jobId)) {
             this.activeJobs.get(jobId).cancel();
         }
 
-        // Calculate time until unmute
         const unmuteMsec = muteEndTime * 1000;
         const now = Date.now();
 
         if (unmuteMsec <= now) {
-            // Already expired, unmute immediately
             this.executeUnmute(userId, guildId, roleId);
             return;
         }
 
-        // Schedule the job using node-schedule
         const job = scheduleJob(new Date(unmuteMsec), () => {
             this.executeUnmute(userId, guildId, roleId);
         });
 
-        // Store the job
         this.activeJobs.set(jobId, job);
-
         console.log(`Scheduled unmute for user ${userId} at ${new Date(unmuteMsec)}`);
     }
 
     async executeUnmute(userId, guildId, roleId) {
         try {
-            // Get guild and member
             const guild = this.client.guilds.cache.get(guildId);
             if (!guild) {
                 console.error(`Guild ${guildId} not found`);
                 return this.cleanupMute(userId);
             }
 
-            // Fetch the member with retry logic
             let member;
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
@@ -189,7 +169,6 @@ class MuteManager {
                 }
             }
 
-            // Remove role with retry logic
             if (member && member.roles.cache.has(roleId)) {
                 for (let attempt = 1; attempt <= 3; attempt++) {
                     try {
@@ -205,7 +184,6 @@ class MuteManager {
                 }
             }
 
-            // Clean up mute data
             await this.cleanupMute(userId);
         } catch (error) {
             console.error(`Error in executeUnmute:`, error);
@@ -219,7 +197,6 @@ class MuteManager {
             mutesData.users = mutesData.users.filter(mute => mute.userId !== userId);
             await this.saveMutes(mutesData);
 
-            // Remove active job
             const jobId = `unmute_${userId}`;
             if (this.activeJobs.has(jobId)) {
                 this.activeJobs.get(jobId).cancel();
@@ -235,32 +212,29 @@ class MuteManager {
             await interaction.deferUpdate();
             const mutedRoleId = '673978861335085107';
 
-            // Verify the user is actually muted
+            // Only muted users can press this
             if (!interaction.member.roles.cache.has(mutedRoleId)) {
                 return await interaction.followUp({
-                    content: 'This button is only for muted users.',
+                    content: 'You are not muted. This button is not for you.',
                     ephemeral: true
                 });
             }
 
-            // Re-read mutes fresh every time to avoid stale data
+            // Always read fresh from disk to avoid stale data
             const mutesData = await this.getMutes();
             const userMute = mutesData.users.find(mute => mute.userId === interaction.user.id);
 
             if (!userMute) {
                 return await interaction.followUp({
-                    content: 'No mute data found for you.',
+                    content: 'Could not find your mute data. Your mute may have already expired.',
                     ephemeral: true
                 });
             }
 
-            console.log(`User mute data:`, JSON.stringify(userMute));
-
-            // Block if they've already used the risk button for this mute entry
-            // (covers both fail-doubled mutes and already-attempted success)
+            // One risk attempt per mute — once button_clicked is set it never resets for this mute
             if (userMute.button_clicked) {
                 return await interaction.followUp({
-                    content: 'You have already used the risk button for this mute. Wait for the next mute to try again.',
+                    content: 'You already used the risk button for this mute.',
                     ephemeral: true
                 });
             }
@@ -275,143 +249,111 @@ class MuteManager {
                 });
             }
 
-            // 50-50 roll
+            // Lock the button FIRST before anything else so there's no window to double-press
+            userMute.button_clicked = true;
+            const muteIdx = mutesData.users.findIndex(m => m.userId === interaction.user.id);
+            if (muteIdx !== -1) mutesData.users[muteIdx] = userMute;
+            await this.saveMutes(mutesData);
+
             const success = Math.random() < 0.5;
-            let responseMessage;
+            const doubledTime = Math.floor(remainingTime * 2);
 
             if (success) {
-                // Capture needed values before any async cleanup
-                const issuerId = userMute.issuerId;
-                const muteChainId = userMute.muteChainId || `chain_${Date.now()}`;
-                console.log(`Risk success - issuer: ${issuerId}, chain: ${muteChainId}`);
-
-                // Mark button as used and risk as used in this chain before touching anything else
-                userMute.button_clicked = true;
-                userMute.usedRiskInChain = true;
-                await this.saveMutes(mutesData);
-
-                // Remove the mute role from the current user
+                // ── SUCCESS ─────────────────────────────────────────────────
+                // Remove mute role from the button presser
                 try {
                     await interaction.member.roles.remove(mutedRoleId);
-                    console.log(`Successfully unmuted ${interaction.user.tag} via risk button`);
                 } catch (error) {
-                    console.error(`Error removing mute role via risk button:`, error);
+                    console.error(`Error removing mute role on risk success:`, error);
+                    // Roll back button_clicked so they can try again
+                    userMute.button_clicked = false;
+                    if (muteIdx !== -1) mutesData.users[muteIdx] = userMute;
+                    await this.saveMutes(mutesData);
                     return await interaction.followUp({
-                        content: 'An error occurred while unmuting you. Please try again.',
+                        content: 'Something went wrong removing your mute role. Please try again.',
                         ephemeral: true
                     });
                 }
 
-                // Clean up the current user's mute record
                 await this.cleanupMute(interaction.user.id);
 
-                // Try to return a doubled mute to the issuer
-                if (issuerId && issuerId !== interaction.user.id) {
-                    try {
-                        const issuer = await interaction.guild.members.fetch(issuerId).catch(err => {
-                            console.error(`Error fetching issuer: ${err.message}`);
-                            return null;
-                        });
+                const issuerId = userMute.issuerId;
+                const muteChainId = userMute.muteChainId;
 
-                        console.log(`Issuer found: ${issuer ? 'Yes' : 'No'}`);
+                // If issuerId is missing or is themselves (self-inflicted fail mute) — just free them
+                if (!issuerId || issuerId === interaction.user.id) {
+                    return await interaction.followUp({
+                        content: `${interaction.user} took the risk and won! They are no longer muted.`
+                    });
+                }
 
-                        if (issuer && !issuer.roles.cache.has(mutedRoleId)) {
-                            const doubledTime = remainingTime * 2;
-                            console.log(`Returning doubled mute (${doubledTime}s) to issuer ${issuerId}`);
+                // Pass a doubled mute to the issuer
+                const issuerMember = await interaction.guild.members.fetch(issuerId).catch(() => null);
 
-                            const returnMuteResult = await this.addMute(
-                                issuerId,
-                                interaction.guild.id,
-                                mutedRoleId,
-                                doubledTime,
-                                interaction.user.id, // current user is now the issuer
-                                muteChainId          // preserve chain so issuer gets one risk attempt
-                            );
+                if (!issuerMember) {
+                    return await interaction.followUp({
+                        content: `${interaction.user} took the risk and won! They are no longer muted. (Could not find the other person in the server)`
+                    });
+                }
 
-                            if (returnMuteResult) {
-                                console.log(`Successfully returned mute to issuer: ${issuerId}`);
-                                responseMessage = `${interaction.user} took the risk and won! <@${issuerId}> is now muted for **${Math.floor(doubledTime)} seconds**.`;
-                            } else {
-                                console.error(`Failed to return mute to issuer: ${issuerId}`);
-                                responseMessage = `${interaction.user} took the risk and won! They are no longer muted. (Could not apply return mute to issuer)`;
-                            }
-                        } else {
-                            if (issuer) {
-                                responseMessage = `${interaction.user} took the risk and won! They are no longer muted. (Issuer is already muted)`;
-                            } else {
-                                responseMessage = `${interaction.user} took the risk and won! They are no longer muted. (Issuer not found)`;
-                            }
-                        }
-                    } catch (error) {
-                        console.error(`Error returning mute to issuer:`, error);
-                        responseMessage = `${interaction.user} took the risk and won! They are no longer muted. (Error: ${error.message})`;
-                    }
+                if (issuerMember.roles.cache.has(mutedRoleId)) {
+                    return await interaction.followUp({
+                        content: `${interaction.user} took the risk and won! They are no longer muted. (${issuerMember.user.username} is already muted)`
+                    });
+                }
+
+                const returnMute = await this.addMute(
+                    issuerId,
+                    interaction.guild.id,
+                    mutedRoleId,
+                    doubledTime,
+                    interaction.user.id, // button presser becomes the new issuer
+                    muteChainId          // keep the same chain so the chain continues
+                );
+
+                if (returnMute) {
+                    return await interaction.followUp({
+                        content: `${interaction.user} took the risk and won! <@${issuerId}> is now muted for ${doubledTime} seconds and can press the risk button.`
+                    });
                 } else {
-                    if (!issuerId) {
-                        console.log(`No issuer ID in mute data`);
-                        responseMessage = `${interaction.user} took the risk and won! They are no longer muted.`;
-                    } else {
-                        console.log(`Issuer is the same as the user � skipping return mute`);
-                        responseMessage = `${interaction.user} took the risk and won! They are no longer muted.`;
-                    }
+                    return await interaction.followUp({
+                        content: `${interaction.user} took the risk and won! They are no longer muted. (Failed to apply return mute to the other person)`
+                    });
                 }
 
             } else {
-                // FAIL: double the remaining time and lock the button permanently for this mute
-                const newDuration = remainingTime * 2;
-                const newEndTime = currentTime + newDuration;
-
-                responseMessage = `${interaction.user} took the risk and lost. Their mute is now doubled to **${Math.floor(newDuration)} seconds**. No more risks this mute!`;
-
-                // Update the existing mute entry in-place with locked flags
-                // We do NOT create a new mute entry � just extend and lock
+                // ── FAIL ────────────────────────────────────────────────────
+                // Double the presser's own mute. button_clicked already true — no more attempts.
+                const newEndTime = currentTime + doubledTime;
                 userMute.muteEndTime = newEndTime;
-                userMute.button_clicked = true;    // prevent any further risk attempts
-                userMute.usedRiskInChain = true;
 
-                // Write the updated entry
+                // Write updated entry in-place — do NOT call addMute (that would reset button_clicked)
                 const freshMutes = await this.getMutes();
-                const idx = freshMutes.users.findIndex(m => m.userId === interaction.user.id);
-                if (idx !== -1) {
-                    freshMutes.users[idx] = userMute;
+                const freshIdx = freshMutes.users.findIndex(m => m.userId === interaction.user.id);
+                if (freshIdx !== -1) {
+                    freshMutes.users[freshIdx] = userMute;
                 } else {
-                    // Shouldn't happen, but just in case
                     freshMutes.users.push(userMute);
                 }
                 await this.saveMutes(freshMutes);
 
-                // Reschedule the unmute for the new (doubled) end time
+                // Reschedule the unmute job for the new end time
                 this.scheduleMuteExpiration(userMute);
-            }
 
-            await interaction.followUp({ content: responseMessage });
+                return await interaction.followUp({
+                    content: `${interaction.user} took the risk and lost. Their mute is now doubled to ${doubledTime} seconds. No more risks for this mute.`
+                });
+            }
 
         } catch (error) {
             console.error(`Error in handleRiskButton:`, error);
-
             try {
-                const errorChannel = this.client.channels.cache.get('843413781409169412');
-                const errorDetails = `
-**Risk Button Error**
-User: ${interaction.user.tag} (${interaction.user.id})
-Channel: ${interaction.channel.name} (${interaction.channel.id})
-Guild: ${interaction.guild.name} (${interaction.guild.id})
-Error: \`${error.message}\`
-Stack: \`\`\`${error.stack}\`\`\`
-                `;
-
-                if (errorChannel && errorChannel.isText()) {
-                    await errorChannel.send({ content: errorDetails });
-                } else if (interaction.channel && interaction.channel.isText()) {
-                    await interaction.channel.send({ content: errorDetails });
-                }
-
                 await interaction.followUp({
-                    content: 'An error occurred while processing your risk attempt. The error has been logged.',
+                    content: 'An error occurred while processing your risk attempt.',
                     ephemeral: true
                 });
-            } catch (followUpError) {
-                console.error('Error sending error details to channel:', followUpError);
+            } catch (e) {
+                console.error('Error sending risk error followup:', e);
             }
         }
     }
