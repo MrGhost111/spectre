@@ -7,176 +7,6 @@ const riskPath = './data/risk.json';
 const mutesPath = './data/mutes.json';
 const streaksPath = './data/streaks.json';
 
-// ─────────────────────────────────────────────
-// RISK BUTTON HANDLER
-// ─────────────────────────────────────────────
-// How it works:
-//   • Only the currently-muted participant (author or target) may press Risk.
-//   • On SUCCESS  → presser's mute is cleared, opponent is muted for 2× remaining time.
-//   • On FAILURE  → presser's mute stays, and they are LOCKED OUT (cannot press Risk again).
-//   • A lock-out flag is stored in risk.json so it persists across bot restarts.
-// ─────────────────────────────────────────────
-async function handleRiskButton(interaction) {
-    try {
-        const userId = interaction.user.id;
-        const guild = interaction.guild;
-
-        // ── 1. Load risk data ──────────────────────────────────────────
-        let riskData = { sessions: {} };
-        try {
-            riskData = JSON.parse(fs.readFileSync(riskPath, 'utf8'));
-        } catch (_) { /* file may not exist yet */ }
-        if (!riskData.sessions) riskData.sessions = {};
-
-        // ── 2. Load mute data ──────────────────────────────────────────
-        let mutesData = { users: [] };
-        try {
-            mutesData = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
-        } catch (_) { /* file may not exist yet */ }
-        if (!mutesData.users) mutesData.users = [];
-
-        const MUTED_ROLE_ID = '673978861335085107';
-        const currentTime = Math.floor(Date.now() / 1000);
-
-        // ── 3. Find an active mute for this user ───────────────────────
-        const userMute = mutesData.users.find(m => m.userId === userId && m.muteEndTime > currentTime);
-
-        if (!userMute) {
-            return interaction.reply({
-                content: "You don't have an active mute, so you can't use Risk.",
-                ephemeral: true
-            });
-        }
-
-        // ── 4. Check lock-out (failed risk previously in this session) ─
-        // Session key ties author+target together regardless of who presses.
-        const sessionKey = [userMute.issuerId, userMute.userId].sort().join('_');
-
-        if (!riskData.sessions[sessionKey]) {
-            riskData.sessions[sessionKey] = {};
-        }
-        const session = riskData.sessions[sessionKey];
-
-        if (session.lockedOut === userId) {
-            return interaction.reply({
-                content: "You already failed your Risk attempt. You can't press it again this round.",
-                ephemeral: true
-            });
-        }
-
-        // ── 5. Find the opponent (the issuer of the mute, or the target) ─
-        const opponentId = userMute.issuerId === userId ? userMute.targetId : userMute.issuerId;
-
-        // ── 6. Roll 50/50 ──────────────────────────────────────────────
-        const success = Math.random() < 0.5;
-
-        // ── 7. Calculate remaining time ────────────────────────────────
-        const remainingTime = userMute.muteEndTime - currentTime;
-        const doubleDuration = remainingTime * 2;
-
-        if (success) {
-            // ── SUCCESS: free presser, mute opponent for 2× remaining ──
-
-            // Remove presser's mute role
-            try {
-                const presserMember = await guild.members.fetch(userId);
-                await presserMember.roles.remove(MUTED_ROLE_ID);
-            } catch (e) {
-                console.error('Risk: failed to remove mute role from presser:', e);
-            }
-
-            // Remove presser from mutes list
-            mutesData.users = mutesData.users.filter(m => m.userId !== userId);
-
-            // Remove opponent's existing mute entry if any
-            mutesData.users = mutesData.users.filter(m => m.userId !== opponentId);
-
-            // Add new mute for opponent
-            const opponentMuteEnd = currentTime + doubleDuration;
-            mutesData.users.push({
-                userId: opponentId,
-                issuerId: userId,           // presser is now the "issuer"
-                targetId: opponentId,
-                muteStartTime: currentTime,
-                muteEndTime: opponentMuteEnd,
-                guildId: guild.id
-            });
-
-            // Apply mute role to opponent
-            try {
-                const opponentMember = await guild.members.fetch(opponentId);
-                await opponentMember.roles.add(MUTED_ROLE_ID);
-
-                // Schedule role removal
-                const msRemaining = doubleDuration * 1000;
-                setTimeout(async () => {
-                    try {
-                        const refreshed = await guild.members.fetch(opponentId);
-                        // Only remove if their mute end time hasn't changed (a later Risk may have updated it)
-                        const latestMutes = JSON.parse(fs.readFileSync(mutesPath, 'utf8'));
-                        const latestMute = (latestMutes.users || []).find(m => m.userId === opponentId);
-                        if (!latestMute || latestMute.muteEndTime <= Math.floor(Date.now() / 1000)) {
-                            await refreshed.roles.remove(MUTED_ROLE_ID);
-                        }
-                    } catch (e) {
-                        console.error('Risk: error removing opponent role after timeout:', e);
-                    }
-                }, msRemaining);
-            } catch (e) {
-                console.error('Risk: failed to apply mute role to opponent:', e);
-            }
-
-            // Reset lock-out for this session so opponent can now press Risk
-            session.lockedOut = null;
-
-            // Save data
-            fs.writeFileSync(mutesPath, JSON.stringify(mutesData, null, 2));
-            fs.writeFileSync(riskPath, JSON.stringify(riskData, null, 2));
-
-            const embed = new EmbedBuilder()
-                .setColor('#00FF00')
-                .setDescription(
-                    `🎲 **Risk — SUCCESS!**\n\n` +
-                    `<@${userId}> won the risk!\n` +
-                    `<@${opponentId}> is now muted for **${formatDuration(doubleDuration)}** (double the remaining time).`
-                );
-
-            return interaction.reply({ embeds: [embed] });
-
-        } else {
-            // ── FAILURE: lock out the presser, their mute stays ────────
-            session.lockedOut = userId;
-
-            fs.writeFileSync(riskPath, JSON.stringify(riskData, null, 2));
-
-            const embed = new EmbedBuilder()
-                .setColor('#FF0000')
-                .setDescription(
-                    `🎲 **Risk — FAILED!**\n\n` +
-                    `<@${userId}> lost the risk and is still muted for **${formatDuration(remainingTime)}**.\n` +
-                    `You cannot press Risk again this round.`
-                );
-
-            return interaction.reply({ embeds: [embed] });
-        }
-
-    } catch (error) {
-        console.error('Error in handleRiskButton:', error);
-        try {
-            await interaction.reply({ content: 'An error occurred while processing the risk button.', ephemeral: true });
-        } catch (_) { }
-    }
-}
-
-// Helper: format seconds into a readable string
-function formatDuration(seconds) {
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h}h ${m}m ${s}s`;
-}
 
 module.exports = {
     name: 'interactionCreate',
@@ -255,8 +85,7 @@ module.exports = {
 
                 // Handle other buttons with your existing code
                 if (interaction.customId === 'risk') {
-                    // Use the local handleRiskButton — NOT muteManager's version
-                    return await handleRiskButton(interaction);
+                    return await interaction.client.muteManager.handleRiskButton(interaction);
                 } else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
                     await handleDeleteSnipe(interaction);
                 } else if (['create_channel', 'rename_channel', 'view_friends'].includes(interaction.customId)) {
@@ -265,6 +94,8 @@ module.exports = {
                     await handleLeaderboardButton(interaction);
                 } else if (interaction.customId === 'info') {
                     await handleInfoButton(interaction);
+                } else if (interaction.customId === 'risk') {
+                    await handleRiskButton(interaction);
                 } else if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
                     await handleActivityButtons(interaction);
                 }
@@ -731,6 +562,20 @@ async function handleModalSubmit(interaction) {
             });
         }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         else if (interaction.customId === 'rename_channel_modal') {
             try {
                 const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
@@ -763,6 +608,19 @@ async function handleModalSubmit(interaction) {
             }
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
         const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
@@ -905,7 +763,6 @@ async function handleLeaderboardButton(interaction) {
 
     await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
 }
-
 async function handleInfoButton(interaction) {
     // Get member roles
     const memberRoles = interaction.member.roles.cache;
