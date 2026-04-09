@@ -1,45 +1,26 @@
 {
-  "users": [
-    {
-      "userId": "826115461623054336",
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107",
-      "muteStartTime": 1775750740,
-      "muteEndTime": 1775750779,
-      "button_clicked": false,
-      "issuerId": "740108592283385868",
-      "muteChainId": "chain_1775750740434_2zq1yy",
-      "usedRiskInChain": false
-    },
-    {
-      "userId": "740108592283385868",
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107",
-      "muteStartTime": 1775750753,
-      "muteEndTime": 1775750788,
-      "button_clicked": false,
-      "issuerId": "906926852453584906",
-      "muteChainId": "chain_1775750753948_29y4p1",
-      "usedRiskInChain": false
-    },
-    {
-      "userId": "693463277442826240",
-      "guildId": "673970118744735764",
-      "roleId": "673978861335085107",
-      "muteStartTime": 1775768444,
-      "muteEndTime": 1775768504,
-      "button_clicked": false,
-      "issuerId": "736599653373706262",
-      "muteChainId": "chain_1775768444393_oamywt",
-      "usedRiskInChain": false
-    },
-    {
-      "userId": "756011318913531917",
-      "issuerId": "753491023208120321",
-      "targetId": "756011318913531917",
-      "muteStartTime": 1775768798,
-      "muteEndTime": 1775768950,
-      "guildId": "673970118744735764"
-    }
-  ]
+    "users": [
+        {
+            "userId": "826115461623054336",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1775750740,
+            "muteEndTime": 1775750779,
+            "button_clicked": false,
+            "issuerId": "740108592283385868",
+            "muteChainId": "chain_1775750740434_2zq1yy",
+            "usedRiskInChain": false
+        },
+        {
+            "userId": "740108592283385868",
+            "guildId": "673970118744735764",
+            "roleId": "673978861335085107",
+            "muteStartTime": 1775750753,
+            "muteEndTime": 1775750788,
+            "button_clicked": false,
+            "issuerId": "906926852453584906",
+            "muteChainId": "chain_1775750753948_29y4p1",
+            "usedRiskInChain": false
+        }
+    ]
 }
