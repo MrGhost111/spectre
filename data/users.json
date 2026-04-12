@@ -15,7 +15,7 @@
     "status": "good",
     "missedAmount": 0,
     "lastDonation": "2026-02-21T22:00:51.296Z",
-    "lastEditedAt": "2026-04-07T06:58:10.107Z"
+    "lastEditedAt": "2026-04-12T05:28:35.210Z"
   },
   "827983414308241448": {
     "totalDonated": 105000000,
@@ -35,11 +35,12 @@
     "lastEditedAt": "2025-12-05T18:53:59.504Z"
   },
   "826115461623054336": {
-    "totalDonated": 629999999,
-    "weeklyDonated": 69999999,
+    "totalDonated": 630000000,
+    "weeklyDonated": 70000000,
     "currentTier": 2,
     "status": "good",
     "missedAmount": 0,
-    "lastDonation": "2026-04-12T02:24:14.807Z"
+    "lastDonation": "2026-04-12T02:24:14.807Z",
+    "lastEditedAt": "2026-04-12T05:27:44.980Z"
   }
 }
