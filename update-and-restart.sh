@@ -1,4 +1,4 @@
-# this means it worked 
+# this means it worked. 
 #!/bin/bash
 
 NODE="/usr/local/nodejs/bin/node"
