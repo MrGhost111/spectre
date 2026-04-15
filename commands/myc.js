@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
-const dataPath = './data/channels.json';
+const dataPath = './data/channels.json'; 
 
 const ROLE_CONFIG = {
     '768448955804811274': { limit: 5 },
