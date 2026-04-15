@@ -20,7 +20,7 @@ class SpectreAI {
      */
     async callGemini(systemPrompt, userPrompt, maxTokens = 1000, temperature = 0.1) {
         const model = this.genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-1.5-flash',
             systemInstruction: systemPrompt,
             generationConfig: {
                 maxOutputTokens: maxTokens,
