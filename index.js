@@ -114,7 +114,7 @@ client.once('ready', () => {
 
     // Load commands and events
     loadCommands();
-    loadEvents();
+    loadEvents(); 
 
     // Initialize systems
     client.muteManager = new MuteManager(client);
