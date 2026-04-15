@@ -81,6 +81,7 @@ COMMIT_MESSAGE=$($GIT log "$BEFORE_PULL..HEAD" --pretty=format:"%s" \
     | grep -Ev "^(Merge branch|Merge pull request|Server update:)" \
     | head -1)
 
+sleep 10
 $NODE deploy.js >> "$LOG" 2>&1 || {
     echo "[$(date)] WARNING: deploy.js failed" >> "$LOG"
     send_dm "❌ [Spectre] Failed to deploy slash commands"
