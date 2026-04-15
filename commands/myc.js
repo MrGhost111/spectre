@@ -7,7 +7,7 @@ const ROLE_CONFIG = {
     '768449168297033769': { limit: 5 },
     '946729964328337408': { limit: 5 },
     '1028256286560763984': { limit: 5 },
-    '1028256279124250624': { limit: 5 },
+    '1028256279124250624': { limit: 5 }, 
     '1038106794200932512': { limit: 5 },
     '783032959350734868': { limit: 10 },
     '1038888209440067604': { limit: 5, requiresRole: '783032959350734868' },
@@ -109,7 +109,7 @@ async function handleExistingChannel(interaction, channel, userChannel) {
             `**Created On:** <t:${Math.floor(channel.createdTimestamp / 1000)}:D>\n\n` +
             `**Invited Friends:** ${userChannel.friends.length} / ${maxFriends}\n\n` +
             `**Role Thresholds:**\n${rolesList}\n\n` +
-            `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage channel members.**`
+            `**Use </addfriends:1287658557713678389> and </removefriends:1287658557713678395> to manage channel members..**`
         )
         .setFooter({ text: `Channel Owner ID: ${userChannel.userId}` })
         .setColor(0x6666ff);
