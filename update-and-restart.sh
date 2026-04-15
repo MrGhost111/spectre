@@ -1,6 +1,4 @@
-# this means it worked. 
 #!/bin/bash
-
 NODE="/usr/local/nodejs/bin/node"
 GIT="/usr/bin/git"
 PM2="/usr/bin/pm2"
@@ -9,10 +7,10 @@ LOG="/home/opc/update.log"
 
 echo "[$(date)] Script started" >> "$LOG"
 
-cd "$PROJECT_DIR" || {
-    echo "[$(date)] ERROR: Could not cd into $PROJECT_DIR" >> "$LOG"
-    exit 1
-}
+cd "$PROJECT_DIR" || { echo "[$(date)] ERROR: Could not cd into $PROJECT_DIR" >> "$LOG"; exit 1; }
+
+exec 9>/tmp/spectre-git.lock
+flock -n 9 || { echo "[$(date)] Update skipped, another git op running" >> "$LOG"; exit 0; }
 
 if [ ! -f .env ]; then
     echo "[$(date)] ERROR: .env file missing" >> "$LOG"
@@ -40,52 +38,39 @@ send_dm() {
 
 rm -f "$PROJECT_DIR/.git/index.lock"
 
-# ── Backup data folder BEFORE touching git (safety net) ──────────────────────
-BACKUP_DIR="/home/opc/data_backups"
-mkdir -p "$BACKUP_DIR"
-cp -r "$PROJECT_DIR/data/" "$BACKUP_DIR/data_$(date '+%Y%m%d_%H%M%S')/" 2>/dev/null
-# Keep only last 10 backups
-ls -dt "$BACKUP_DIR"/data_* | tail -n +11 | xargs rm -rf 2>/dev/null
+# ── Fetch GitHub without touching any files ───────────────────────────────────
+$GIT fetch origin main >> "$LOG" 2>&1
 
-# ── Check for new code from VS ────────────────────────────────────────────────
-BEFORE_PULL=$($GIT rev-parse HEAD 2>> "$LOG")
+# ── Check if there are any non-data changes on GitHub ────────────────────────
+NON_DATA_CHANGES=$($GIT diff HEAD origin/main --name-only | grep -v "^data/")
 
-PULL_OUTPUT=$($GIT pull origin main 2>&1)
-PULL_EXIT=$?
-echo "[$(date)] Git pull: $PULL_OUTPUT" >> "$LOG"
-
-if [ $PULL_EXIT -ne 0 ]; then
-    echo "[$(date)] ERROR: Git pull failed" >> "$LOG"
-    send_dm "❌ [Spectre] Git pull failed: ${PULL_OUTPUT:0:150}"
-    exit 1
-fi
-
-AFTER_PULL=$($GIT rev-parse HEAD 2>> "$LOG")
-
-if [[ "$BEFORE_PULL" == "$AFTER_PULL" ]]; then
-    echo "[$(date)] No new code, nothing to do" >> "$LOG"
+if [[ -z "$NON_DATA_CHANGES" ]]; then
+    echo "[$(date)] No non-data changes, nothing to do" >> "$LOG"
     exit 0
 fi
 
-# ── New code arrived — restore data files from backup immediately ─────────────
-# This ensures git pull NEVER overwrites live data
-LATEST_BACKUP=$(ls -dt "$BACKUP_DIR"/data_* 2>/dev/null | head -1)
-if [[ -n "$LATEST_BACKUP" ]]; then
-    cp -r "$LATEST_BACKUP/." "$PROJECT_DIR/data/" 2>/dev/null
-    echo "[$(date)] Data files restored from backup after pull" >> "$LOG"
-fi
+echo "[$(date)] Non-data changes detected:" >> "$LOG"
+echo "$NON_DATA_CHANGES" >> "$LOG"
 
-echo "[$(date)] New code from VS detected, deploying..." >> "$LOG"
+# ── Save data files ───────────────────────────────────────────────────────────
+TMP_DATA="/tmp/spectre_data_$(date +%s)"
+cp -r "$PROJECT_DIR/data/" "$TMP_DATA/" 2>/dev/null
 
-COMMIT_MESSAGE=$($GIT log "$BEFORE_PULL..HEAD" --pretty=format:"%s" \
-    | grep -Ev "^(Merge branch|Merge pull request|Server update:)" \
+# ── Force reset to exactly what GitHub has ───────────────────────────────────
+# This eliminates ALL git conflicts forever
+$GIT reset --hard origin/main >> "$LOG" 2>&1
+
+# ── Put data files back ───────────────────────────────────────────────────────
+cp -r "$TMP_DATA/." "$PROJECT_DIR/data/" 2>/dev/null
+rm -rf "$TMP_DATA"
+echo "[$(date)] Data restored after reset" >> "$LOG"
+
+COMMIT_MESSAGE=$($GIT log "HEAD~1..HEAD" --pretty=format:"%s" 2>/dev/null \
+    | grep -Ev "^(Merge branch|Merge pull request|Server backup:)" \
     | head -1)
 
-sleep 10
-$NODE deploy.js >> "$LOG" 2>&1 || {
-    echo "[$(date)] WARNING: deploy.js failed" >> "$LOG"
-    send_dm "❌ [Spectre] Failed to deploy slash commands"
-}
+# ── Restart bot ───────────────────────────────────────────────────────────────
+echo "[$(date)] Deploying..." >> "$LOG"
 
 $PM2 restart spectre --update-env >> "$LOG" 2>&1 || {
     $PM2 start index.js --name spectre >> "$LOG" 2>&1 || {
@@ -93,6 +78,13 @@ $PM2 restart spectre --update-env >> "$LOG" 2>&1 || {
         nohup $NODE index.js >> "$LOG" 2>&1 &
         send_dm "⚠️ [Spectre] Restarted via direct node (PM2 unavailable)"
     }
+}
+
+# ── Deploy slash commands after bot is up ────────────────────────────────────
+sleep 10
+$NODE deploy.js >> "$LOG" 2>&1 || {
+    echo "[$(date)] WARNING: deploy.js failed" >> "$LOG"
+    send_dm "❌ [Spectre] Failed to deploy slash commands"
 }
 
 if [[ -n "$COMMIT_MESSAGE" ]]; then
@@ -103,4 +95,3 @@ fi
 
 echo "[$(date)] Done" >> "$LOG"
 exit 0
-
