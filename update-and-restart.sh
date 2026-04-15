@@ -84,7 +84,7 @@ $PM2 restart spectre --update-env >> "$LOG" 2>&1 || {
 sleep 10
 $NODE deploy.js >> "$LOG" 2>&1 || {
     echo "[$(date)] WARNING: deploy.js failed" >> "$LOG"
-    send_dm "❌ [Spectre] Failed to deploy slash commands"
+   
 }
 
 if [[ -n "$COMMIT_MESSAGE" ]]; then

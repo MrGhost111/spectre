@@ -119,6 +119,16 @@ client.once('ready', () => {
     // Initialize systems
     client.muteManager = new MuteManager(client);
     logToConsole('Mute Manager initialized');
+    setTimeout(() => {
+        try {
+            logToConsole('🚀 Starting auto-deployment of slash commands...');
+            // This runs your deploy.js logic
+            require('./deploy.js');
+            logToConsole('✅ Deployment script triggered');
+        } catch (error) {
+            logToConsole(`❌ Failed to run deploy.js: ${error.message}`, true);
+        }
+    }, 10000);
 
     // Initialize OpenAI Client directly here
     try {
