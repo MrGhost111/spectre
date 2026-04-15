@@ -16,9 +16,13 @@ class SpectreAI {
 
         this.genAI = new GoogleGenerativeAI(apiKey);
 
-        // Using the 2.5 Flash Preview model
+        /**
+         * UPDATED MODEL NAME:
+         * 'gemini-2.5-flash-preview-09-2025' was shut down in Feb/March 2026.
+         * Using 'gemini-2.5-flash' (stable) or 'gemini-3.1-flash-lite-preview' (newest).
+         */
         this.model = this.genAI.getGenerativeModel({
-            model: "gemini-2.5-flash-preview-09-2025"
+            model: "gemini-2.5-flash"
         });
 
         // Security: Your unique Discord ID
@@ -50,7 +54,7 @@ class SpectreAI {
 
         try {
             // 3. AI Generation
-            console.log('[SpectreAI] Sending request to Gemini 2.5...');
+            console.log('[SpectreAI] Sending request to Gemini...');
             const result = await this.model.generateContent(userMessage);
             const responseText = result.response.text();
 
@@ -59,14 +63,23 @@ class SpectreAI {
             }
 
             // 4. Send the response
-            await message.reply(responseText);
+            // Handle Discord's 2000 character limit
+            if (responseText.length > 2000) {
+                const chunks = responseText.match(/[\s\S]{1,2000}/g);
+                for (const chunk of chunks) {
+                    await message.reply(chunk);
+                }
+            } else {
+                await message.reply(responseText);
+            }
+
             console.log('[SpectreAI] Success: Response sent to Discord.');
 
             // Return success to the handler
             return { type: 'success' };
 
         } catch (error) {
-            console.error('[SpectreAI] Gemini 2.5 Error:', error);
+            console.error('[SpectreAI] Generation Error:', error);
 
             // 5. Create error embed for mcreate.js to handle
             const errorEmbed = new EmbedBuilder()
