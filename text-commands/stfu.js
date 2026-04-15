@@ -98,7 +98,7 @@ function calculateLuck(member) {
 
 async function updateUserStats(userId, success) {
     const stats = await readJsonFile(DATA_PATHS.stats);
-    const userStats = stats.users.find(user => user.userId === userId) || {
+    const userStats = stats.users.find(u => u.userId === userId) || {
         userId,
         totalUses: 0,
         successes: 0,
@@ -109,7 +109,7 @@ async function updateUserStats(userId, success) {
     if (success) userStats.successes++;
     else userStats.fails++;
 
-    const existingIndex = stats.users.findIndex(user => user.userId === userId);
+    const existingIndex = stats.users.findIndex(u => u.userId === userId);
     if (existingIndex !== -1) stats.users[existingIndex] = userStats;
     else stats.users.push(userStats);
 
@@ -117,21 +117,20 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-async function getMemberFromUser(guild, userId) {
+// Always force-fetch so roles are never stale — this was the root cause of the crash
+async function fetchMember(guild, userId) {
     const cacheKey = `member_${guild.id}_${userId}`;
-    let member = memberCache.get(cacheKey);
+    const cached = memberCache.get(cacheKey);
+    if (cached) return cached;
 
-    if (!member) {
-        try {
-            member = await guild.members.fetch(userId);
-            memberCache.set(cacheKey, member);
-        } catch (error) {
-            console.error(`Failed to fetch member ${userId}:`, error);
-            return null;
-        }
+    try {
+        const member = await guild.members.fetch({ user: userId, force: true });
+        memberCache.set(cacheKey, member);
+        return member;
+    } catch (error) {
+        console.error(`Failed to fetch member ${userId}:`, error);
+        return null;
     }
-
-    return member;
 }
 
 module.exports = {
@@ -171,7 +170,7 @@ module.exports = {
                 if (args.length > 0) {
                     const userArg = args.join(' ');
                     if (/^\d{17,19}$/.test(args[0])) {
-                        const member = await getMemberFromUser(message.guild, args[0]);
+                        const member = await fetchMember(message.guild, args[0]);
                         if (member) return member.user;
                     }
                     const memberByUsername = message.guild.members.cache.find(member =>
@@ -188,14 +187,15 @@ module.exports = {
             if (targetUser.id === message.author.id) return message.channel.send("You can't use this command on yourself.");
             if (targetUser.bot) return message.channel.send("You can't use this command on a bot smh");
 
-            const targetMember = await getMemberFromUser(message.guild, targetUser.id);
+            // Force-fetch target member so roles are always current
+            const targetMember = await fetchMember(message.guild, targetUser.id);
             if (!targetMember) return message.channel.send('Could not find the target user in this server.');
 
             // ── Immunity checks ──────────────────────────────────────────────
             const mutes = await message.client.muteManager.getMutes();
             const targetMuteEntry = mutes.users.find(mute => mute.userId === targetUser.id);
 
-            // Currently muted: has the role OR has an active mute entry in the data
+            // Re-check roles from force-fetched member
             const isCurrentlyMuted = targetMember.roles.cache.has(MUTED_ROLE_ID) ||
                 (targetMuteEntry && targetMuteEntry.muteEndTime > currentTime);
 
@@ -205,8 +205,7 @@ module.exports = {
                 return message.channel.send(`${targetUser.username} is already muted, stop targeting smh.${timeMsg}`);
             }
 
-            // Post-mute 2-minute immunity window (entry may linger briefly after unmute)
-            // Exclude self-inflicted mutes (where issuerId === userId, meaning author failed)
+            // Post-mute 2-minute immunity window (excludes self-inflicted mutes)
             const recentMute = mutes.users.find(mute =>
                 mute.userId === targetUser.id &&
                 mute.issuerId !== targetUser.id &&
@@ -241,27 +240,25 @@ module.exports = {
 
             // Calculate rolls
             const powerRoll = Math.floor(Math.random() * 71) + 30;
-            const accuracyRoll = success ?
-                Math.floor(Math.random() * 51) + 50 :
-                Math.min(50, Math.floor(Math.random() * 51));
+            const accuracyRoll = success
+                ? Math.floor(Math.random() * 51) + 50
+                : Math.min(50, Math.floor(Math.random() * 51));
 
             const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
 
-            // Who gets muted:
-            // success → target gets muted, issuerId = author
-            // fail    → author gets muted, issuerId = author (self-inflicted, so risk success just frees them)
-            const muteUser = success ? targetUser.id : message.author.id;
+            // success → target muted, fail → author muted (self-inflicted)
+            const muteUserId = success ? targetUser.id : message.author.id;
 
-            const resultMessage = success ?
-                `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.` :
-                `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
+            const resultMessage = success
+                ? `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`
+                : `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
 
             const muteSuccess = await message.client.muteManager.addMute(
-                muteUser,
+                muteUserId,
                 message.guild.id,
                 MUTED_ROLE_ID,
                 muteDuration,
-                message.author.id // always store author as issuerId
+                message.author.id  // issuerId is always the command author
             );
 
             if (!muteSuccess) {
@@ -313,7 +310,7 @@ module.exports = {
 
             // Update cooldown
             const cooldownEnd = currentTime + 3600;
-            const cooldownIndex = cooldowns.users.findIndex(user => user.userId === message.author.id);
+            const cooldownIndex = cooldowns.users.findIndex(u => u.userId === message.author.id);
             if (cooldownIndex !== -1) cooldowns.users[cooldownIndex].endTime = cooldownEnd;
             else cooldowns.users.push({ userId: message.author.id, endTime: cooldownEnd });
             await writeJsonFile(DATA_PATHS.cooldowns, cooldowns);
