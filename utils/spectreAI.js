@@ -171,13 +171,49 @@ class SpectreAI {
     }
 
     /**
-     * Enhanced request analysis
+     * Extract JSON from a string — tries multiple strategies
+     */
+    extractJSON(text) {
+        if (!text) return null;
+
+        // Strategy 1: find the outermost { ... } block
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                return JSON.parse(jsonMatch[0]);
+            } catch (_) { /* fall through */ }
+        }
+
+        // Strategy 2: strip markdown fences then try again
+        const stripped = text.replace(/```(?:json|javascript|js)?\s*/gi, '').replace(/```/g, '').trim();
+        const strippedMatch = stripped.match(/\{[\s\S]*\}/);
+        if (strippedMatch) {
+            try {
+                return JSON.parse(strippedMatch[0]);
+            } catch (_) { /* fall through */ }
+        }
+
+        // Strategy 3: attempt to fix trailing commas / unquoted keys
+        if (strippedMatch) {
+            try {
+                const cleaned = strippedMatch[0]
+                    .replace(/,\s*([}\]])/g, '$1')
+                    .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":');
+                return JSON.parse(cleaned);
+            } catch (_) { /* fall through */ }
+        }
+
+        return null;
+    }
+
+    /**
+     * Enhanced request analysis with retry logic
      */
     async analyzeRequest(message, userMessage) {
         const contextInfo = await this.buildContextInfo(message);
         const repliedData = await this.getRepliedMessageData(message);
 
-        const prompt = `You are a Discord action analyzer. Analyze what the user wants to do with extreme precision and extract all relevant information.
+        const buildPrompt = (strict) => `You are a Discord action analyzer. Analyze what the user wants to do and extract all relevant information.
 
 User Message: "${userMessage}"
 
@@ -190,26 +226,26 @@ ${repliedData ? `Replied Message Data:
 - Embeds: ${JSON.stringify(repliedData.embeds)}
 - Attachments: ${repliedData.attachments.length} file(s)` : ''}
 
-CRITICAL CONTEXT INTERPRETATION RULES:
+CONTEXT INTERPRETATION RULES:
 - "this channel" / "here" / "this" (without other context) = current channel (${message.channel.name})
 - "this category" = current category (${message.channel.parent?.name || 'none'})
 - "this user" (when replying) = the user being replied to
 - "this message" / "this" (when replying) = the message being replied to
 - "me" / "my" / "myself" = the command author (${message.author.username})
 - "last X messages" / "previous messages" = fetch message history
-- "everyone" / "all users" = all server members (be very careful with this)
+- "everyone" / "all users" = all server members
 - "delete messages" = bulk delete operation
 - "summarize" / "summary" = analyze and condense information
 - "list" / "show" / "display" = retrieve and display information
 - "give me" / "add" (with role) = assign role to command author
 - "create" = make new entity (role, channel, etc.)
 
-CRITICAL: When user asks to "summarize", "analyze", "understand", or "read" messages:
+When user asks to "summarize", "analyze", "understand", or "read" messages:
 - This requires AI comprehension, not just data fetching
 - Include "analyze" or "comprehend" in the action name
 - Set parameters to indicate AI processing is needed
 
-Respond with ONLY valid JSON (no markdown, no explanations):
+${strict ? 'IMPORTANT: Return ONLY a raw JSON object. No markdown, no backticks, no explanation. Start your response with { and end with }.' : 'Respond with ONLY valid JSON (no markdown, no explanations):'}
 {
   "action": "action_name_here",
   "description": "Clear human-readable description of what will happen",
@@ -238,28 +274,56 @@ Respond with ONLY valid JSON (no markdown, no explanations):
   }
 }`;
 
-        try {
-            const aiResponse = await this.callGemini(
-                'You are a Discord action analyzer. Respond only with valid JSON. Be extremely precise and consider all context clues.',
-                prompt,
-                1000,
-                0.1
-            );
+        const systemInstruction = 'You are a Discord action analyzer. Respond ONLY with a valid JSON object. Do not include any markdown formatting, code fences, or explanations. Start your response with { and end with }.';
 
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('Failed to parse AI response - no JSON found');
+        let lastError = null;
 
-            const analysis = JSON.parse(jsonMatch[0]);
-            if (!analysis.action || !analysis.description || !analysis.detailedSteps) {
-                throw new Error('Incomplete analysis from AI');
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                console.log(`[SpectreAI] Analysis attempt ${attempt}/3`);
+
+                const aiResponse = await this.callGemini(
+                    systemInstruction,
+                    buildPrompt(attempt >= 2), // stricter prompt on retries
+                    1200,
+                    attempt === 1 ? 0.1 : 0.05  // lower temp on retries
+                );
+
+                console.log(`[SpectreAI] Raw AI response (attempt ${attempt}):\n`, aiResponse.substring(0, 300));
+
+                const parsed = this.extractJSON(aiResponse);
+
+                if (!parsed) {
+                    lastError = new Error(`Failed to parse AI response - no valid JSON found (attempt ${attempt})`);
+                    console.warn(`[SpectreAI] ${lastError.message}`);
+                    continue;
+                }
+
+                if (!parsed.action || !parsed.description || !parsed.detailedSteps) {
+                    lastError = new Error(`Incomplete analysis from AI - missing required fields (attempt ${attempt})`);
+                    console.warn(`[SpectreAI] ${lastError.message}`, parsed);
+                    continue;
+                }
+
+                // Ensure entities/context/params have all required keys with defaults
+                parsed.entities = parsed.entities || {};
+                parsed.entities.users = parsed.entities.users || [];
+                parsed.entities.roles = parsed.entities.roles || [];
+                parsed.entities.channels = parsed.entities.channels || [];
+                parsed.entities.categories = parsed.entities.categories || [];
+                parsed.usesContext = parsed.usesContext || {};
+                parsed.parameters = parsed.parameters || {};
+
+                const resolved = await this.resolveEntities(parsed, message, repliedData);
+                return { analysis: parsed, resolved, repliedData };
+
+            } catch (error) {
+                lastError = error;
+                console.error(`[SpectreAI] Analysis attempt ${attempt} failed:`, error.message);
             }
-
-            const resolved = await this.resolveEntities(analysis, message, repliedData);
-            return { analysis, resolved, repliedData };
-        } catch (error) {
-            console.error('Request analysis error:', error);
-            throw error;
         }
+
+        throw lastError || new Error('Failed to analyze request after 3 attempts');
     }
 
     /**
@@ -477,7 +541,7 @@ IMPORTANT:
             const guild = message.guild;
             const client = message.client;
             const channel = message.channel;
-            const geminiClient = this.genAI; // GoogleGenerativeAI instance
+            const geminiClient = this.genAI;
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
             const executor = new AsyncFunction(
@@ -691,9 +755,10 @@ Provide a brief, user-friendly explanation (max 250 chars) of what went wrong.`;
             return;
         }
 
+        // Show processing state
         const processingEmbed = EmbedBuilder.from(originalEmbed)
             .setColor(Colors.Yellow)
-            .setTitle('⏳ Processing Action...')
+            .setTitle('⏳ Processing...')
             .setFooter({ text: 'Generating and executing code...' });
 
         await interaction.update({ embeds: [processingEmbed], components: [] });
@@ -715,13 +780,15 @@ Provide a brief, user-friendly explanation (max 250 chars) of what went wrong.`;
             console.log('⚙️ Executing code...');
             const result = await this.executeCode(validatedCode, confirmData.message);
 
-            const completedEmbed = EmbedBuilder.from(originalEmbed)
+            // Update confirmation embed to ✅ Done or ❌ Failed — no extra "Action Completed" embed
+            const finalEmbed = EmbedBuilder.from(originalEmbed)
                 .setColor(result.success ? Colors.Green : Colors.Red)
-                .setTitle(result.success ? '✅ Action Completed' : '❌ Action Failed')
-                .setFooter({ text: result.success ? 'Results shown below' : 'Error details shown below' });
+                .setTitle(result.success ? '✅ Done' : '❌ Action Failed')
+                .setFooter({ text: result.success ? 'Executed successfully.' : 'Execution failed — see details below.' });
 
-            await interaction.editReply({ embeds: [completedEmbed] });
+            await interaction.editReply({ embeds: [finalEmbed] });
 
+            // Send result output embeds only when there's meaningful data to show
             if (result && result.results && result.results.length > 0) {
                 const seen = new Set();
                 const uniqueResults = result.results.filter(output => {
@@ -751,17 +818,8 @@ Provide a brief, user-friendly explanation (max 250 chars) of what went wrong.`;
 
                     await confirmData.message.channel.send({ embeds: [outputEmbed] });
                 }
-            } else {
-                await confirmData.message.channel.send({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor(Colors.Blue)
-                            .setTitle('📊 Result')
-                            .setDescription('Action completed successfully with no output.')
-                            .setTimestamp()
-                    ]
-                });
             }
+            // Intentionally no fallback "completed with no output" embed
 
         } catch (error) {
             console.error('💥 Execution error:', error);
