@@ -1,4 +1,4 @@
-﻿const { HfInference } = require('@huggingface/inference');
+﻿const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Colors } = require('discord.js');
 const entityResolver = require('./entityResolver');
 require('dotenv').config();
@@ -6,12 +6,29 @@ require('dotenv').config();
 class SpectreAI {
     constructor() {
         console.log('🤖 SpectreAI instance created');
-        this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+        this.genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+        this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         this.entityResolver = entityResolver;
         this.pendingConfirmations = new Map();
 
         // SECURITY: Your Discord User ID - ONLY YOU can use this bot
         this.AUTHORIZED_USER_ID = '753491023208120321';
+    }
+
+    /**
+     * Helper: call Gemini with a system prompt + user prompt, returns response text
+     */
+    async callGemini(systemPrompt, userPrompt, maxTokens = 1000, temperature = 0.1) {
+        const model = this.genAI.getGenerativeModel({
+            model: 'gemini-2.0-flash',
+            systemInstruction: systemPrompt,
+            generationConfig: {
+                maxOutputTokens: maxTokens,
+                temperature: temperature,
+            }
+        });
+        const result = await model.generateContent(userPrompt);
+        return result.response.text();
     }
 
     /**
@@ -198,7 +215,7 @@ Your Task:
 
 Respond with ONLY valid JSON (no markdown, no explanations):
 {
-  "action": "ai_analyze_and_summarize_messages", // Use "ai_" prefix for AI tasks
+  "action": "ai_analyze_and_summarize_messages",
   "description": "Clear human-readable description of what will happen",
   "detailedSteps": [
     "Step 1: Fetch the last X messages from the channel",
@@ -296,17 +313,13 @@ Output: {
 }`;
 
         try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    { role: "system", content: "You are a Discord action analyzer. Respond only with valid JSON. Be extremely precise and consider all context clues." },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 1000,
-                temperature: 0.1
-            });
+            const aiResponse = await this.callGemini(
+                'You are a Discord action analyzer. Respond only with valid JSON. Be extremely precise and consider all context clues.',
+                prompt,
+                1000,
+                0.1
+            );
 
-            const aiResponse = response.choices[0].message.content;
             const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
 
             if (!jsonMatch) {
@@ -487,7 +500,7 @@ AVAILABLE VARIABLES (pre-defined, DO NOT redeclare):
 - client: Discord client
 - channel: Current channel (message.channel)
 - PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
-- hfClient: HuggingFace Inference client (CRITICAL: Use this for AI analysis!)
+- geminiClient: Google GenerativeAI instance (CRITICAL: Use this for AI analysis!)
 
 DISCORD.JS V14 CRITICAL RULES:
 1. Fetch members: await guild.members.fetch(userId) or guild.members.cache.get(userId)
@@ -503,7 +516,7 @@ DISCORD.JS V14 CRITICAL RULES:
 
 AI ANALYSIS CAPABILITIES (VERY IMPORTANT):
 When the action involves UNDERSTANDING, ANALYZING, SUMMARIZING, or COMPREHENDING content:
-- You MUST use hfClient.chatCompletion() to analyze the content with AI
+- You MUST use geminiClient to analyze the content with AI
 - Build a comprehensive prompt with ALL the data to analyze
 - The AI can understand context, relationships, and meaning across multiple messages
 - Use this for: summaries, sentiment analysis, topic extraction, pattern recognition
@@ -511,10 +524,10 @@ When the action involves UNDERSTANDING, ANALYZING, SUMMARIZING, or COMPREHENDING
 CRITICAL: For summarization/analysis tasks, you MUST:
 1. Fetch ALL the messages first
 2. Build them into a chronological conversation (oldest to newest)
-3. Send the ENTIRE conversation to hfClient for analysis
+3. Send the ENTIRE conversation to geminiClient for analysis
 4. Let the AI read and understand the full context
 
-AI ANALYSIS EXAMPLE:
+AI ANALYSIS EXAMPLE (using Gemini):
 \`\`\`javascript
 // Fetch messages
 const fetchedMsgs = await channel.messages.fetch({ limit: 101 }); // Fetch +1 to account for command message
@@ -534,17 +547,14 @@ const conversation = messagesToAnalyze
     })
     .join('\\n');
 
-// Use AI to analyze with detailed instructions
-const response = await hfClient.chatCompletion({
-    model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-    messages: [
-        {
-            role: "system",
-            content: "You are a conversation analyzer. Read the ENTIRE conversation from oldest to newest, understand the context and flow, then provide a detailed summary."
-        },
-        {
-            role: "user",
-            content: \`Analyze this conversation chronologically (oldest to newest).
+// Use Gemini to analyze
+const geminiModel = geminiClient.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: 'You are a conversation analyzer. Read the ENTIRE conversation from oldest to newest, understand the context and flow, then provide a detailed summary.',
+    generationConfig: { maxOutputTokens: 2000, temperature: 0.3 }
+});
+
+const geminiResult = await geminiModel.generateContent(\`Analyze this conversation chronologically (oldest to newest).
 
 CONVERSATION:
 \${conversation}
@@ -569,32 +579,21 @@ TASK:
 2. [Another key point]
 3. [Another key point]
 
-Be specific and detailed. Quote important parts if needed.\`
-        }
-    ],
-    max_tokens: 2000,
-    temperature: 0.3
-});
+Be specific and detailed. Quote important parts if needed.\`);
 
-const summary = response.choices[0].message.content;
+const summary = geminiResult.response.text();
 \`\`\`
 
 COMMON OPERATIONS:
 
-// Fetch and analyze messages with AI
+// Fetch and analyze messages with Gemini
 const messages = await channel.messages.fetch({ limit: 100 });
 const sorted = Array.from(messages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 const conversation = sorted.map(m => \`[\${m.author.username}]: \${m.content}\`).join('\\n');
 
-const aiResponse = await hfClient.chatCompletion({
-    model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-    messages: [
-        { role: "system", content: "Analyze this conversation" },
-        { role: "user", content: conversation }
-    ],
-    max_tokens: 1000,
-    temperature: 0.3
-});
+const geminiModel = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const geminiResult = await geminiModel.generateContent('Analyze this conversation:\\n' + conversation);
+const aiSummary = geminiResult.response.text();
 
 // Bulk delete messages
 const fetchedMessages = await channel.messages.fetch({ limit: 100 });
@@ -639,25 +638,18 @@ IMPORTANT:
 - Include actual data in results (counts, names, etc.)
 - Format lists and data clearly
 - Handle errors gracefully with informative messages
-- When analyzing/summarizing: ALWAYS use hfClient, sort messages oldest→newest, send full context
+- When analyzing/summarizing: ALWAYS use geminiClient, sort messages oldest→newest, send full context
 
 Generate the complete, production-ready code now:`;
 
         try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are an expert Discord.js v14 code generator. Generate ONLY valid, executable JavaScript wrapped in (async () => { ... })(); format. Use ONLY Discord.js v14 syntax. Be precise and handle all edge cases."
-                    },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 2500,
-                temperature: 0.05
-            });
+            const aiResponse = await this.callGemini(
+                'You are an expert Discord.js v14 code generator. Generate ONLY valid, executable JavaScript wrapped in (async () => { ... })(); format. Use ONLY Discord.js v14 syntax. Be precise and handle all edge cases.',
+                prompt,
+                2500,
+                0.05
+            );
 
-            const aiResponse = response.choices[0].message.content;
             const codeMatch = aiResponse.match(/```(?:javascript)?\s*([\s\S]*?)```/);
 
             if (codeMatch) {
@@ -705,7 +697,7 @@ Generate the complete, production-ready code now:`;
     }
 
     /**
-     * Execute generated code safely with sandbox and AI client access
+     * Execute generated code safely with sandbox and Gemini client access
      */
     async executeCode(code, message) {
         try {
@@ -713,17 +705,17 @@ Generate the complete, production-ready code now:`;
             const guild = message.guild;
             const client = message.client;
             const channel = message.channel;
-            const hfClient = this.hf; // Pass HuggingFace client for AI analysis
+            const geminiClient = this.genAI; // Pass Gemini client for AI analysis
 
             const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
             const executor = new AsyncFunction(
-                'message', 'guild', 'client', 'channel', 'hfClient',
+                'message', 'guild', 'client', 'channel', 'geminiClient',
                 'PermissionFlagsBits', 'ChannelType', 'EmbedBuilder', 'Colors',
                 `return ${code}`
             );
 
             const result = await executor(
-                message, guild, client, channel, hfClient,
+                message, guild, client, channel, geminiClient,
                 PermissionFlagsBits, ChannelType, EmbedBuilder, Colors
             );
 
@@ -760,18 +752,13 @@ ${code.substring(0, 500)}
 Provide a brief, user-friendly explanation (max 250 chars) of what went wrong.`;
 
         try {
-            const response = await this.hf.chatCompletion({
-                model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-                messages: [
-                    { role: "system", content: "Explain errors simply and concisely for Discord users." },
-                    { role: "user", content: prompt }
-                ],
-                max_tokens: 150,
-                temperature: 0.2
-            });
-
-            const explanation = response.choices[0].message.content.trim();
-            return explanation.length > 300 ? explanation.substring(0, 297) + '...' : explanation;
+            const explanation = await this.callGemini(
+                'Explain errors simply and concisely for Discord users.',
+                prompt,
+                150,
+                0.2
+            );
+            return explanation.trim().length > 300 ? explanation.trim().substring(0, 297) + '...' : explanation.trim();
         } catch (err) {
             return error.message;
         }
