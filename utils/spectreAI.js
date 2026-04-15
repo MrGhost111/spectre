@@ -1,47 +1,68 @@
 ﻿const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { EmbedBuilder, Colors } = require('discord.js');
 require('dotenv').config();
 
 /**
- * SpectreAI - Gemini 2.5 "Hello World" Version
- * The simplest possible implementation to test AI connectivity.
+ * SpectreAI - Gemini 2.5 
+ * Designed to work with modular event handlers (like mcreate.js).
  */
 class SpectreAI {
     constructor() {
-        // 1. Setup API Connection
         const apiKey = process.env.GEMINI_KEY;
+        if (!apiKey) throw new Error('GEMINI_KEY is missing in .env');
+
         this.genAI = new GoogleGenerativeAI(apiKey);
 
-        // 2. Target the Gemini 2.5 Model
+        // Using the 2.5 Flash Preview model
         this.model = this.genAI.getGenerativeModel({
             model: "gemini-2.5-flash-preview-09-2025"
         });
 
-        // 3. Security: Only YOU can trigger this
+        // Security: Your unique Discord ID
         this.AUTHORIZED_USER_ID = '753491023208120321';
 
-        console.log('🚀 SpectreAI: Gemini 2.5 Basic Mode Active.');
+        console.log('🚀 SpectreAI: System ready. Integration mode active.');
     }
 
     /**
-     * The core logic: Message In -> AI -> Message Out
+     * The main processing method called by mcreate.js
+     * @param {Object} message - The original Discord message object
+     * @param {string} userMessage - The cleaned prompt (without 'spectre')
      */
-    async handleMessage(message) {
-        // Security Gate: Ignore everyone else
-        if (message.author.id !== this.AUTHORIZED_USER_ID) return;
+    async process(message, userMessage) {
+        // 1. Permission Check
+        if (message.author.id !== this.AUTHORIZED_USER_ID) {
+            console.warn(`[SpectreAI] Unauthorized attempt by ${message.author.id}`);
+            return { type: 'no_permission' };
+        }
 
-        // Visual feedback that the bot is "thinking"
+        // 2. Start Visual Feedback
         await message.channel.sendTyping();
 
         try {
-            // Send the user's message text directly to the AI
-            const result = await this.model.generateContent(message.content);
+            // 3. AI Generation
+            const result = await this.model.generateContent(userMessage);
             const responseText = result.response.text();
 
-            // Reply with the AI's output
+            // 4. Send the response (Simple text reply for this basic version)
             await message.reply(responseText);
+
+            // Return success to the handler
+            return { type: 'success' };
+
         } catch (error) {
-            console.error('Gemini Error:', error);
-            await message.reply(`❌ Error: ${error.message}`);
+            console.error('Gemini 2.5 Error:', error);
+
+            // 5. Create error embed for mcreate.js to handle
+            const errorEmbed = new EmbedBuilder()
+                .setColor(Colors.Red)
+                .setTitle('❌ AI Error')
+                .setDescription(error.message || 'An unexpected error occurred while talking to Gemini.');
+
+            return {
+                type: 'error',
+                embed: errorEmbed
+            };
         }
     }
 }
