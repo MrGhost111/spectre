@@ -19,26 +19,29 @@ function hasRequiredRole(member, requiredRoles) {
  * @returns {Number} Maximum number of friends allowed
  */
 function calculateMaxFriends(member) {
-    const roleLimits = {
-        '768448955804811274': 5,
-        '768449168297033769': 5,
-        '946729964328337408': 5,
-        '1028256286560763984': 5,
-        '1028256279124250624': 5,
-        '1038106794200932512': 5,
-        '1038888209440067604': 5,
-        '783032959350734868': 10,
+    const ROLE_CONFIG = {
+        '768448955804811274': { limit: 5 },
+        '768449168297033769': { limit: 5 },
+        '946729964328337408': { limit: 5 },
+        '1028256286560763984': { limit: 5 },
+        '1028256279124250624': { limit: 5 },
+        '1038106794200932512': { limit: 5 },
+        '783032959350734868': { limit: 10 },
+        '1038888209440067604': { limit: 5, requiresRole: '783032959350734868' },
+        '1349716423706148894': { limit: 5 },
     };
 
-    let maxFriends = 0;
-
-    for (const [roleId, limit] of Object.entries(roleLimits)) {
+    let total = 0;
+    for (const [roleId, config] of Object.entries(ROLE_CONFIG)) {
         if (member.roles.cache.has(roleId)) {
-            maxFriends += limit;
+            if (config.requiresRole) {
+                if (member.roles.cache.has(config.requiresRole)) total += config.limit;
+            } else {
+                total += config.limit;
+            }
         }
     }
-
-    return maxFriends;
+    return total;
 }
 
 /**
@@ -48,10 +51,10 @@ function calculateMaxFriends(member) {
  */
 async function isChannelArchived(channel) {
     if (!channel || !channel.parentId) return false;
-    
+
     // Archive category ID
     const archiveCategoryId = '1273361676355244102';
-    
+
     return channel.parentId === archiveCategoryId;
 }
 
@@ -64,18 +67,18 @@ async function removeAllUsersFromChannel(channel, ownerId) {
     try {
         // Get all permission overwrites
         const permissions = channel.permissionOverwrites.cache;
-        
+
         // Loop through all permission overwrites
         for (const [id, overwrite] of permissions) {
             // Skip the owner, @everyone role, and non-user overwrites
             if (id === ownerId || id === channel.guild.id) continue;
-            
+
             // Get the overwrite type (role or member)
             const type = overwrite.type;
-            
+
             // Only remove user permissions, not role permissions
             if (type === 1) { // 1 is for member overwrites
-                await channel.permissionOverwrites.delete(id).catch(() => {});
+                await channel.permissionOverwrites.delete(id).catch(() => { });
             }
         }
     } catch (error) {
@@ -124,7 +127,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
         try {
             const data = fs.readFileSync(dataPath, 'utf8');
             channels = JSON.parse(data);
-            
+
             // Skip the empty channels array if it exists
             if (channels.channels && Array.isArray(channels.channels)) {
                 delete channels.channels;
@@ -150,7 +153,8 @@ async function weeklyChannelCheck(client, logChannelId = null) {
             '1028256279124250624',
             '1038106794200932512',
             '1038888209440067604',
-            '783032959350734868'
+            '783032959350734868',
+            '1349716423706148894',
         ];
 
         // Process each channel
@@ -164,13 +168,13 @@ async function weeklyChannelCheck(client, logChannelId = null) {
             try {
                 // Fetch the channel first to check if it's already archived
                 const channel = await client.channels.fetch(channelData.channelId).catch(() => null);
-                
+
                 // If channel doesn't exist, skip it
                 if (!channel) {
                     console.log(`Channel ${channelData.channelId} doesn't exist, skipping`);
                     continue;
                 }
-                
+
                 // Check if channel is already in archive category
                 const archived = await isChannelArchived(channel);
                 if (archived) {
@@ -178,7 +182,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                     results.channelsAlreadyArchived++;
                     continue;
                 }
-                
+
                 // Now we count the channel as checked since we're processing it
                 results.channelsChecked++;
 
@@ -202,7 +206,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                             if (archiveCategory) {
                                 // Remove all user permissions from the channel first
                                 await removeAllUsersFromChannel(channel, userId);
-                                
+
                                 // Archive the channel by moving to archive category
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
 
@@ -245,7 +249,7 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                             if (archiveCategory) {
                                 // Remove all user permissions from the channel first
                                 await removeAllUsersFromChannel(channel, userId);
-                                
+
                                 // Archive the channel by moving to archive category
                                 await channel.setParent(archiveCategory.id, { lockPermissions: false });
 
@@ -302,9 +306,9 @@ async function weeklyChannelCheck(client, logChannelId = null) {
                     if (channel) {
                         // Remove permissions for each removed friend
                         for (const friendId of removedFriends) {
-                            await channel.permissionOverwrites.delete(friendId).catch(() => {});
+                            await channel.permissionOverwrites.delete(friendId).catch(() => { });
                         }
-                        
+
                         // Send notification
                         const removedMentions = removedFriends.map(id => `<@${id}>`).join(', ');
                         await channel.send(`Due to weekly role adjustments, the following friends have been removed from this channel: ${removedMentions}`).catch(err => {
