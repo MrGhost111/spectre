@@ -4,7 +4,6 @@ const { EmbedBuilder } = require('discord.js');
 const { checkMessageForHighlights } = require('../text-commands/hl.js');
 const donationTracker = require('./donationTracker');
 const { checkOneWordMessage, handleBlacklistCommand } = require('../utils/blacklistUtil');
-const spectreAI = require('../utils/spectreAI');
 const { validateStoryWords, generateAnonymousName } = require('../utils/storyUtils');
 const { handleCountingMessage } = require('../utils/countingSystem');
 
