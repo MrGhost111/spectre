@@ -2,8 +2,8 @@
     "users": [
         {
             "userId": "753491023208120321",
-            "totalUses": 570,
-            "successes": 484,
+            "totalUses": 571,
+            "successes": 485,
             "fails": 86
         },
         {
@@ -32,8 +32,8 @@
         },
         {
             "userId": "736599653373706262",
-            "totalUses": 439,
-            "successes": 364,
+            "totalUses": 441,
+            "successes": 366,
             "fails": 75
         },
         {
@@ -56,9 +56,9 @@
         },
         {
             "userId": "756374124149997588",
-            "totalUses": 120,
-            "successes": 97,
-            "fails": 23
+            "totalUses": 125,
+            "successes": 101,
+            "fails": 24
         },
         {
             "userId": "730401940311244880",
@@ -128,8 +128,8 @@
         },
         {
             "userId": "515646431059640330",
-            "totalUses": 257,
-            "successes": 211,
+            "totalUses": 258,
+            "successes": 212,
             "fails": 46
         },
         {
@@ -164,8 +164,8 @@
         },
         {
             "userId": "740108592283385868",
-            "totalUses": 603,
-            "successes": 486,
+            "totalUses": 605,
+            "successes": 488,
             "fails": 117
         },
         {
@@ -212,8 +212,8 @@
         },
         {
             "userId": "826115461623054336",
-            "totalUses": 119,
-            "successes": 98,
+            "totalUses": 120,
+            "successes": 99,
             "fails": 21
         },
         {
@@ -278,9 +278,9 @@
         },
         {
             "userId": "775572568437555250",
-            "totalUses": 36,
+            "totalUses": 37,
             "successes": 27,
-            "fails": 9
+            "fails": 10
         },
         {
             "userId": "969159230974222336",
@@ -296,8 +296,8 @@
         },
         {
             "userId": "580287786712563723",
-            "totalUses": 58,
-            "successes": 44,
+            "totalUses": 59,
+            "successes": 45,
             "fails": 14
         },
         {
@@ -410,9 +410,9 @@
         },
         {
             "userId": "743872344006852619",
-            "totalUses": 20,
+            "totalUses": 21,
             "successes": 15,
-            "fails": 5
+            "fails": 6
         },
         {
             "userId": "352169975718346762",
@@ -421,5 +421,5 @@
             "fails": 0
         }
     ],
-    "totalDonations": 42916744535
+    "totalDonations": 42916744536
 }
