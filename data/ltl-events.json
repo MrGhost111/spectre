@@ -1,8 +1,48 @@
 {
   "944924720158085190": {
-    "status": "waiting",
+    "status": "active",
     "logChannelId": "944924520647643156",
-    "participants": {},
-    "statusMessageId": "1495451500804182127"
+    "participants": {
+      "515646431059640330": {
+        "username": "freakensteins_monster",
+        "joinTime": 1776615729248,
+        "leaveTime": 1776615993341,
+        "status": "left",
+        "rank": null
+      },
+      "534057021524279297": {
+        "username": "jiawensx",
+        "joinTime": 1776615729248,
+        "leaveTime": 1776615796526,
+        "status": "left",
+        "rank": null
+      },
+      "563623938580676609": {
+        "username": "philopolemica.",
+        "joinTime": 1776615729248,
+        "leaveTime": 1776625638364,
+        "status": "left",
+        "rank": null,
+        "lastStateUpdate": 1776620867638
+      },
+      "682122261758869504": {
+        "username": "skitty8428",
+        "joinTime": 1776615729248,
+        "leaveTime": 1776615871728,
+        "status": "left",
+        "rank": null
+      },
+      "932458730304442399": {
+        "username": "the_evalizer",
+        "joinTime": 1776615729248,
+        "leaveTime": null,
+        "status": "active",
+        "rank": null,
+        "lastStateUpdate": 1776618126410
+      }
+    },
+    "statusMessageId": "1495459503267643402",
+    "startTime": 1776615729247,
+    "winnerMessageId": "1495501063590117496"
   }
 }
