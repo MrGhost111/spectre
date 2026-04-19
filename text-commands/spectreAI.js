@@ -1,4 +1,5 @@
-﻿const { EmbedBuilder } = require('discord.js');
+// JavaScript source code
+const { EmbedBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 module.exports = {
