@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { PermissionFlagsBits } = require('discord.js');
 const { createStatusEmbed } = require('../utils/helpers');
-
 const dataPath = path.join(__dirname, '../data/ltl-events.json');
 const VOICE_CHANNEL_ID = '944924720158085190';
 const HOST_ROLE_ID = '712970141834674207';
@@ -41,7 +40,9 @@ module.exports = {
             });
 
             const { embed } = await createStatusEmbed(eventData);
-            const statusMessage = await message.channel.send({ embeds: [embed] });
+            const embeds = Array.isArray(embed) ? embed : [embed];
+            const statusMessage = await message.channel.send({ embeds: embeds });
+
             eventData.statusMessageId = statusMessage.id;
 
             const eventsData = {};
