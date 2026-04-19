@@ -25,7 +25,7 @@ module.exports = {
         // Ignore all bot messages except for specific features
         if (message.author.bot) {
             // Track donation messages from Dank Memer bot
-            await donationTracker.execute(client, message);
+            
             return;
         }
 
