@@ -1,10 +1,4 @@
 // events/mupdate.js
-// Responsibilities:
-//   1. Track edited messages for snipe
-//   2. Detect Dank Memer donation confirmations in the transaction channel
-//   3. Save donation to disk and send a confirmation embed
-//   4. Update the leaderboard in the activity channel
-
 const { EmbedBuilder, Events } = require('discord.js');
 const {
     loadUsers,
@@ -48,19 +42,20 @@ module.exports = {
             }
 
             // ── Donation detection ────────────────────────────────────────────
-            // Only care about Dank Memer edits in the transaction channel
-            if (
-                newMessage.channel?.id !== TRANSACTION_CHANNEL_ID ||
-                newMessage.author?.id  !== DANK_MEMER_BOT_ID
-            ) return;
+            if (newMessage.channel?.id !== TRANSACTION_CHANNEL_ID) return;
+            if (newMessage.author?.id  !== DANK_MEMER_BOT_ID)      return;
 
-            // Must have embeds
+            // Fetch full message if partial — this is critical
+            if (newMessage.partial) {
+                try { await newMessage.fetch(); }
+                catch (e) { console.error('[MUPDATE] Failed to fetch partial message:', e); return; }
+            }
+
             if (!newMessage.embeds?.length) return;
 
             const embed = newMessage.embeds[0];
             if (!embed.description?.includes('Successfully donated')) return;
 
-            // Parse donation amount
             const donationMatch = embed.description.match(
                 /Successfully donated \*\*⏣\s*([\d,]+)\*\*/
             );
@@ -75,14 +70,12 @@ module.exports = {
                 return;
             }
 
-            // Resolve donor
             const donorId = await findCommandUser(newMessage);
             if (!donorId) {
                 console.warn('[MUPDATE] Could not resolve donor ID for donation of', donationAmount);
                 return;
             }
 
-            // Fetch member to get their current tier from actual roles
             const guild  = client.guilds.cache.first();
             const member = await guild.members.fetch(donorId).catch(() => null);
             if (!member) {
@@ -94,7 +87,6 @@ module.exports = {
                 : member.roles.cache.has(TIER_1_ROLE_ID) ? 1
                 : 0;
 
-            // ── Read fresh data from disk, update, write back ─────────────────
             const usersData = loadUsers();
             const statsData = loadStats();
 
@@ -119,7 +111,6 @@ module.exports = {
             saveUsers(usersData);
             saveStats(statsData);
 
-            // ── Send confirmation embed ───────────────────────────────────────
             const requirement = currentTier === 2
                 ? TIER_2_REQUIREMENT
                 : TIER_1_REQUIREMENT + (usersData[donorId].missedAmount || 0);
@@ -135,8 +126,6 @@ module.exports = {
 
             await newMessage.channel.send({ embeds: [confirmEmbed] });
 
-            // ── Update leaderboard in background ─────────────────────────────
-            // setImmediate so the confirmation message sends first
             setImmediate(() => updateStatusBoard(client).catch(err =>
                 console.error('[MUPDATE] updateStatusBoard failed:', err)
             ));
@@ -146,4 +135,3 @@ module.exports = {
         }
     },
 };
-
