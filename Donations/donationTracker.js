@@ -31,7 +31,7 @@ module.exports = {
     async execute(client, oldMessage, newMessage) {
         try {
             // Only care about Dank Memer edits in the transaction channel
-            if (newMessage.channel?.id !== TRANSACTION_CHANNEL_ID) return;
+            
             if (newMessage.author?.id !== DANK_MEMER_BOT_ID) return;
             if (!newMessage.embeds?.length) return;
 
