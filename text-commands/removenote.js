@@ -1,14 +1,16 @@
 // commands/removenote.js  (text command)
 // Usage: !removenote <@user | userID> <amount> [note text]
 // Requires Manage Guild permission.
+// Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
 const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const {
     loadDonations,
     saveDonations,
+    parseAmount,
     formatFull,
     formatNumber,
-    handleMilestoneRoles,
+    handleMilestoneRolesFull,
     getNextMilestone,
 } = require('../Donations/noteSystem');
 
@@ -19,11 +21,11 @@ module.exports = {
         // ── Permission check ──────────────────────────────────────────────────
         if (!message.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) return;
 
-        // ── Argument validation ───────────────────────────────────────────────
         if (args.length < 2) {
             return message.reply('Usage: `!removenote <@user | userID> <amount> [note text]`');
         }
 
+        // ── Resolve target ────────────────────────────────────────────────────
         const rawTarget = args[0].replace(/[<@!>]/g, '');
         if (!/^\d{17,19}$/.test(rawTarget)) {
             return message.reply('Please provide a valid user mention or ID.');
@@ -34,10 +36,13 @@ module.exports = {
             return message.reply(`Could not find a member with ID \`${rawTarget}\` in this server.`);
         }
 
-        const rawAmount = args[1].replace(/,/g, '');
-        const amount    = parseInt(rawAmount, 10);
-        if (isNaN(amount) || amount <= 0) {
-            return message.reply('Please provide a valid positive amount as the second argument.');
+        // ── Parse amount ──────────────────────────────────────────────────────
+        const amount = parseAmount(args[1]);
+        if (amount === null || amount <= 0) {
+            return message.reply(
+                `❌ Could not parse \`${args[1]}\` as an amount. ` +
+                `Try formats like: \`25m\`, \`1.5b\`, \`1bil\`, \`1e6\`, \`1000000\`.`
+            );
         }
 
         const noteText = args.length > 2 ? args.slice(2).join(' ').trim() : null;
@@ -75,8 +80,8 @@ module.exports = {
 
         saveDonations(data);
 
-        // ── Handle milestone roles (may downgrade if total dropped) ──────────
-        const newRole       = await handleMilestoneRoles(targetMember, newTotal);
+        // ── Full role update (can downgrade) ──────────────────────────────────
+        const roleChange    = await handleMilestoneRolesFull(targetMember, newTotal);
         const nextMilestone = getNextMilestone(newTotal);
 
         // ── Confirmation embed ────────────────────────────────────────────────
@@ -87,15 +92,15 @@ module.exports = {
             .addFields(
                 { name: 'User',       value: `<@${rawTarget}>`,                                        inline: true },
                 { name: 'Removed',    value: `⏣ ${formatFull(actualRemoved)}`,                         inline: true },
-                { name: 'New Total',  value: `⏣ ${formatFull(newTotal)}  *(${formatNumber(newTotal)})*`, inline: true },
-                { name: 'Removed By', value: `<@${message.author.id}>`,                                 inline: true },
+                { name: 'New Total',  value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`, inline: true },
+                { name: 'Removed By', value: `<@${message.author.id}>`,                                  inline: true },
             )
             .setTimestamp();
 
         if (actualRemoved < amount) {
             embed.addFields({
-                name:   '⚠️ Note',
-                value:  `Could only remove ⏣ ${formatFull(actualRemoved)} — total has been floored at 0.`,
+                name:   '⚠️ Floored',
+                value:  `Only ⏣ ${formatFull(actualRemoved)} could be removed — total cannot go below 0.`,
                 inline: false,
             });
         }
@@ -111,10 +116,12 @@ module.exports = {
             embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
         }
 
-        if (newRole) {
+        if (roleChange) {
             embed.addFields({
                 name:   '🔄 Role Updated',
-                value:  `<@${rawTarget}> is now at <@&${newRole.roleId}>`,
+                value:  roleChange.roleId
+                    ? `<@${rawTarget}> is now at <@&${roleChange.roleId}>`
+                    : `All milestone roles removed (total below 1M).`,
                 inline: false,
             });
         }

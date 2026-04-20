@@ -1,15 +1,17 @@
 // slashCommands/setnote.js
-// Usage: /setnote user:<@user> amount:<number> note:[optional text]
+// Usage: /setnote user:<@user> amount:<text> [note:<text>]
 // Requires Manage Guild permission.
-// Manually adds an amount to a user's donation total and updates milestone roles.
+// Manually adds a donation amount to a user's total and updates milestone roles.
+// Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const {
     loadDonations,
     saveDonations,
+    parseAmount,
     formatFull,
     formatNumber,
-    handleMilestoneRoles,
+    handleMilestoneRolesFull,
     getNextMilestone,
 } = require('../Donations/noteSystem');
 
@@ -23,11 +25,10 @@ module.exports = {
                 .setDescription('The user to add the donation for.')
                 .setRequired(true)
         )
-        .addIntegerOption(option =>
+        .addStringOption(option =>
             option
                 .setName('amount')
-                .setDescription('The donation amount to add.')
-                .setMinValue(1)
+                .setDescription('Amount to add. Supports: 1k, 25m, 1.5b, 1bil, 1e6, 1000000, etc.')
                 .setRequired(true)
         )
         .addStringOption(option =>
@@ -42,8 +43,16 @@ module.exports = {
         await interaction.deferReply({ ephemeral: false });
 
         const targetUser   = interaction.options.getUser('user');
-        const amount       = interaction.options.getInteger('amount');
+        const amountRaw    = interaction.options.getString('amount');
         const noteText     = interaction.options.getString('note') ?? null;
+
+        const amount = parseAmount(amountRaw);
+        if (amount === null || amount <= 0) {
+            return interaction.editReply(
+                `❌ Could not parse \`${amountRaw}\` as an amount. ` +
+                `Try formats like: \`25m\`, \`1.5b\`, \`1bil\`, \`1e6\`, \`1000000\`.`
+            );
+        }
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         if (!targetMember) {
@@ -63,13 +72,12 @@ module.exports = {
             };
         }
 
-        const oldTotal = data[targetUser.id].totalDonated || 0;
-        data[targetUser.id].totalDonated = oldTotal + amount;
+        data[targetUser.id].totalDonated = (data[targetUser.id].totalDonated || 0) + amount;
         data[targetUser.id].donations.push({
             amount,
-            timestamp:  new Date().toISOString(),
-            addedBy:    interaction.user.id,
-            manual:     true,
+            timestamp: new Date().toISOString(),
+            addedBy:   interaction.user.id,
+            manual:    true,
         });
 
         if (noteText !== null) {
@@ -82,8 +90,8 @@ module.exports = {
 
         const newTotal = data[targetUser.id].totalDonated;
 
-        // ── Handle milestone roles ────────────────────────────────────────────
-        const newRole       = await handleMilestoneRoles(targetMember, newTotal);
+        // ── Full role update (can upgrade or downgrade) ───────────────────────
+        const roleChange    = await handleMilestoneRolesFull(targetMember, newTotal);
         const nextMilestone = getNextMilestone(newTotal);
 
         // ── Confirmation embed ────────────────────────────────────────────────
@@ -92,10 +100,10 @@ module.exports = {
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',       value: `<@${targetUser.id}>`,                                       inline: true },
-                { name: 'Added',      value: `⏣ ${formatFull(amount)}`,                                   inline: true },
-                { name: 'New Total',  value: `⏣ ${formatFull(newTotal)}  *(${formatNumber(newTotal)})*`,  inline: true },
-                { name: 'Added By',   value: `<@${interaction.user.id}>`,                                  inline: true },
+                { name: 'User',      value: `<@${targetUser.id}>`,                                       inline: true },
+                { name: 'Added',     value: `⏣ ${formatFull(amount)}`,                                   inline: true },
+                { name: 'New Total', value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,   inline: true },
+                { name: 'Added By',  value: `<@${interaction.user.id}>`,                                  inline: true },
             )
             .setTimestamp();
 
@@ -110,10 +118,12 @@ module.exports = {
             embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
         }
 
-        if (newRole) {
+        if (roleChange) {
             embed.addFields({
-                name:   '🎉 Role Unlocked!',
-                value:  `<@${targetUser.id}> has reached <@&${newRole.roleId}>`,
+                name:   '🎉 Role Updated',
+                value:  roleChange.roleId
+                    ? `<@${targetUser.id}> is now at <@&${roleChange.roleId}>`
+                    : `All milestone roles removed (total below 1M).`,
                 inline: false,
             });
         }

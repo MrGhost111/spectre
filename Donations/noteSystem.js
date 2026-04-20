@@ -10,16 +10,12 @@ const path = require('path');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Channel where auto-tracked donation embeds are posted
-const DONATION_LOG_CHANNEL_ID = 'YOUR_DONATION_LOG_CHANNEL_ID'; // <-- set this
+const DONATION_LOG_CHANNEL_ID = '853991066042368020';
 
-// Dank Memer bot ID
-const DANK_MEMER_BOT_ID = '270904126974590976';
-
-// Transaction channel ID (used by mupdate to decide routing)
+const DANK_MEMER_BOT_ID      = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
 
-// Donation milestone roles — ordered descending so highest match wins
+// Ordered descending — highest amount first
 const MILESTONE_ROLES = [
     { amount: 10_000_000_000, roleId: '1349716423706148894' }, // 10bil
     { amount:  5_000_000_000, roleId: '946729964328337408'  }, // 5bil
@@ -63,10 +59,50 @@ function saveDonations(data) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AMOUNT PARSER
+// Supports: raw integers, comma-separated, k, m/mil/million, b/bil/billion,
+//           e-notation (1e6, 2.5e9), decimal multipliers (1.5b, 25.5m)
+// Returns a floored integer, or null if the input can't be parsed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function parseAmount(input) {
+    if (typeof input === 'number') return isNaN(input) ? null : Math.floor(input);
+
+    const s = input.toString().trim().toLowerCase().replace(/,/g, '');
+
+    // e-notation (e.g. 1e6, 2.5e9)
+    if (/^[\d.]+e\d+$/.test(s)) {
+        const val = parseFloat(s);
+        return isNaN(val) ? null : Math.floor(val);
+    }
+
+    // number + optional suffix
+    const match = s.match(/^([\d.]+)\s*(k|m|mil|million|b|bil|billion)?$/);
+    if (!match) return null;
+
+    const num    = parseFloat(match[1]);
+    const suffix = match[2] ?? '';
+
+    if (isNaN(num) || num < 0) return null;
+
+    const multipliers = {
+        k:       1_000,
+        m:       1_000_000,
+        mil:     1_000_000,
+        million: 1_000_000,
+        b:       1_000_000_000,
+        bil:     1_000_000_000,
+        billion: 1_000_000_000,
+    };
+
+    const result = suffix ? num * (multipliers[suffix] ?? 1) : num;
+    return Math.floor(result);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // UTILITIES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Short label e.g. 1.25B, 35.00M */
 function formatNumber(num) {
     if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
     if (num >= 1_000_000)     return `${(num / 1_000_000).toFixed(2)}M`;
@@ -74,7 +110,6 @@ function formatNumber(num) {
     return num.toString();
 }
 
-/** Full comma-separated number e.g. 1,250,000,000 */
 function formatFull(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -83,36 +118,95 @@ function formatFull(num) {
 // MILESTONE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Returns the highest milestone the user qualifies for, or null */
+/** Highest milestone the total qualifies for, or null */
 function getCurrentMilestone(total) {
     return MILESTONE_ROLES.find(m => total >= m.amount) ?? null;
 }
 
-/** Returns the next milestone above the user's total, or null if maxed */
+/** Next milestone above the total, or null if maxed out */
 function getNextMilestone(total) {
-    // MILESTONE_ROLES is descending, so next is the last one whose amount > total
     const above = MILESTONE_ROLES.filter(m => m.amount > total);
     return above.length ? above[above.length - 1] : null;
 }
 
 /**
- * Assigns the highest qualifying milestone role and removes all others.
- * Returns the new role object if a role-up happened, otherwise null.
+ * Returns the threshold amount of the highest milestone role
+ * the member currently holds in Discord, or 0 if none.
  */
-async function handleMilestoneRoles(member, totalDonated) {
+function getBaselineFromRoles(member) {
+    for (const milestone of MILESTONE_ROLES) { // already descending
+        if (member.roles.cache.has(milestone.roleId)) {
+            return milestone.amount;
+        }
+    }
+    return 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROLE HANDLERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * UPGRADE-ONLY — used by recordDonation (auto-tracking).
+ * Adds the highest qualifying milestone role if it's an upgrade.
+ * Cleans up any lower milestone roles the user holds as duplicates.
+ * NEVER removes a role that is equal-or-higher than what the total qualifies for.
+ * Returns the newly added role object, or null if no change.
+ */
+async function handleMilestoneRolesUpgradeOnly(member, totalDonated) {
+    const target     = getCurrentMilestone(totalDonated);
+    const allRoleIds = MILESTONE_ROLES.map(m => m.roleId);
+
+    if (!target) return null;
+
+    // Highest role the member currently holds from our set
+    const currentHighest = MILESTONE_ROLES.find(m => member.roles.cache.has(m.roleId)) ?? null;
+
+    // No upgrade needed — they already hold an equal or higher role
+    if (currentHighest && currentHighest.amount >= target.amount) return null;
+
+    // Remove any lower milestone roles (duplicate cleanup only)
+    for (const milestone of MILESTONE_ROLES) {
+        if (
+            milestone.amount < target.amount &&
+            member.roles.cache.has(milestone.roleId)
+        ) {
+            await member.roles.remove(milestone.roleId).catch(e =>
+                console.error(`[NoteSystem] Failed to remove lower role ${milestone.roleId}:`, e)
+            );
+        }
+    }
+
+    // Add the new target role
+    await member.roles.add(target.roleId).catch(e =>
+        console.error(`[NoteSystem] Failed to add role ${target.roleId}:`, e)
+    );
+
+    return target;
+}
+
+/**
+ * FULL (upgrade + downgrade) — used by setnote/removenote (manual adjustments).
+ * Assigns exactly one correct milestone role based on total, removes all others.
+ * Returns the role object if any change was made, otherwise null.
+ */
+async function handleMilestoneRolesFull(member, totalDonated) {
     const target     = getCurrentMilestone(totalDonated);
     const allRoleIds = MILESTONE_ROLES.map(m => m.roleId);
 
     const currentMilestoneRoles = member.roles.cache.filter(r => allRoleIds.includes(r.id));
 
     if (!target) {
+        // Below 1mil — strip all milestone roles
         for (const [roleId] of currentMilestoneRoles) {
             await member.roles.remove(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
             );
         }
-        return null;
+        return currentMilestoneRoles.size > 0 ? { roleId: null, removed: true } : null;
     }
+
+    let changed = false;
 
     // Remove every milestone role that isn't the target
     for (const [roleId] of currentMilestoneRoles) {
@@ -120,24 +214,24 @@ async function handleMilestoneRoles(member, totalDonated) {
             await member.roles.remove(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
             );
+            changed = true;
         }
     }
 
-    // Add target if not already held
+    // Add target role if not already held
     if (!member.roles.cache.has(target.roleId)) {
         await member.roles.add(target.roleId).catch(e =>
             console.error(`[NoteSystem] Failed to add role ${target.roleId}:`, e)
         );
-        return target; // role-up
+        changed = true;
     }
 
-    return null;
+    return changed ? target : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE: RECORD A DONATION
-// Called by mupdate.js on every confirmed Dank Memer donation.
-// Returns { total, newRole } so callers can use the new total in their embeds.
+// CORE: RECORD A DONATION  (called by mupdate.js)
+// Returns { total, newRole } so mupdate can embed the new total.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function recordDonation(client, donorId, donationAmount) {
@@ -148,17 +242,26 @@ async function recordDonation(client, donorId, donationAmount) {
         return { total: 0, newRole: null };
     }
 
-    // ── Update donations.json ─────────────────────────────────────────────────
     const data = loadDonations();
 
+    // New user — seed their baseline from highest Discord role they hold
     if (!data[donorId]) {
+        const baseline = getBaselineFromRoles(member);
         data[donorId] = {
             note:         null,
             noteSetBy:    null,
             noteSetAt:    null,
-            totalDonated: 0,
-            donations:    [],
+            totalDonated: baseline,
+            donations:    baseline > 0 ? [{
+                amount:    baseline,
+                timestamp: new Date().toISOString(),
+                note:      'Baseline seeded from existing Discord role',
+                manual:    true,
+            }] : [],
         };
+        if (baseline > 0) {
+            console.log(`[NoteSystem] Seeded baseline ⏣ ${formatFull(baseline)} for ${donorId} from existing role`);
+        }
     }
 
     data[donorId].totalDonated = (data[donorId].totalDonated || 0) + donationAmount;
@@ -172,11 +275,11 @@ async function recordDonation(client, donorId, donationAmount) {
     const total = data[donorId].totalDonated;
     const note  = data[donorId].note;
 
-    // ── Handle milestone roles ────────────────────────────────────────────────
-    const newRole    = await handleMilestoneRoles(member, total);
+    // Upgrade-only — auto-tracking never downgrades
+    const newRole       = await handleMilestoneRolesUpgradeOnly(member, total);
     const nextMilestone = getNextMilestone(total);
 
-    // ── Build log embed ───────────────────────────────────────────────────────
+    // Log embed
     const logChannel = await client.channels.fetch(DONATION_LOG_CHANNEL_ID).catch(() => null);
     if (!logChannel) {
         console.error('[NoteSystem] Donation log channel not found');
@@ -188,9 +291,9 @@ async function recordDonation(client, donorId, donationAmount) {
         .setColor('#4c00b0')
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields(
-            { name: 'Donor',  value: `<@${donorId}>`,                                          inline: true },
-            { name: 'Amount', value: `⏣ ${formatFull(donationAmount)}`,                        inline: true },
-            { name: 'Total',  value: `⏣ ${formatFull(total)}  *(${formatNumber(total)})*`,     inline: true },
+            { name: 'Donor',  value: `<@${donorId}>`,                                      inline: true },
+            { name: 'Amount', value: `⏣ ${formatFull(donationAmount)}`,                    inline: true },
+            { name: 'Total',  value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,  inline: true },
         )
         .setTimestamp();
 
@@ -202,11 +305,7 @@ async function recordDonation(client, donorId, donationAmount) {
             inline: false,
         });
     } else {
-        embed.addFields({
-            name:   '🏆 Milestone',
-            value:  'Max milestone reached!',
-            inline: false,
-        });
+        embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
     }
 
     if (note) {
@@ -235,10 +334,11 @@ async function recordDonation(client, donorId, donationAmount) {
 module.exports = {
     loadDonations,
     saveDonations,
+    parseAmount,
     formatNumber,
     formatFull,
     recordDonation,
-    handleMilestoneRoles,
+    handleMilestoneRolesFull,
     getCurrentMilestone,
     getNextMilestone,
     TRANSACTION_CHANNEL_ID,

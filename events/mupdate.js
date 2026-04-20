@@ -2,8 +2,8 @@
 // Responsibilities:
 //   1. Track edited messages for snipe
 //   2. Detect Dank Memer donation confirmations (Components V2 format) — everywhere
-//   3. If in transaction channel → money maker logic + regular donation log (1.25x for Tier 2)
-//   4. If outside transaction channel → regular donation log only
+//   3. If in transaction channel → money maker logic + regular donation (1.25x for Tier 2)
+//   4. If outside transaction channel → regular donation only
 
 const { EmbedBuilder, Events } = require('discord.js');
 const {
@@ -105,10 +105,9 @@ module.exports = {
             const isTransactionChannel = newMessage.channel?.id === TRANSACTION_CHANNEL_ID;
 
             // ═════════════════════════════════════════════════════════════════
-            // BRANCH A — Transaction channel (money maker + regular)
+            // BRANCH A — Transaction channel: money maker + regular donation
             // ═════════════════════════════════════════════════════════════════
             if (isTransactionChannel) {
-                // ── Fetch member for tier check ───────────────────────────────
                 const guild  = client.guilds.cache.first();
                 const member = await guild.members.fetch(donorId).catch(() => null);
                 if (!member) {
@@ -116,12 +115,11 @@ module.exports = {
                     return;
                 }
 
-                const isTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
-                const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
-
+                const isTier2   = member.roles.cache.has(TIER_2_ROLE_ID);
+                const isTier1   = member.roles.cache.has(TIER_1_ROLE_ID);
                 const currentTier = isTier2 ? 2 : isTier1 ? 1 : 0;
 
-                // ── Load → update → save (money maker) ───────────────────────
+                // ── Money maker: load → update → save ─────────────────────────
                 const usersData = loadUsers();
                 const statsData = loadStats();
 
@@ -145,15 +143,11 @@ module.exports = {
                 saveUsers(usersData);
                 saveStats(statsData);
 
-                // ── Regular donation tracking (1.25x for Tier 2) ─────────────
-                const regularAmount = isTier2
-                    ? Math.round(donationAmount * 1.25)
-                    : donationAmount;
-
-                // recordDonation returns { total, newRole } — we use total for the embed field
+                // ── Regular donation: 1.25x for Tier 2, raw for Tier 1 ────────
+                const regularAmount = isTier2 ? Math.round(donationAmount * 1.25) : donationAmount;
                 const { total: newRegularTotal } = await recordDonation(client, donorId, regularAmount);
 
-                // ── Send money maker confirmation embed ───────────────────────
+                // ── Money maker confirmation embed ────────────────────────────
                 const requirement = isTier2
                     ? TIER_2_REQUIREMENT
                     : TIER_1_REQUIREMENT + (usersData[donorId].missedAmount || 0);
@@ -166,8 +160,9 @@ module.exports = {
                         `<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`
                     )
                     .addFields({
-                        name:   '📊 Overall Donation Total',
-                        value:  `⏣ ${formatNumber(newRegularTotal)}${isTier2 ? ` *(includes 1.25× Tier 2 bonus — ⏣ ${formatNumber(regularAmount)} credited)*` : ''}`,
+                        name:  '📊 Overall Donation Total',
+                        value: `⏣ ${formatNumber(newRegularTotal)}` +
+                               (isTier2 ? ` *(includes 1.25× Tier 2 bonus — ⏣ ${formatNumber(regularAmount)} credited)*` : ''),
                         inline: false,
                     })
                     .setTimestamp();
@@ -181,10 +176,9 @@ module.exports = {
                 ));
 
             // ═════════════════════════════════════════════════════════════════
-            // BRANCH B — Any other channel (regular donation only)
+            // BRANCH B — Any other channel: regular donation only
             // ═════════════════════════════════════════════════════════════════
             } else {
-                // recordDonation handles everything: save, role-up, log embed
                 await recordDonation(client, donorId, donationAmount);
                 console.log('[MUPDATE] ✅ Regular donation recorded for', donorId);
             }

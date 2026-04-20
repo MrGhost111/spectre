@@ -1,15 +1,17 @@
 // slashCommands/removenote.js
-// Usage: /removenote user:<@user> amount:<number> note:[optional text]
+// Usage: /removenote user:<@user> amount:<text> [note:<text>]
 // Requires Manage Guild permission.
 // Manually removes a donation amount from a user's total (floors at 0).
+// Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
 const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const {
     loadDonations,
     saveDonations,
+    parseAmount,
     formatFull,
     formatNumber,
-    handleMilestoneRoles,
+    handleMilestoneRolesFull,
     getNextMilestone,
 } = require('../Donations/noteSystem');
 
@@ -23,11 +25,10 @@ module.exports = {
                 .setDescription('The user to remove the donation from.')
                 .setRequired(true)
         )
-        .addIntegerOption(option =>
+        .addStringOption(option =>
             option
                 .setName('amount')
-                .setDescription('The donation amount to remove.')
-                .setMinValue(1)
+                .setDescription('Amount to remove. Supports: 1k, 25m, 1.5b, 1bil, 1e6, 1000000, etc.')
                 .setRequired(true)
         )
         .addStringOption(option =>
@@ -42,8 +43,16 @@ module.exports = {
         await interaction.deferReply({ ephemeral: false });
 
         const targetUser   = interaction.options.getUser('user');
-        const amount       = interaction.options.getInteger('amount');
+        const amountRaw    = interaction.options.getString('amount');
         const noteText     = interaction.options.getString('note') ?? null;
+
+        const amount = parseAmount(amountRaw);
+        if (amount === null || amount <= 0) {
+            return interaction.editReply(
+                `❌ Could not parse \`${amountRaw}\` as an amount. ` +
+                `Try formats like: \`25m\`, \`1.5b\`, \`1bil\`, \`1e6\`, \`1000000\`.`
+            );
+        }
 
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         if (!targetMember) {
@@ -63,9 +72,9 @@ module.exports = {
             };
         }
 
-        const oldTotal   = data[targetUser.id].totalDonated || 0;
-        const actualRemoved = Math.min(amount, oldTotal); // can't go below 0
-        const newTotal   = Math.max(0, oldTotal - amount);
+        const oldTotal      = data[targetUser.id].totalDonated || 0;
+        const actualRemoved = Math.min(amount, oldTotal); // floor at 0
+        const newTotal      = Math.max(0, oldTotal - amount);
 
         data[targetUser.id].totalDonated = newTotal;
         data[targetUser.id].donations.push({
@@ -83,8 +92,8 @@ module.exports = {
 
         saveDonations(data);
 
-        // ── Handle milestone roles (may remove roles if total dropped) ────────
-        const newRole       = await handleMilestoneRoles(targetMember, newTotal);
+        // ── Full role update (can downgrade) ──────────────────────────────────
+        const roleChange    = await handleMilestoneRolesFull(targetMember, newTotal);
         const nextMilestone = getNextMilestone(newTotal);
 
         // ── Confirmation embed ────────────────────────────────────────────────
@@ -93,17 +102,17 @@ module.exports = {
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',       value: `<@${targetUser.id}>`,                                       inline: true },
-                { name: 'Removed',    value: `⏣ ${formatFull(actualRemoved)}`,                            inline: true },
-                { name: 'New Total',  value: `⏣ ${formatFull(newTotal)}  *(${formatNumber(newTotal)})*`,  inline: true },
-                { name: 'Removed By', value: `<@${interaction.user.id}>`,                                  inline: true },
+                { name: 'User',       value: `<@${targetUser.id}>`,                                      inline: true },
+                { name: 'Removed',    value: `⏣ ${formatFull(actualRemoved)}`,                           inline: true },
+                { name: 'New Total',  value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,  inline: true },
+                { name: 'Removed By', value: `<@${interaction.user.id}>`,                                 inline: true },
             )
             .setTimestamp();
 
         if (actualRemoved < amount) {
             embed.addFields({
-                name:   '⚠️ Note',
-                value:  `Could only remove ⏣ ${formatFull(actualRemoved)} — total has been floored at 0.`,
+                name:   '⚠️ Floored',
+                value:  `Only ⏣ ${formatFull(actualRemoved)} could be removed — total cannot go below 0.`,
                 inline: false,
             });
         }
@@ -119,10 +128,12 @@ module.exports = {
             embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
         }
 
-        if (newRole) {
+        if (roleChange) {
             embed.addFields({
                 name:   '🔄 Role Updated',
-                value:  `<@${targetUser.id}> is now at <@&${newRole.roleId}>`,
+                value:  roleChange.roleId
+                    ? `<@${targetUser.id}> is now at <@&${roleChange.roleId}>`
+                    : `All milestone roles removed (total below 1M).`,
                 inline: false,
             });
         }

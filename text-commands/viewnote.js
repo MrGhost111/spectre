@@ -32,15 +32,13 @@ module.exports = {
 
         const data     = loadDonations();
         const userData = data[rawTarget];
-
-        const total   = userData?.totalDonated ?? 0;
-        const note    = userData?.note ?? null;
-        const history = userData?.donations ?? [];
+        const total    = userData?.totalDonated ?? 0;
+        const note     = userData?.note ?? null;
+        const history  = userData?.donations ?? [];
 
         const currentMilestone = getCurrentMilestone(total);
         const nextMilestone    = getNextMilestone(total);
 
-        // ── Build embed ───────────────────────────────────────────────────────
         const embed = new EmbedBuilder()
             .setTitle(`<:prize:1000016483369369650>  Donation Profile — ${targetMember.displayName}`)
             .setColor('#4c00b0')
@@ -48,7 +46,7 @@ module.exports = {
             .addFields(
                 {
                     name:   '💰 Total Donated',
-                    value:  `⏣ ${formatFull(total)}  *(${formatNumber(total)})*`,
+                    value:  `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,
                     inline: true,
                 },
                 {
@@ -67,38 +65,27 @@ module.exports = {
                 inline: false,
             });
         } else if (total > 0) {
-            embed.addFields({
-                name:   '🏆 Milestone',
-                value:  'Max milestone reached!',
-                inline: false,
-            });
+            embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
         }
 
-        // Recent history (last 5)
-        const recentDonations = [...history].reverse().slice(0, 5);
-
-        if (recentDonations.length > 0) {
-            const historyText = recentDonations.map(d => {
-                const sign   = d.amount >= 0 ? '+' : '';
-                const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
-                const manual = d.manual ? ' *(manual)*' : '';
-                return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}`;
-            }).join('\n');
-
+        // Last 5 entries
+        const recent = [...history].reverse().slice(0, 5);
+        if (recent.length > 0) {
             embed.addFields({
                 name:   '📋 Recent Donations',
-                value:  historyText,
+                value:  recent.map(d => {
+                    const sign   = d.amount >= 0 ? '+' : '';
+                    const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
+                    const manual = d.manual ? ' *(manual)*' : '';
+                    return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}`;
+                }).join('\n'),
                 inline: false,
             });
         } else {
-            embed.addFields({
-                name:   '📋 Recent Donations',
-                value:  'No donations recorded yet.',
-                inline: false,
-            });
+            embed.addFields({ name: '📋 Recent Donations', value: 'No donations recorded yet.', inline: false });
         }
 
-        // Staff note — only shown if viewer has Manage Guild
+        // Staff note — only shown to Manage Guild members
         const isStaff = message.member.permissions.has(PermissionsBitField.Flags.ManageGuild);
         if (isStaff && note) {
             const setAt = userData.noteSetAt
