@@ -10,7 +10,7 @@ const path = require('path');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DONATION_LOG_CHANNEL_ID = '853991066042368020';
+const DONATION_LOG_CHANNEL_ID = '853991066042368020'; // <-- set this
 
 const DANK_MEMER_BOT_ID      = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
@@ -234,7 +234,7 @@ async function handleMilestoneRolesFull(member, totalDonated) {
 // Returns { total, newRole } so mupdate can embed the new total.
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function recordDonation(client, donorId, donationAmount) {
+async function recordDonation(client, donorId, donationAmount, sourceChannel = null) {
     const guild  = client.guilds.cache.first();
     const member = await guild?.members.fetch(donorId).catch(() => null);
     if (!member) {
@@ -320,6 +320,14 @@ async function recordDonation(client, donorId, donationAmount) {
         });
     }
 
+    // Send in the source channel where the donation happened (if provided)
+    if (sourceChannel) {
+        await sourceChannel.send({ embeds: [embed] }).catch(e =>
+            console.error('[NoteSystem] Failed to send embed to source channel:', e)
+        );
+    }
+
+    // Also send to the dedicated log channel
     await logChannel.send({ embeds: [embed] }).catch(e =>
         console.error('[NoteSystem] Failed to send donation log embed:', e)
     );

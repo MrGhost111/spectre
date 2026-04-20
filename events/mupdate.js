@@ -179,7 +179,7 @@ module.exports = {
             // BRANCH B — Any other channel: regular donation only
             // ═════════════════════════════════════════════════════════════════
             } else {
-                await recordDonation(client, donorId, donationAmount);
+                await recordDonation(client, donorId, donationAmount, newMessage.channel);
                 console.log('[MUPDATE] ✅ Regular donation recorded for', donorId);
             }
 
