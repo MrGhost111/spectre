@@ -28,6 +28,25 @@ module.exports = {
 
     async execute(client, oldMessage, newMessage) {
         try {
+            // ── Fetch full message if partial ─────────────────────────────────
+            // Without this, embeds and author info will be missing for uncached messages
+            if (newMessage.partial) {
+                try {
+                    await newMessage.fetch();
+                } catch (e) {
+                    console.error('[MUPDATE] Failed to fetch partial newMessage:', e);
+                    return;
+                }
+            }
+
+            if (oldMessage.partial) {
+                try {
+                    await oldMessage.fetch();
+                } catch {
+                    // oldMessage being partial is fine for snipe — just skip snipe tracking
+                }
+            }
+
             // ── Snipe tracking ────────────────────────────────────────────────
             if (
                 oldMessage.content &&
@@ -146,5 +165,3 @@ module.exports = {
         }
     },
 };
-
-
