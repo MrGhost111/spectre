@@ -12,6 +12,7 @@ const {
     formatFull,
     formatNumber,
     handleMilestoneRolesFull,
+    getCurrentMilestone,
     getNextMilestone,
 } = require('../Donations/noteSystem');
 
@@ -42,14 +43,14 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: false });
 
-        const targetUser   = interaction.options.getUser('user');
-        const amountRaw    = interaction.options.getString('amount');
-        const noteText     = interaction.options.getString('note') ?? null;
+        const targetUser = interaction.options.getUser('user');
+        const amountRaw  = interaction.options.getString('amount');
+        const noteText   = interaction.options.getString('note') ?? null;
 
         const amount = parseAmount(amountRaw);
         if (amount === null || amount <= 0) {
             return interaction.editReply(
-                `❌ Could not parse \`${amountRaw}\` as an amount. ` +
+                `Could not parse \`${amountRaw}\` as an amount. ` +
                 `Try formats like: \`25m\`, \`1.5b\`, \`1bil\`, \`1e6\`, \`1000000\`.`
             );
         }
@@ -72,7 +73,12 @@ module.exports = {
             };
         }
 
-        data[targetUser.id].totalDonated = (data[targetUser.id].totalDonated || 0) + amount;
+        const oldTotal = data[targetUser.id].totalDonated || 0;
+
+        // Capture old milestone BEFORE updating total
+        const oldMilestone = getCurrentMilestone(oldTotal);
+
+        data[targetUser.id].totalDonated = oldTotal + amount;
         data[targetUser.id].donations.push({
             amount,
             timestamp: new Date().toISOString(),
@@ -90,46 +96,57 @@ module.exports = {
 
         const newTotal = data[targetUser.id].totalDonated;
 
-        // ── Full role update (can upgrade or downgrade) ───────────────────────
-        const roleChange    = await handleMilestoneRolesFull(targetMember, newTotal);
+        // ── Full role update ──────────────────────────────────────────────────
+        await handleMilestoneRolesFull(targetMember, newTotal);
+        const newMilestone  = getCurrentMilestone(newTotal);
         const nextMilestone = getNextMilestone(newTotal);
+
+        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
 
         // ── Confirmation embed ────────────────────────────────────────────────
         const embed = new EmbedBuilder()
-            .setTitle('📝  Donation Added')
+            .setTitle('<:message:1000020218229305424>  Donation Added')
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',      value: `<@${targetUser.id}>`,                                       inline: true },
-                { name: 'Added',     value: `⏣ ${formatFull(amount)}`,                                   inline: true },
-                { name: 'New Total', value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,   inline: true },
-                { name: 'Added By',  value: `<@${interaction.user.id}>`,                                  inline: true },
+                { name: 'User',      value: `<@${targetUser.id}>`,                                                    inline: true },
+                { name: '<:upvote:1303963379945181224> Added',   value: `⏣ ${formatFull(amount)}`,                    inline: true },
+                { name: '<:req:1000019378730975282> New Total',  value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`, inline: true },
+                { name: 'Added By',  value: `<@${interaction.user.id}>`,                                               inline: true },
             )
             .setTimestamp();
 
         if (nextMilestone) {
             const needed = nextMilestone.amount - newTotal;
             embed.addFields({
-                name:   '🎯 Next Milestone',
+                name:   '<:purpledot:860074414853586984> Next Milestone',
                 value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
                 inline: false,
             });
         } else {
-            embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
+            embed.addFields({
+                name:   '<:winners:1000018706874781806> Milestone',
+                value:  'Max milestone reached!',
+                inline: false,
+            });
         }
 
-        if (roleChange) {
+        if (roleChanged) {
+            const oldLabel = oldMilestone ? `<@&${oldMilestone.roleId}>` : 'None';
+            const newLabel = newMilestone ? `<@&${newMilestone.roleId}>` : 'None';
             embed.addFields({
-                name:   '🎉 Role Updated',
-                value:  roleChange.roleId
-                    ? `<@${targetUser.id}> is now at <@&${roleChange.roleId}>`
-                    : `All milestone roles removed (total below 1M).`,
+                name:   '<:upvote:1303963379945181224> Role Updated',
+                value:  `${oldLabel} → ${newLabel}`,
                 inline: false,
             });
         }
 
         if (noteText !== null) {
-            embed.addFields({ name: '📝 Note Set', value: noteText, inline: false });
+            embed.addFields({
+                name:   '<:message:1000020218229305424> Note Set',
+                value:  noteText,
+                inline: false,
+            });
         }
 
         await interaction.editReply({ embeds: [embed] });

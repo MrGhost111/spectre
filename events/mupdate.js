@@ -160,7 +160,7 @@ module.exports = {
                         `<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`
                     )
                     .addFields({
-                        name:  '📊 Overall Donation Total',
+                        name:  '<:req:1000019378730975282> Overall Donation Total',
                         value: `⏣ ${formatNumber(newRegularTotal)}` +
                                (isTier2 ? ` *(includes 1.25× Tier 2 bonus — ⏣ ${formatNumber(regularAmount)} credited)*` : ''),
                         inline: false,

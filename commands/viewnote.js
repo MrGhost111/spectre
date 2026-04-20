@@ -46,7 +46,7 @@ module.exports = {
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
                 {
-                    name:   '💰 Total Donated',
+                    name:   '<:req:1000019378730975282> Total Donated',
                     value:  `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,
                     inline: true,
                 },
@@ -61,19 +61,19 @@ module.exports = {
         if (nextMilestone) {
             const needed = nextMilestone.amount - total;
             embed.addFields({
-                name:   '🎯 Next Milestone',
+                name:   '<:purpledot:860074414853586984> Next Milestone',
                 value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
                 inline: false,
             });
         } else if (total > 0) {
-            embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
+            embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
         }
 
         // Last 5 entries
         const recent = [...history].reverse().slice(0, 5);
         if (recent.length > 0) {
             embed.addFields({
-                name:   '📋 Recent Donations',
+                name:   '<:lbtest:1064919048242090054> Recent Donations',
                 value:  recent.map(d => {
                     const sign   = d.amount >= 0 ? '+' : '';
                     const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
@@ -83,7 +83,7 @@ module.exports = {
                 inline: false,
             });
         } else {
-            embed.addFields({ name: '📋 Recent Donations', value: 'No donations recorded yet.', inline: false });
+            embed.addFields({ name: '<:lbtest:1064919048242090054> Recent Donations', value: 'No donations recorded yet.', inline: false });
         }
 
         // Staff note — only shown to Manage Guild members
@@ -93,7 +93,7 @@ module.exports = {
                 ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
                 : 'unknown';
             embed.addFields({
-                name:   '📝 Staff Note',
+                name:   '<:message:1000020218229305424> Staff Note',
                 value:  `${note}\n*Set by <@${userData.noteSetBy}> on ${setAt}*`,
                 inline: false,
             });

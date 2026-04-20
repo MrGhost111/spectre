@@ -10,7 +10,7 @@ const path = require('path');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DONATION_LOG_CHANNEL_ID = '853991066042368020'; // <-- set this
+const DONATION_LOG_CHANNEL_ID = 'YOUR_DONATION_LOG_CHANNEL_ID'; // <-- set this
 
 const DANK_MEMER_BOT_ID      = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
@@ -292,29 +292,29 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields(
             { name: 'Donor',  value: `<@${donorId}>`,                                      inline: true },
-            { name: 'Amount', value: `⏣ ${formatFull(donationAmount)}`,                    inline: true },
-            { name: 'Total',  value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,  inline: true },
+            { name: '<:upvote:1303963379945181224> Amount', value: `⏣ ${formatFull(donationAmount)}`,                    inline: true },
+            { name: '<:req:1000019378730975282> Total',  value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,  inline: true },
         )
         .setTimestamp();
 
     if (nextMilestone) {
         const needed = nextMilestone.amount - total;
         embed.addFields({
-            name:   '🎯 Next Milestone',
+            name:   '<:purpledot:860074414853586984> Next Milestone',
             value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
             inline: false,
         });
     } else {
-        embed.addFields({ name: '🏆 Milestone', value: 'Max milestone reached!', inline: false });
+        embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
     }
 
     if (note) {
-        embed.addFields({ name: '📝 Staff Note', value: note, inline: false });
+        embed.addFields({ name: '<:message:1000020218229305424> Staff Note', value: note, inline: false });
     }
 
     if (newRole) {
         embed.addFields({
-            name:   '🎉 Role Unlocked!',
+            name:   '<:winners:1000018706874781806> Role Unlocked!',
             value:  `<@${donorId}> has reached <@&${newRole.roleId}>`,
             inline: false,
         });
