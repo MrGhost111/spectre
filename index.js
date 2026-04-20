@@ -21,7 +21,7 @@ const client = new Client({
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
     ],
-    partials: [Partials.Channel], // FIXED: Proper syntax for DM support
+    partials: [Partials.Message, Partials.Channel], // FIXED: Proper syntax for DM support
 });
 
 // Simple logging function that logs to console

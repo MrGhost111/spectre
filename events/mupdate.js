@@ -1,9 +1,9 @@
 // events/mupdate.js
 // Responsibilities:
 //   1. Track edited messages for snipe
-//   2. Detect Dank Memer donation confirmations in the transaction channel
-//   3. Save donation to disk and send a confirmation embed
-//   4. Update the leaderboard in the activity channel
+//   2. Detect Dank Memer donation confirmations (Components V2 format) — everywhere
+//   3. If in transaction channel → money maker logic + regular donation log (1.25x for Tier 2)
+//   4. If outside transaction channel → regular donation log only
 
 const { EmbedBuilder, Events } = require('discord.js');
 const {
@@ -12,16 +12,26 @@ const {
     saveUsers,
     saveStats,
     formatNumber,
-    findCommandUser,
     updateStatusBoard,
     TIER_1_ROLE_ID,
     TIER_2_ROLE_ID,
     TIER_1_REQUIREMENT,
     TIER_2_REQUIREMENT,
 } = require('../donationSystem');
+const { recordDonation } = require('../Donations/noteSystem');
 
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
-const DANK_MEMER_BOT_ID = '270904126974590976';
+const DANK_MEMER_BOT_ID      = '270904126974590976';
+
+// Recursively pull all .content strings from Components V2 tree
+function extractComponentText(components = []) {
+    let text = '';
+    for (const c of components) {
+        if (typeof c.content === 'string') text += c.content + '\n';
+        if (Array.isArray(c.components)) text += extractComponentText(c.components);
+    }
+    return text;
+}
 
 module.exports = {
     name: Events.MessageUpdate,
@@ -29,22 +39,9 @@ module.exports = {
     async execute(client, oldMessage, newMessage) {
         try {
             // ── Fetch full message if partial ─────────────────────────────────
-            // Without this, embeds and author info will be missing for uncached messages
             if (newMessage.partial) {
-                try {
-                    await newMessage.fetch();
-                } catch (e) {
-                    console.error('[MUPDATE] Failed to fetch partial newMessage:', e);
-                    return;
-                }
-            }
-
-            if (oldMessage.partial) {
-                try {
-                    await oldMessage.fetch();
-                } catch {
-                    // oldMessage being partial is fine for snipe — just skip snipe tracking
-                }
+                try { await newMessage.fetch(); }
+                catch (e) { console.error('[MUPDATE] Failed to fetch partial:', e); return; }
             }
 
             // ── Snipe tracking ────────────────────────────────────────────────
@@ -57,108 +54,140 @@ module.exports = {
                 const channelEdits = client.editedMessages.get(newMessage.channel.id) || [];
                 if (channelEdits.length >= 50) channelEdits.shift();
                 channelEdits.push({
-                    author: newMessage.author?.tag,
+                    author:     newMessage.author?.tag,
                     oldContent: oldMessage.content,
                     newContent: newMessage.content,
-                    timestamp: Math.floor(Date.now() / 1000),
-                    messageId: newMessage.id,
+                    timestamp:  Math.floor(Date.now() / 1000),
+                    messageId:  newMessage.id,
                 });
                 client.editedMessages.set(newMessage.channel.id, channelEdits);
             }
 
-            // ── Donation detection ────────────────────────────────────────────
-            // Only care about Dank Memer edits in the transaction channel
-            if (
-                newMessage.channel?.id !== TRANSACTION_CHANNEL_ID ||
-                newMessage.author?.id !== DANK_MEMER_BOT_ID
-            ) return;
+            // ── Only care about Dank Memer ────────────────────────────────────
+            if (newMessage.author?.id !== DANK_MEMER_BOT_ID) return;
 
-            // Must have embeds
-            if (!newMessage.embeds?.length) return;
+            // ── Build full searchable text from all message parts ─────────────
+            let fullText = newMessage.content || '';
+            for (const embed of newMessage.embeds || []) {
+                if (embed.description) fullText += '\n' + embed.description;
+            }
+            if (newMessage.components?.length) {
+                fullText += '\n' + extractComponentText(newMessage.components);
+            }
 
-            const embed = newMessage.embeds[0];
-            if (!embed.description?.includes('Successfully donated')) return;
+            if (!fullText.includes('Successfully donated')) return;
 
-            // Parse donation amount
-            const donationMatch = embed.description.match(
-                /Successfully donated \*\*⏣\s*([\d,]+)\*\*/
-            );
-            if (!donationMatch) {
-                console.warn('[MUPDATE] Donation message matched but amount regex failed. Description:', embed.description);
+            // ── Parse amount ──────────────────────────────────────────────────
+            const match = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
+            if (!match) {
+                console.warn('[MUPDATE] Could not parse amount. Full text was:\n', fullText);
                 return;
             }
 
-            const donationAmount = parseInt(donationMatch[1].replace(/,/g, ''), 10);
+            const donationAmount = parseInt(match[1].replace(/,/g, ''), 10);
             if (isNaN(donationAmount) || donationAmount <= 0) {
-                console.warn('[MUPDATE] Parsed donation amount is invalid:', donationMatch[1]);
+                console.warn('[MUPDATE] Invalid amount parsed:', match[1]);
                 return;
             }
 
-            // Resolve donor
-            const donorId = await findCommandUser(newMessage);
+            // ── Resolve donor ─────────────────────────────────────────────────
+            const donorId = newMessage.interactionMetadata?.user?.id
+                ?? newMessage.interaction?.user?.id
+                ?? null;
+
             if (!donorId) {
-                console.warn('[MUPDATE] Could not resolve donor ID for donation of', donationAmount);
+                console.warn('[MUPDATE] Could not resolve donor ID. Amount:', donationAmount);
                 return;
             }
 
-            // Fetch member to get their current tier from actual roles
-            const guild = client.guilds.cache.first();
-            const member = await guild.members.fetch(donorId).catch(() => null);
-            if (!member) {
-                console.warn(`[MUPDATE] Member ${donorId} not found in guild`);
-                return;
+            console.log(`[MUPDATE] ✅ Donation detected: ⏣ ${donationAmount} from ${donorId} in channel ${newMessage.channel.id}`);
+
+            const isTransactionChannel = newMessage.channel?.id === TRANSACTION_CHANNEL_ID;
+
+            // ═════════════════════════════════════════════════════════════════
+            // BRANCH A — Transaction channel (money maker + regular)
+            // ═════════════════════════════════════════════════════════════════
+            if (isTransactionChannel) {
+                // ── Fetch member for tier check ───────────────────────────────
+                const guild  = client.guilds.cache.first();
+                const member = await guild.members.fetch(donorId).catch(() => null);
+                if (!member) {
+                    console.warn('[MUPDATE] Member not found:', donorId);
+                    return;
+                }
+
+                const isTier2 = member.roles.cache.has(TIER_2_ROLE_ID);
+                const isTier1 = member.roles.cache.has(TIER_1_ROLE_ID);
+
+                const currentTier = isTier2 ? 2 : isTier1 ? 1 : 0;
+
+                // ── Load → update → save (money maker) ───────────────────────
+                const usersData = loadUsers();
+                const statsData = loadStats();
+
+                if (!usersData[donorId]) {
+                    usersData[donorId] = {
+                        totalDonated:  0,
+                        weeklyDonated: 0,
+                        missedAmount:  0,
+                        currentTier,
+                        status:       'good',
+                        lastDonation:  null,
+                    };
+                }
+
+                usersData[donorId].totalDonated  = (usersData[donorId].totalDonated  || 0) + donationAmount;
+                usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
+                usersData[donorId].lastDonation  = new Date().toISOString();
+                usersData[donorId].currentTier   = currentTier;
+                statsData.totalDonations         = (statsData.totalDonations || 0) + donationAmount;
+
+                saveUsers(usersData);
+                saveStats(statsData);
+
+                // ── Regular donation tracking (1.25x for Tier 2) ─────────────
+                const regularAmount = isTier2
+                    ? Math.round(donationAmount * 1.25)
+                    : donationAmount;
+
+                // recordDonation returns { total, newRole } — we use total for the embed field
+                const { total: newRegularTotal } = await recordDonation(client, donorId, regularAmount);
+
+                // ── Send money maker confirmation embed ───────────────────────
+                const requirement = isTier2
+                    ? TIER_2_REQUIREMENT
+                    : TIER_1_REQUIREMENT + (usersData[donorId].missedAmount || 0);
+
+                const confirmEmbed = new EmbedBuilder()
+                    .setTitle('<:prize:1000016483369369650>  New Donation')
+                    .setColor('#4c00b0')
+                    .setDescription(
+                        `<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n` +
+                        `<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`
+                    )
+                    .addFields({
+                        name:   '📊 Overall Donation Total',
+                        value:  `⏣ ${formatNumber(newRegularTotal)}${isTier2 ? ` *(includes 1.25× Tier 2 bonus — ⏣ ${formatNumber(regularAmount)} credited)*` : ''}`,
+                        inline: false,
+                    })
+                    .setTimestamp();
+
+                await newMessage.channel.send({ embeds: [confirmEmbed] });
+                console.log('[MUPDATE] ✅ Money maker confirmation sent');
+
+                // ── Update leaderboard in background ──────────────────────────
+                setImmediate(() => updateStatusBoard(client).catch(err =>
+                    console.error('[MUPDATE] updateStatusBoard failed:', err)
+                ));
+
+            // ═════════════════════════════════════════════════════════════════
+            // BRANCH B — Any other channel (regular donation only)
+            // ═════════════════════════════════════════════════════════════════
+            } else {
+                // recordDonation handles everything: save, role-up, log embed
+                await recordDonation(client, donorId, donationAmount);
+                console.log('[MUPDATE] ✅ Regular donation recorded for', donorId);
             }
-
-            const currentTier = member.roles.cache.has(TIER_2_ROLE_ID) ? 2
-                : member.roles.cache.has(TIER_1_ROLE_ID) ? 1
-                    : 0;
-
-            // ── Read fresh data from disk, update, write back ─────────────────
-            const usersData = loadUsers();
-            const statsData = loadStats();
-
-            if (!usersData[donorId]) {
-                usersData[donorId] = {
-                    totalDonated: 0,
-                    weeklyDonated: 0,
-                    missedAmount: 0,
-                    currentTier,
-                    status: 'good',
-                    lastDonation: null,
-                };
-            }
-
-            usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
-            usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
-            usersData[donorId].lastDonation = new Date().toISOString();
-            usersData[donorId].currentTier = currentTier;
-
-            statsData.totalDonations = (statsData.totalDonations || 0) + donationAmount;
-
-            saveUsers(usersData);
-            saveStats(statsData);
-
-            // ── Send confirmation embed ───────────────────────────────────────
-            const requirement = currentTier === 2
-                ? TIER_2_REQUIREMENT
-                : TIER_1_REQUIREMENT + (usersData[donorId].missedAmount || 0);
-
-            const confirmEmbed = new EmbedBuilder()
-                .setTitle('<:prize:1000016483369369650>  New Donation')
-                .setColor('#4c00b0')
-                .setDescription(
-                    `<@${donorId}> donated ⏣ ${formatNumber(donationAmount)}\n\n` +
-                    `<:purpledot:860074414853586984>  Weekly Progress: ⏣ ${formatNumber(usersData[donorId].weeklyDonated)}/${formatNumber(requirement)}`
-                )
-                .setTimestamp();
-
-            await newMessage.channel.send({ embeds: [confirmEmbed] });
-
-            // ── Update leaderboard in background ─────────────────────────────
-            // setImmediate so the confirmation message sends first
-            setImmediate(() => updateStatusBoard(client).catch(err =>
-                console.error('[MUPDATE] updateStatusBoard failed:', err)
-            ));
 
         } catch (e) {
             console.error('[MUPDATE] Unhandled error:', e);
