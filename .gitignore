@@ -1,3 +1,8 @@
 
 /.vs
 .env
+/.data
+/data/activityLogs.json
+/data/channels.json
+/data/donoLogs.json
+/data/ltl-events.json
