@@ -234,7 +234,7 @@ async function handleMilestoneRolesFull(member, totalDonated) {
 // Returns { total, newRole } so mupdate can embed the new total.
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function recordDonation(client, donorId, donationAmount, sourceChannel = null) {
+async function recordDonation(client, donorId, donationAmount, sourceChannel = null, sourceMessage = null) {
     const guild  = client.guilds.cache.first();
     const member = await guild?.members.fetch(donorId).catch(() => null);
     if (!member) {
@@ -268,6 +268,8 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
     data[donorId].donations.push({
         amount:    donationAmount,
         timestamp: new Date().toISOString(),
+        channelId: sourceMessage?.channelId ?? sourceChannel?.id ?? null,
+        messageId: sourceMessage?.id ?? null,
     });
 
     saveDonations(data);

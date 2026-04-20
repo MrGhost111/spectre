@@ -145,7 +145,7 @@ module.exports = {
 
                 // ── Regular donation: 1.25x for Tier 2, raw for Tier 1 ────────
                 const regularAmount = isTier2 ? Math.round(donationAmount * 1.25) : donationAmount;
-                const { total: newRegularTotal } = await recordDonation(client, donorId, regularAmount);
+                const { total: newRegularTotal } = await recordDonation(client, donorId, regularAmount, newMessage.channel, newMessage);
 
                 // ── Money maker confirmation embed ────────────────────────────
                 const requirement = isTier2
@@ -179,7 +179,7 @@ module.exports = {
             // BRANCH B — Any other channel: regular donation only
             // ═════════════════════════════════════════════════════════════════
             } else {
-                await recordDonation(client, donorId, donationAmount, newMessage.channel);
+                await recordDonation(client, donorId, donationAmount, newMessage.channel, newMessage);
                 console.log('[MUPDATE] ✅ Regular donation recorded for', donorId);
             }
 

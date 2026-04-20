@@ -1,8 +1,8 @@
 // commands/viewnote.js  (text command)
 // Usage: !viewnote [<@user | userID>]
-// No permission restriction. Staff note only shown to Manage Guild members.
+// Anyone can use. Recent donations + staff note only visible to staff roles.
 
-const { EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const {
     loadDonations,
     formatFull,
@@ -10,6 +10,17 @@ const {
     getCurrentMilestone,
     getNextMilestone,
 } = require('../Donations/noteSystem');
+
+const STAFF_ROLE_IDS = [
+    '712970141834674207', // Staff
+    '806450472474116136', // Chat Mod
+    '710572344745132114', // Mod
+    '746298070685188197', // Admin
+];
+
+function isStaffMember(member) {
+    return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
 
 module.exports = {
     name: 'viewnote',
@@ -38,6 +49,7 @@ module.exports = {
 
         const currentMilestone = getCurrentMilestone(total);
         const nextMilestone    = getNextMilestone(total);
+        const staff            = isStaffMember(message.member);
 
         const embed = new EmbedBuilder()
             .setTitle(`<:prize:1000016483369369650>  Donation Profile — ${targetMember.displayName}`)
@@ -65,37 +77,50 @@ module.exports = {
                 inline: false,
             });
         } else if (total > 0) {
-            embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
-        }
-
-        // Last 5 entries
-        const recent = [...history].reverse().slice(0, 5);
-        if (recent.length > 0) {
             embed.addFields({
-                name:   '<:lbtest:1064919048242090054> Recent Donations',
-                value:  recent.map(d => {
-                    const sign   = d.amount >= 0 ? '+' : '';
-                    const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
-                    const manual = d.manual ? ' *(manual)*' : '';
-                    return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}`;
-                }).join('\n'),
+                name:   '<:winners:1000018706874781806> Milestone',
+                value:  'Max milestone reached!',
                 inline: false,
             });
-        } else {
-            embed.addFields({ name: '<:lbtest:1064919048242090054> Recent Donations', value: 'No donations recorded yet.', inline: false });
         }
 
-        // Staff note — only shown to Manage Guild members
-        const isStaff = message.member.permissions.has(PermissionsBitField.Flags.ManageGuild);
-        if (isStaff && note) {
-            const setAt = userData.noteSetAt
-                ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
-                : 'unknown';
-            embed.addFields({
-                name:   '<:message:1000020218229305424> Staff Note',
-                value:  `${note}\n*Set by <@${userData.noteSetBy}> on ${setAt}*`,
-                inline: false,
-            });
+        // Recent donations — staff only, with jump links
+        if (staff) {
+            const recent = [...history].reverse().slice(0, 5);
+            if (recent.length > 0) {
+                const guildId = message.guild.id;
+                embed.addFields({
+                    name:   '<:lbtest:1064919048242090054> Recent Donations',
+                    value:  recent.map(d => {
+                        const sign   = d.amount >= 0 ? '+' : '-';
+                        const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
+                        const manual = d.manual ? ' *(manual)*' : '';
+                        const link   = d.channelId && d.messageId
+                            ? ` — [jump](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : '';
+                        return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}${link}`;
+                    }).join('\n'),
+                    inline: false,
+                });
+            } else {
+                embed.addFields({
+                    name:   '<:lbtest:1064919048242090054> Recent Donations',
+                    value:  'No donations recorded yet.',
+                    inline: false,
+                });
+            }
+
+            // Staff note
+            if (note) {
+                const setAt = userData.noteSetAt
+                    ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
+                    : 'unknown';
+                embed.addFields({
+                    name:   '<:message:1000020218229305424> Staff Note',
+                    value:  `${note}\n*Set by <@${userData.noteSetBy}> on ${setAt}*`,
+                    inline: false,
+                });
+            }
         }
 
         await message.reply({ embeds: [embed] });

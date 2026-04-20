@@ -1,9 +1,9 @@
 // commands/removenote.js  (text command)
 // Usage: !removenote <@user | userID> <amount> [note text]
-// Requires Manage Guild permission.
+// Requires a staff role.
 // Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
-const { EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const {
     loadDonations,
     saveDonations,
@@ -15,12 +15,22 @@ const {
     getNextMilestone,
 } = require('../Donations/noteSystem');
 
+const STAFF_ROLE_IDS = [
+    '712970141834674207', // Staff
+    '806450472474116136', // Chat Mod
+    '710572344745132114', // Mod
+    '746298070685188197', // Admin
+];
+
+function isStaffMember(member) {
+    return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
+
 module.exports = {
     name: 'removenote',
     description: 'Manually remove a donation amount from a user.',
     async execute(message, args) {
-        // ── Permission check ──────────────────────────────────────────────────
-        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) return;
+        if (!isStaffMember(message.member)) return;
 
         if (args.length < 2) {
             return message.reply('Usage: `!removenote <@user | userID> <amount> [note text]`');
@@ -64,9 +74,7 @@ module.exports = {
         const oldTotal      = data[rawTarget].totalDonated || 0;
         const actualRemoved = Math.min(amount, oldTotal);
         const newTotal      = Math.max(0, oldTotal - amount);
-
-        // Capture old milestone BEFORE updating total
-        const oldMilestone = getCurrentMilestone(oldTotal);
+        const oldMilestone  = getCurrentMilestone(oldTotal);
 
         data[rawTarget].totalDonated = newTotal;
         data[rawTarget].donations.push({
@@ -84,12 +92,10 @@ module.exports = {
 
         saveDonations(data);
 
-        // ── Full role update (can downgrade) ──────────────────────────────────
         await handleMilestoneRolesFull(targetMember, newTotal);
         const newMilestone  = getCurrentMilestone(newTotal);
         const nextMilestone = getNextMilestone(newTotal);
-
-        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
+        const roleChanged   = oldMilestone?.roleId !== newMilestone?.roleId;
 
         // ── Confirmation embed ────────────────────────────────────────────────
         const embed = new EmbedBuilder()
@@ -97,10 +103,10 @@ module.exports = {
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',       value: `<@${rawTarget}>`,                                                          inline: true },
-                { name: '<:downvote:1303963004915679232> Removed', value: `⏣ ${formatFull(actualRemoved)}`,             inline: true },
-                { name: '<:req:1000019378730975282> New Total',    value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`, inline: true },
-                { name: 'Removed By', value: `<@${message.author.id}>`,                                                   inline: true },
+                { name: 'User',                                            value: `<@${rawTarget}>`,                                                     inline: true },
+                { name: '<:downvote:1303963004915679232> Removed',         value: `⏣ ${formatFull(actualRemoved)}`,                                      inline: true },
+                { name: '<:req:1000019378730975282> New Total',            value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,              inline: true },
+                { name: 'Removed By',                                      value: `<@${message.author.id}>`,                                             inline: true },
             )
             .setTimestamp();
 

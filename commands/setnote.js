@@ -1,10 +1,10 @@
 // slashCommands/setnote.js
 // Usage: /setnote user:<@user> amount:<text> [note:<text>]
-// Requires Manage Guild permission.
+// Requires a staff role.
 // Manually adds a donation amount to a user's total and updates milestone roles.
 // Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const {
     loadDonations,
     saveDonations,
@@ -15,6 +15,17 @@ const {
     getCurrentMilestone,
     getNextMilestone,
 } = require('../Donations/noteSystem');
+
+const STAFF_ROLE_IDS = [
+    '712970141834674207', // Staff
+    '806450472474116136', // Chat Mod
+    '710572344745132114', // Mod
+    '746298070685188197', // Admin
+];
+
+function isStaffMember(member) {
+    return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -37,11 +48,14 @@ module.exports = {
                 .setName('note')
                 .setDescription('Optional staff note to attach.')
                 .setRequired(false)
-        )
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
+        ),
 
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: false });
+
+        if (!isStaffMember(interaction.member)) {
+            return interaction.editReply('You do not have permission to use this command.');
+        }
 
         const targetUser = interaction.options.getUser('user');
         const amountRaw  = interaction.options.getString('amount');
@@ -73,9 +87,7 @@ module.exports = {
             };
         }
 
-        const oldTotal = data[targetUser.id].totalDonated || 0;
-
-        // Capture old milestone BEFORE updating total
+        const oldTotal     = data[targetUser.id].totalDonated || 0;
         const oldMilestone = getCurrentMilestone(oldTotal);
 
         data[targetUser.id].totalDonated = oldTotal + amount;
@@ -96,12 +108,10 @@ module.exports = {
 
         const newTotal = data[targetUser.id].totalDonated;
 
-        // ── Full role update ──────────────────────────────────────────────────
         await handleMilestoneRolesFull(targetMember, newTotal);
         const newMilestone  = getCurrentMilestone(newTotal);
         const nextMilestone = getNextMilestone(newTotal);
-
-        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
+        const roleChanged   = oldMilestone?.roleId !== newMilestone?.roleId;
 
         // ── Confirmation embed ────────────────────────────────────────────────
         const embed = new EmbedBuilder()
@@ -109,10 +119,10 @@ module.exports = {
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',      value: `<@${targetUser.id}>`,                                                    inline: true },
-                { name: '<:upvote:1303963379945181224> Added',   value: `⏣ ${formatFull(amount)}`,                    inline: true },
-                { name: '<:req:1000019378730975282> New Total',  value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`, inline: true },
-                { name: 'Added By',  value: `<@${interaction.user.id}>`,                                               inline: true },
+                { name: 'User',                                                    value: `<@${targetUser.id}>`,                                                     inline: true },
+                { name: '<:upvote:1303963379945181224> Added',                     value: `⏣ ${formatFull(amount)}`,                                                 inline: true },
+                { name: '<:req:1000019378730975282> New Total',                    value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,                  inline: true },
+                { name: 'Added By',                                                value: `<@${interaction.user.id}>`,                                                inline: true },
             )
             .setTimestamp();
 
