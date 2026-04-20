@@ -93,11 +93,17 @@ module.exports = {
         const oldMilestone  = getCurrentMilestone(oldTotal);
 
         data[targetUser.id].totalDonated = newTotal;
+
+        // Grab the deferred reply message so we can store a jump link
+        const replyMessage = await interaction.fetchReply().catch(() => null);
+
         data[targetUser.id].donations.push({
             amount:    -actualRemoved,
             timestamp:  new Date().toISOString(),
             removedBy:  interaction.user.id,
             manual:     true,
+            channelId:  interaction.channelId,
+            messageId:  replyMessage?.id ?? null,
         });
 
         if (noteText !== null) {

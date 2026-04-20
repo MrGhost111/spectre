@@ -96,10 +96,10 @@ module.exports = {
                         const sign   = d.amount >= 0 ? '+' : '-';
                         const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
-                        const link   = d.channelId && d.messageId
-                            ? ` — [jump](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : '';
-                        return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}${link}`;
+                        const amountStr = d.channelId && d.messageId
+    ? `[${sign}⏣ ${formatFull(Math.abs(d.amount))}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+    : `${sign}⏣ ${formatFull(Math.abs(d.amount))}`;
+return `${amountStr}  ${date}${manual}`;
                     }).join('\n'),
                     inline: false,
                 });

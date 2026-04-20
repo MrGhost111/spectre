@@ -82,6 +82,8 @@ module.exports = {
             timestamp:  new Date().toISOString(),
             removedBy:  message.author.id,
             manual:     true,
+            channelId:  message.channel.id,
+            messageId:  message.id,
         });
 
         if (noteText) {

@@ -191,13 +191,18 @@ async function handleMilestoneRolesUpgradeOnly(member, totalDonated) {
  * Returns the role object if any change was made, otherwise null.
  */
 async function handleMilestoneRolesFull(member, totalDonated) {
-    const target     = getCurrentMilestone(totalDonated);
     const allRoleIds = MILESTONE_ROLES.map(m => m.roleId);
-
     const currentMilestoneRoles = member.roles.cache.filter(r => allRoleIds.includes(r.id));
 
+    // Highest role they already hold in Discord — this is the floor, never go below it
+    const discordFloor = MILESTONE_ROLES.find(m => member.roles.cache.has(m.roleId)) ?? null;
+
+    // Effective total = max of what's recorded vs what their Discord role implies
+    const effectiveTotal = Math.max(totalDonated, discordFloor?.amount ?? 0);
+    const target = getCurrentMilestone(effectiveTotal);
+
     if (!target) {
-        // Below 1mil — strip all milestone roles
+        // Still below 1mil even after accounting for Discord roles — strip all
         for (const [roleId] of currentMilestoneRoles) {
             await member.roles.remove(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
@@ -228,7 +233,6 @@ async function handleMilestoneRolesFull(member, totalDonated) {
 
     return changed ? target : null;
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // CORE: RECORD A DONATION  (called by mupdate.js)
 // Returns { total, newRole } so mupdate can embed the new total.
