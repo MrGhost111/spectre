@@ -1,10 +1,13 @@
 // events/mupdate.js
+<<<<<<< HEAD
 // Tracks ALL Dank Memer donation confirmations server-wide.
 // If the donation happens in the transaction channel → also logs for Money Makers
 // (weekly progress, leaderboard update).
 // All donations everywhere → logged to the global donation system (donations.json,
 // milestone roles, donation log channel).
 
+=======
+>>>>>>> 32edb683f125a7b20ec600b01d3378819ff14188
 const { EmbedBuilder, Events } = require('discord.js');
 const {
     loadUsers,
@@ -50,6 +53,7 @@ module.exports = {
                 client.editedMessages.set(newMessage.channel.id, channelEdits);
             }
 
+<<<<<<< HEAD
             // ── Only care about Dank Memer from here ──────────────────────────
             if (newMessage.author?.id !== DANK_MEMER_BOT_ID) return;
 
@@ -61,6 +65,16 @@ module.exports = {
                     console.error('[MUPDATE] Failed to fetch partial message:', e);
                     return;
                 }
+=======
+            // ── Donation detection ────────────────────────────────────────────
+            if (newMessage.channel?.id !== TRANSACTION_CHANNEL_ID) return;
+            if (newMessage.author?.id  !== DANK_MEMER_BOT_ID)      return;
+
+            // Fetch full message if partial — this is critical
+            if (newMessage.partial) {
+                try { await newMessage.fetch(); }
+                catch (e) { console.error('[MUPDATE] Failed to fetch partial message:', e); return; }
+>>>>>>> 32edb683f125a7b20ec600b01d3378819ff14188
             }
 
             if (!newMessage.embeds?.length) return;
@@ -68,7 +82,10 @@ module.exports = {
             const embed = newMessage.embeds[0];
             if (!embed.description?.includes('Successfully donated')) return;
 
+<<<<<<< HEAD
             // ── Parse donation amount ─────────────────────────────────────────
+=======
+>>>>>>> 32edb683f125a7b20ec600b01d3378819ff14188
             const donationMatch = embed.description.match(
                 /Successfully donated \*\*⏣\s*([\d,]+)\*\*/
             );
@@ -83,6 +100,7 @@ module.exports = {
                 return;
             }
 
+<<<<<<< HEAD
             // ── Resolve donor ─────────────────────────────────────────────────
             // Try interaction first, then reference, then footer, then recent scan
             let donorId = null;
@@ -97,6 +115,9 @@ module.exports = {
                 else if (ref?.author && !ref.author.bot) donorId = ref.author.id;
             }
 
+=======
+            const donorId = await findCommandUser(newMessage);
+>>>>>>> 32edb683f125a7b20ec600b01d3378819ff14188
             if (!donorId) {
                 const footer = embed.footer?.text;
                 if (footer) {
@@ -121,6 +142,7 @@ module.exports = {
                 return;
             }
 
+<<<<<<< HEAD
             console.log(`[MUPDATE] Donation detected — ⏣${donationAmount} by ${donorId} in #${newMessage.channel?.name}`);
 
             // ── GLOBAL: record in donations.json + milestone roles + log embed ─
@@ -135,6 +157,9 @@ module.exports = {
             if (newMessage.channel?.id !== TRANSACTION_CHANNEL_ID) return;
 
             const guild = client.guilds.cache.first();
+=======
+            const guild  = client.guilds.cache.first();
+>>>>>>> 32edb683f125a7b20ec600b01d3378819ff14188
             const member = await guild.members.fetch(donorId).catch(() => null);
             if (!member) {
                 console.warn(`[MUPDATE] Member ${donorId} not found in guild`);
@@ -196,3 +221,5 @@ module.exports = {
         }
     },
 };
+};
+

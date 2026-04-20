@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
-const spectreAI = require('../utils/spectreAI');
+
 
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 const YOUR_USER_ID = '753491023208120321'; // Your user ID for testing exception
