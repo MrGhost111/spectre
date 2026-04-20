@@ -6,11 +6,11 @@ const fs = require('fs');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TIER_1_ROLE_ID       = '783032959350734868';
-const TIER_2_ROLE_ID       = '1038888209440067604';
-const ACTIVITY_CHANNEL_ID  = '1327928516662005770';
-const TIER_1_REQUIREMENT   = 35_000_000;
-const TIER_2_REQUIREMENT   = 75_000_000;
+const TIER_1_ROLE_ID = '783032959350734868';
+const TIER_2_ROLE_ID = '1038888209440067604';
+const ACTIVITY_CHANNEL_ID = '1327928516662005770';
+const TIER_1_REQUIREMENT = 35_000_000;
+const TIER_2_REQUIREMENT = 75_000_000;
 
 const USERS_PATH = path.join(__dirname, '../data/users.json');
 const STATS_PATH = path.join(__dirname, '../data/stats.json');
@@ -143,27 +143,27 @@ async function updateStatusBoard(client) {
             if (!usersData[memberId]) {
                 usersData[memberId] = {
                     weeklyDonated: 0,
-                    totalDonated:  0,
-                    missedAmount:  0,
-                    status:        'good',
-                    currentTier:   hasTier2 ? 2 : 1,
-                    lastDonation:  null,
+                    totalDonated: 0,
+                    missedAmount: 0,
+                    status: 'good',
+                    currentTier: hasTier2 ? 2 : 1,
+                    lastDonation: null,
                 };
             }
 
-            const userData    = usersData[memberId];
+            const userData = usersData[memberId];
             const requirement = hasTier2
                 ? TIER_2_REQUIREMENT
                 : TIER_1_REQUIREMENT + (userData.missedAmount || 0);
 
             const entry = {
-                id:            memberId,
+                id: memberId,
                 weeklyDonated: userData.weeklyDonated || 0,
                 requirement,
             };
 
             if (hasTier2) tier2Users.push(entry);
-            else          tier1Users.push(entry);
+            else tier1Users.push(entry);
         }
 
         tier2Users.sort((a, b) => b.weeklyDonated - a.weeklyDonated);
