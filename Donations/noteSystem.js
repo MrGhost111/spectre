@@ -10,7 +10,7 @@ const path = require('path');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DONATION_LOG_CHANNEL_ID = 'YOUR_DONATION_LOG_CHANNEL_ID'; // <-- set this
+const DONATION_LOG_CHANNEL_ID = '853991066042368020'; // <-- set this
 
 const DANK_MEMER_BOT_ID      = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
