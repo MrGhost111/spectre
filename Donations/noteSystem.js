@@ -10,7 +10,7 @@ const path = require('path');
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DONATION_LOG_CHANNEL_ID = '853991066042368020'; // <-- set this
+const DONATION_LOG_CHANNEL_ID = '853991066042368020';
 
 const DANK_MEMER_BOT_ID      = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
@@ -60,9 +60,6 @@ function saveDonations(data) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AMOUNT PARSER
-// Supports: raw integers, comma-separated, k, m/mil/million, b/bil/billion,
-//           e-notation (1e6, 2.5e9), decimal multipliers (1.5b, 25.5m)
-// Returns a floored integer, or null if the input can't be parsed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function parseAmount(input) {
@@ -70,13 +67,11 @@ function parseAmount(input) {
 
     const s = input.toString().trim().toLowerCase().replace(/,/g, '');
 
-    // e-notation (e.g. 1e6, 2.5e9)
     if (/^[\d.]+e\d+$/.test(s)) {
         const val = parseFloat(s);
         return isNaN(val) ? null : Math.floor(val);
     }
 
-    // number + optional suffix
     const match = s.match(/^([\d.]+)\s*(k|m|mil|million|b|bil|billion)?$/);
     if (!match) return null;
 
@@ -134,12 +129,20 @@ function getNextMilestone(total) {
  * the member currently holds in Discord, or 0 if none.
  */
 function getBaselineFromRoles(member) {
-    for (const milestone of MILESTONE_ROLES) { // already descending
+    for (const milestone of MILESTONE_ROLES) {
         if (member.roles.cache.has(milestone.roleId)) {
             return milestone.amount;
         }
     }
     return 0;
+}
+
+/**
+ * All milestones at or below a given threshold amount (i.e. all roles
+ * a user at that level should hold). Returns array in descending order.
+ */
+function getAllRolesUpTo(amount) {
+    return MILESTONE_ROLES.filter(m => m.amount <= amount);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,61 +151,61 @@ function getBaselineFromRoles(member) {
 
 /**
  * UPGRADE-ONLY — used by recordDonation (auto-tracking).
- * Adds the highest qualifying milestone role if it's an upgrade.
- * Cleans up any lower milestone roles the user holds as duplicates.
- * NEVER removes a role that is equal-or-higher than what the total qualifies for.
- * Returns the newly added role object, or null if no change.
+ *
+ * Rules:
+ *   - Determine the effective total = max(totalDonated, highest Discord role held).
+ *   - Assign ALL milestone roles at or below that effective total.
+ *   - NEVER remove any role the user currently holds from our milestone set.
+ *
+ * Returns the newly added top role object, or null if nothing changed.
  */
 async function handleMilestoneRolesUpgradeOnly(member, totalDonated) {
-    const target     = getCurrentMilestone(totalDonated);
-    const allRoleIds = MILESTONE_ROLES.map(m => m.roleId);
+    // Floor: respect whatever roles they already hold in Discord
+    const discordFloor   = getBaselineFromRoles(member);
+    const effectiveTotal = Math.max(totalDonated, discordFloor);
 
-    if (!target) return null;
+    const target = getCurrentMilestone(effectiveTotal);
+    if (!target) return null; // below 1mil even after floor — nothing to do
 
-    // Highest role the member currently holds from our set
-    const currentHighest = MILESTONE_ROLES.find(m => member.roles.cache.has(m.roleId)) ?? null;
+    const rolesToHave = getAllRolesUpTo(effectiveTotal);
+    let   topAdded    = null;
 
-    // No upgrade needed — they already hold an equal or higher role
-    if (currentHighest && currentHighest.amount >= target.amount) return null;
-
-    // Remove any lower milestone roles (duplicate cleanup only)
-    for (const milestone of MILESTONE_ROLES) {
-        if (
-            milestone.amount < target.amount &&
-            member.roles.cache.has(milestone.roleId)
-        ) {
-            await member.roles.remove(milestone.roleId).catch(e =>
-                console.error(`[NoteSystem] Failed to remove lower role ${milestone.roleId}:`, e)
+    for (const milestone of rolesToHave) {
+        if (!member.roles.cache.has(milestone.roleId)) {
+            await member.roles.add(milestone.roleId).catch(e =>
+                console.error(`[NoteSystem] Failed to add role ${milestone.roleId}:`, e)
             );
+            // Track the highest role we actually added (array is descending)
+            if (!topAdded) topAdded = milestone;
         }
     }
 
-    // Add the new target role
-    await member.roles.add(target.roleId).catch(e =>
-        console.error(`[NoteSystem] Failed to add role ${target.roleId}:`, e)
-    );
-
-    return target;
+    return topAdded;
 }
 
 /**
- * FULL (upgrade + downgrade) — used by setnote/removenote (manual adjustments).
- * Assigns exactly one correct milestone role based on total, removes all others.
- * Returns the role object if any change was made, otherwise null.
+ * FULL (used by setnote / removenote — manual adjustments).
+ *
+ * Rules:
+ *   - Determine the effective total = max(totalDonated, highest Discord role held).
+ *   - Assign ALL milestone roles at or below the effective total.
+ *   - Remove any milestone roles ABOVE the effective total (those weren't earned).
+ *   - NEVER remove a role that is at or below the effective total.
+ *
+ * Returns the top milestone object if any change was made, otherwise null.
  */
 async function handleMilestoneRolesFull(member, totalDonated) {
     const allRoleIds = MILESTONE_ROLES.map(m => m.roleId);
-    const currentMilestoneRoles = member.roles.cache.filter(r => allRoleIds.includes(r.id));
 
-    // Highest role they already hold in Discord — this is the floor, never go below it
-    const discordFloor = MILESTONE_ROLES.find(m => member.roles.cache.has(m.roleId)) ?? null;
+    // Floor: respect whatever roles they already hold in Discord
+    const discordFloor   = getBaselineFromRoles(member);
+    const effectiveTotal = Math.max(totalDonated, discordFloor);
 
-    // Effective total = max of what's recorded vs what their Discord role implies
-    const effectiveTotal = Math.max(totalDonated, discordFloor?.amount ?? 0);
     const target = getCurrentMilestone(effectiveTotal);
 
     if (!target) {
-        // Still below 1mil even after accounting for Discord roles — strip all
+        // Below 1mil even after accounting for Discord roles — strip all milestone roles
+        const currentMilestoneRoles = member.roles.cache.filter(r => allRoleIds.includes(r.id));
         for (const [roleId] of currentMilestoneRoles) {
             await member.roles.remove(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
@@ -211,28 +214,33 @@ async function handleMilestoneRolesFull(member, totalDonated) {
         return currentMilestoneRoles.size > 0 ? { roleId: null, removed: true } : null;
     }
 
-    let changed = false;
+    const rolesToHave   = new Set(getAllRolesUpTo(effectiveTotal).map(m => m.roleId));
+    const rolesToRemove = MILESTONE_ROLES.filter(m => !rolesToHave.has(m.roleId)); // above effective total
+    let   changed       = false;
 
-    // Remove every milestone role that isn't the target
-    for (const [roleId] of currentMilestoneRoles) {
-        if (roleId !== target.roleId) {
-            await member.roles.remove(roleId).catch(e =>
-                console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
+    // Remove milestone roles that are above the effective total
+    for (const milestone of rolesToRemove) {
+        if (member.roles.cache.has(milestone.roleId)) {
+            await member.roles.remove(milestone.roleId).catch(e =>
+                console.error(`[NoteSystem] Failed to remove role ${milestone.roleId}:`, e)
             );
             changed = true;
         }
     }
 
-    // Add target role if not already held
-    if (!member.roles.cache.has(target.roleId)) {
-        await member.roles.add(target.roleId).catch(e =>
-            console.error(`[NoteSystem] Failed to add role ${target.roleId}:`, e)
-        );
-        changed = true;
+    // Add every milestone role at or below the effective total
+    for (const roleId of rolesToHave) {
+        if (!member.roles.cache.has(roleId)) {
+            await member.roles.add(roleId).catch(e =>
+                console.error(`[NoteSystem] Failed to add role ${roleId}:`, e)
+            );
+            changed = true;
+        }
     }
 
     return changed ? target : null;
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CORE: RECORD A DONATION  (called by mupdate.js)
 // Returns { total, newRole } so mupdate can embed the new total.
@@ -326,14 +334,12 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         });
     }
 
-    // Send in the source channel where the donation happened (if provided)
     if (sourceChannel) {
         await sourceChannel.send({ embeds: [embed] }).catch(e =>
             console.error('[NoteSystem] Failed to send embed to source channel:', e)
         );
     }
 
-    // Also send to the dedicated log channel
     await logChannel.send({ embeds: [embed] }).catch(e =>
         console.error('[NoteSystem] Failed to send donation log embed:', e)
     );
