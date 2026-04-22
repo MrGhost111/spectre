@@ -1,4 +1,4 @@
-// commands/viewnote.js  (text command)
+// commands/viewnote.js
 // Usage: !viewnote [<@user | userID>]
 // Anyone can use. Recent donations + staff note only visible to staff roles.
 
@@ -24,6 +24,7 @@ function isStaffMember(member) {
 
 module.exports = {
     name: 'viewnote',
+    aliases: ['note', 'notes'],
     description: 'View donation profile for a user.',
     async execute(message, args) {
         // ── Resolve target ────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ module.exports = {
             });
         }
 
-        // Recent donations — staff only, with jump links
+        // Recent donations — staff only, with amount hyperlinked to the message
         if (staff) {
             const recent = [...history].reverse().slice(0, 5);
             if (recent.length > 0) {
@@ -92,13 +93,19 @@ module.exports = {
                 embed.addFields({
                     name:   '<:lbtest:1064919048242090054> Recent Donations',
                     value:  recent.map(d => {
-                        const sign   = d.amount >= 0 ? '+' : '-';
-                        const date   = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
-                        const manual = d.manual ? ' *(manual)*' : '';
-                        const link   = d.channelId && d.messageId
-                            ? ` — [jump](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : '';
-                        return `${sign}⏣ ${formatFull(Math.abs(d.amount))}  ${date}${manual}${link}`;
+                        const sign    = d.amount >= 0 ? '+' : '-';
+                        const date    = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
+                        const manual  = d.manual ? ' *(manual)*' : '';
+                        
+                        // Format the amount string
+                        const amountStr = `⏣ ${formatFull(Math.abs(d.amount))}`;
+                        
+                        // Hyperlink the amount if link data exists
+                        const amountDisplay = (d.channelId && d.messageId)
+                            ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : amountStr;
+
+                        return `${sign}${amountDisplay}  ${date}${manual}`;
                     }).join('\n'),
                     inline: false,
                 });

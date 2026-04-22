@@ -28,6 +28,7 @@ function isStaffMember(member) {
 
 module.exports = {
     name: 'removenote',
+    aliases: ['rn','rm'],
     description: 'Manually remove a donation amount from a user.',
     async execute(message, args) {
         if (!isStaffMember(message.member)) return;

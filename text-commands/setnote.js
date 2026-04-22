@@ -27,7 +27,9 @@ function isStaffMember(member) {
 }
 
 module.exports = {
+
     name: 'setnote',
+    aliases: ['sn','addnote'],
     description: 'Manually add a donation amount to a user.',
     async execute(message, args) {
         if (!isStaffMember(message.member)) return;
