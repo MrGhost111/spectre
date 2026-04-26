@@ -1,17 +1,24 @@
 // slashCommands/leaderboard.js
 
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { loadDonations, formatFull, formatNumber } = require('../Donations/noteSystem');
+const {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    StringSelectMenuBuilder,
+} = require('discord.js');
+const { loadDonations, formatFull, formatNumber, EVENT_LABELS, EVENT_CURRENCY } = require('../Donations/noteSystem');
 
 const PAGE_SIZE = 10;
 
-function buildLeaderboard(sorted, page, totalPages, interaction) {
+function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const start = page * PAGE_SIZE;
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const entries = sorted.slice(start, end);
 
-    const rankStart = start + 1;
-    const rankEnd = end;
+    const currency = EVENT_CURRENCY[event];
+    const eventLabel = EVENT_LABELS[event];
 
     let description = '';
     for (let i = 0; i < entries.length; i++) {
@@ -19,22 +26,37 @@ function buildLeaderboard(sorted, page, totalPages, interaction) {
         const { userId, total } = entries[i];
         const isYou = userId === interaction.user.id;
 
-        let prefix;
-        if (rank === 1) prefix = '<:winners:1000018706874781806>';
-        else prefix = '<:purpledot:860074414853586984>';
+        const totalFmt = total >= 1_000_000
+            ? `${formatFull(total)} *(${formatNumber(total)})*`
+            : formatFull(total);
 
-        const youTag = isYou ? ' **← you**' : '';
-        description += `${prefix} **#${rank}** <@${userId}> — ⏣ ${formatFull(total)} *(${formatNumber(total)})*${youTag}\n`;
+        const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
+
+        description += `\`#${String(rank).padStart(2, ' ')}\`  <@${userId}> — ${currency} ${totalFmt}${youTag}\n`;
     }
 
-    const embed = new EmbedBuilder()
-        .setTitle('<:lbtest:1064919048242090054>  Donation Leaderboard')
+    return new EmbedBuilder()
+        .setTitle(`<:lbtest:1064919048242090054>  ${eventLabel} Donation Leaderboard`)
         .setColor('#4c00b0')
         .setDescription(description || 'No donation data found.')
-        .setFooter({ text: `Page ${page + 1} of ${totalPages} • Showing #${rankStart}–#${rankEnd} of ${sorted.length} users` })
+        .setFooter({
+            text: `Page ${page + 1} of ${totalPages} • Showing #${start + 1}–#${end} of ${sorted.length} users`,
+        })
         .setTimestamp();
+}
 
-    return embed;
+function buildSelectMenu(currentEvent) {
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('lb_event_select')
+            .setPlaceholder('Select event leaderboard')
+            .addOptions([
+                { label: 'Dank Memer', value: 'dankmemer', emoji: '⏣', default: currentEvent === 'dankmemer' },
+                { label: 'Investor', value: 'investor', emoji: '💰', default: currentEvent === 'investor' },
+                { label: 'Karuta', value: 'karuta', emoji: '🎟️', default: currentEvent === 'karuta' },
+                { label: 'OwO', value: 'owo', emoji: '🌸', default: currentEvent === 'owo' },
+            ])
+    );
 }
 
 function buildButtons(page, totalPages, userPage, disabled = false) {
@@ -72,6 +94,14 @@ function buildButtons(page, totalPages, userPage, disabled = false) {
     );
 }
 
+function getSorted(event) {
+    const data = loadDonations(event);
+    return Object.entries(data)
+        .map(([userId, userData]) => ({ userId, total: userData?.totalDonated ?? 0 }))
+        .filter(e => e.total > 0)
+        .sort((a, b) => b.total - a.total);
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('leaderboard')
@@ -80,13 +110,8 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
 
-        const data = loadDonations();
-
-        // Sort all users by totalDonated descending, filter out zero
-        const sorted = Object.entries(data)
-            .map(([userId, userData]) => ({ userId, total: userData?.totalDonated ?? 0 }))
-            .filter(e => e.total > 0)
-            .sort((a, b) => b.total - a.total);
+        const event = 'dankmemer';
+        const sorted = getSorted(event);
 
         if (sorted.length === 0) {
             return interaction.editReply({ content: 'No donation data found.' });
@@ -95,22 +120,27 @@ module.exports = {
         const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
         const userIndex = sorted.findIndex(e => e.userId === interaction.user.id);
         const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
-
         const page = 0;
-        const embed = buildLeaderboard(sorted, page, totalPages, interaction);
-        const buttons = buildButtons(page, totalPages, userPage);
 
-        const reply = await interaction.editReply({ embeds: [embed], components: [buttons] });
+        const embed = buildLeaderboard(sorted, page, totalPages, interaction, event);
+        const selectRow = buildSelectMenu(event);
+        const buttonRow = buildButtons(page, totalPages, userPage);
 
-        // Store sorted data in a cache keyed by message ID so the button handler can use it
-        // We attach it to the client temporarily
+        const reply = await interaction.editReply({
+            embeds: [embed],
+            components: [selectRow, buttonRow],
+        });
+
         if (!interaction.client._lbCache) interaction.client._lbCache = new Map();
         interaction.client._lbCache.set(reply.id, {
             sorted,
             totalPages,
             userPage,
             interactionUserId: interaction.user.id,
-            expiresAt: Date.now() + 10 * 60 * 1000, // 10 min TTL
+            event,
+            expiresAt: Date.now() + 10 * 60 * 1000,
         });
     },
 };
+
+module.exports._helpers = { buildLeaderboard, buildSelectMenu, buildButtons, getSorted };
