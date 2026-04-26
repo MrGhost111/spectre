@@ -36,7 +36,61 @@ const STICKY_DELAY_MS = 30_000; // 30 seconds of inactivity
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildPrizeString(prizes) {
-    return prizes.map(p => p.text).join(' + ');
+    // ── Group coins: sum all coin prizes into one entry ───────────────────────
+    const coinPrizes = prizes.filter(p => p.isCoins);
+    const itemPrizes = prizes.filter(p => !p.isCoins);
+
+    const groups = [];
+
+    if (coinPrizes.length === 1) {
+        // Single coin donation — show as-is
+        groups.push(coinPrizes[0].text);
+    } else if (coinPrizes.length > 1) {
+        // Multiple coin donations — show total with breakdown
+        const total = coinPrizes.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const parts = coinPrizes.map(p => p.text).join(' + ');
+        const totalStr = total > 0
+            ? `⏣ ${total.toLocaleString()} (${parts})`
+            : parts;
+        groups.push(totalStr);
+    }
+
+    // ── Group items: merge identical item names, sum quantities ──────────────
+    // Item prizeText looks like "2 A Plus (avg ⏣ 6,000,000)" or "1 A Plus"
+    // We normalise by stripping the leading quantity and any " (avg ...)" suffix
+    // to get a clean item name key, then re-sum quantities.
+    const itemMap = new Map(); // key: clean item name → { qty, texts, autoNoted }
+
+    for (const p of itemPrizes) {
+        // Strip "(avg ...)" suffix added by dankDetection for display purposes
+        const textNoAvg = p.text.replace(/\s*\(avg ⏣[\d,]+\)/i, '').trim();
+
+        // Extract leading quantity and item name: "2 A Plus" → qty=2, name="A Plus"
+        const qtyMatch = textNoAvg.match(/^(\d+)\s+(.+)$/);
+        const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+        const name = qtyMatch ? qtyMatch[2].trim() : textNoAvg;
+
+        if (itemMap.has(name)) {
+            const entry = itemMap.get(name);
+            entry.qty += qty;
+            entry.texts.push(p.text); // keep originals for breakdown
+        } else {
+            itemMap.set(name, { qty, texts: [p.text], autoNoted: p.autoNoted });
+        }
+    }
+
+    for (const [name, entry] of itemMap) {
+        if (entry.texts.length === 1) {
+            // Only donated once — show original text unchanged
+            groups.push(entry.texts[0]);
+        } else {
+            // Donated multiple times — show merged quantity with breakdown
+            const breakdown = entry.texts.join(' + ');
+            groups.push(`${entry.qty} ${name} (${breakdown})`);
+        }
+    }
+
+    return groups.join(' + ') || 'Unknown';
 }
 
 function hasCoinPrize(prizes) {
@@ -176,7 +230,7 @@ async function sendEventEmbed(client, channel, member, prizes, eventType, requir
 
     let noteInfo = '';
     if (hasCoins && hasUnnoted) noteInfo = '\n> ⚠️ Coins were auto-noted. Some items need manual note (not in price cache).';
-    else if (hasUnnoted) noteInfo = '\n> ⚠️ Item donation — staff must set note manually (not in price cache).';
+    else if (hasUnnoted) noteInfo = '\n> ⚠️ Item donation — staff must set note manually (item not found in database).';
 
     const embed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650> Events Request')
@@ -402,7 +456,7 @@ async function handleDonationFlow(client, channelId, channel, userId, prizeText,
             session.promptMsg = null;
 
             const mergeMsg = await channel.send(
-                `<@${userId}> Another donation detected! Combining prizes. Re-asking the same question...`
+                `Another donation detected! Combining prizes. Re-asking the same question...`
             );
             setTimeout(() => mergeMsg.delete().catch(() => { }), 5000);
 
