@@ -26,6 +26,13 @@ const activeSessions = new Map();
 // ─── Sticky message tracking: channelId → { messageId } ──────────────────────
 const stickyMessages = new Map();
 
+// ─── Sticky debounce timers: channelId → setTimeout handle ───────────────────
+// Instead of sending a sticky on every message (causes 2-4 rapid stickies),
+// we wait 30 seconds of channel inactivity before posting. Each new message
+// resets the timer. Only one timer runs per channel at a time.
+const stickyTimers = new Map();
+const STICKY_DELAY_MS = 30_000; // 30 seconds of inactivity
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildPrizeString(prizes) {
@@ -51,26 +58,53 @@ function stripEmojiMarkup(text) {
 }
 
 // ─── Sticky message handler ───────────────────────────────────────────────────
+//
+// Debounced: resets a 30-second timer on every message. The sticky is only
+// posted after 30 seconds of silence in the channel. This prevents the
+// rapid-fire multi-sticky bug caused by several messages arriving at once.
 
-async function handleStickyMessage(channel, triggerMessage) {
+function handleStickyMessage(channel, triggerMessage) {
+    // Ignore Dank Memer messages — they shouldn't reset the timer or post stickies
     if (triggerMessage.author?.id === DANK_MEMER_BOT_ID) return;
 
+    // If the trigger IS the current sticky message, ignore it
     const existing = stickyMessages.get(channel.id);
     if (existing && triggerMessage.id === existing.messageId) return;
 
+    // If a flow session is active in this channel, don't post a sticky at all
     for (const session of activeSessions.values()) {
         if (session.channel.id === channel.id) return;
     }
 
-    if (existing) {
-        const old = await channel.messages.fetch(existing.messageId).catch(() => null);
-        if (old) await old.delete().catch(() => { });
-    }
+    // Clear any pending timer — we're resetting the 30s countdown
+    const existingTimer = stickyTimers.get(channel.id);
+    if (existingTimer) clearTimeout(existingTimer);
 
-    const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
-    if (newSticky) {
-        stickyMessages.set(channel.id, { messageId: newSticky.id });
-    }
+    // Schedule the sticky post after 30 seconds of inactivity
+    const timer = setTimeout(async () => {
+        stickyTimers.delete(channel.id);
+
+        // Re-check: if a session started while we were waiting, skip
+        for (const session of activeSessions.values()) {
+            if (session.channel.id === channel.id) return;
+        }
+
+        // Delete the old sticky if it exists
+        const current = stickyMessages.get(channel.id);
+        if (current) {
+            const old = await channel.messages.fetch(current.messageId).catch(() => null);
+            if (old) await old.delete().catch(() => { });
+            stickyMessages.delete(channel.id);
+        }
+
+        // Post the new sticky
+        const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
+        if (newSticky) {
+            stickyMessages.set(channel.id, { messageId: newSticky.id });
+        }
+    }, STICKY_DELAY_MS);
+
+    stickyTimers.set(channel.id, timer);
 }
 
 // ─── Staff embed senders ──────────────────────────────────────────────────────
