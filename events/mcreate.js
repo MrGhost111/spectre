@@ -1,3 +1,4 @@
+// events/mcreate.js
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder } = require('discord.js');
@@ -11,7 +12,9 @@ const {
     handleStickyMessage,
     GIVEAWAY_CHANNEL_ID,
     EVENT_CHANNEL_ID,
+    DANK_MEMER_BOT_ID,
 } = require('../Donations/donationFlow');
+const { handleDankMessage } = require('../Donations/dankDetection');
 
 require('dotenv').config();
 
@@ -19,7 +22,7 @@ let lastStickyMessageId = null;
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 
 const COUNTING_CHANNEL_ID = '1473339737044553953';
-const FLOW_CHANNEL_IDS    = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
+const FLOW_CHANNEL_IDS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
 
 module.exports = {
     name: 'messageCreate',
@@ -27,10 +30,19 @@ module.exports = {
         console.log(`📨 Message received: Guild=${message.guild?.name || 'DM'}, Author=${message.author.tag}, Bot=${message.author.bot}, Content="${message.content.substring(0, 50)}"`);
 
         if (message.author.bot) {
-            // ── Sticky: repost when any bot (including Dank Memer) sends in flow channels ──
-            // handleStickyMessage will skip internally if it's from Dank Memer
+            // ── Catch Dank Memer slash-command responses here ─────────────────
+            // Slash-command Dank Memer messages arrive fully formed on messageCreate.
+            // Text-command ones are caught on messageUpdate instead.
+            // The shared dedup Set in dankDetection.js ensures no double-processing.
+            if (message.author.id === DANK_MEMER_BOT_ID) {
+                await handleDankMessage(client, message).catch(e =>
+                    console.error('[MCREATE] handleDankMessage error:', e)
+                );
+            }
+
+            // ── Sticky: repost when any bot sends in flow channels ─────────────
             if (message.guild && FLOW_CHANNEL_IDS.has(message.channelId)) {
-                await handleStickyMessage(message.channel, message).catch(() => {});
+                await handleStickyMessage(message.channel, message).catch(() => { });
             }
             return;
         }
@@ -40,7 +52,7 @@ module.exports = {
 
         // ── Sticky message for flow channels ─────────────────────────────────
         if (message.guild && FLOW_CHANNEL_IDS.has(message.channelId)) {
-            await handleStickyMessage(message.channel, message).catch(() => {});
+            await handleStickyMessage(message.channel, message).catch(() => { });
         }
 
         // ===========================================
@@ -65,16 +77,16 @@ module.exports = {
                         return message.reply(`❌ Your story is missing the following words: **${validation.missingWords.join(', ')}**\n\nPlease include ALL 5 words: **${storyData.words.join(', ')}**\n\n💡 **Tip:** Send a new message with all the words included!`);
                     }
 
-                    const isUpdate      = storyData.submissions[message.author.id] !== undefined;
+                    const isUpdate = storyData.submissions[message.author.id] !== undefined;
                     const anonymousName = isUpdate
                         ? storyData.submissions[message.author.id].anonymousName
                         : generateAnonymousName();
 
                     storyData.submissions[message.author.id] = {
-                        story:         message.content,
+                        story: message.content,
                         anonymousName: anonymousName,
-                        timestamp:     Date.now(),
-                        messageId:     message.id,
+                        timestamp: Date.now(),
+                        messageId: message.id,
                     };
                     fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
 
@@ -106,7 +118,7 @@ module.exports = {
         // SPECTRE AI HANDLER
         // ===========================================
         const spectreKeywords = ['spectre', '@spectre'];
-        const lowerContent    = message.content.toLowerCase();
+        const lowerContent = message.content.toLowerCase();
 
         if (spectreKeywords.some(keyword => lowerContent.startsWith(keyword))) {
             let userMessage = message.content;
@@ -177,9 +189,9 @@ module.exports = {
             }
         }
 
-        const logChannelId            = '762404827698954260';
-        const faceRevealChannelId     = '721347947463180319';
-        const blacklistedCategories   = [
+        const logChannelId = '762404827698954260';
+        const faceRevealChannelId = '721347947463180319';
+        const blacklistedCategories = [
             '799997847931977749',
             '833240903611056198',
             '721337782546726932',
@@ -275,7 +287,7 @@ module.exports = {
             return;
         }
 
-        const args        = message.content.slice(prefix.length).trim().split(/ +/);
+        const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
 
         const command = client.textCommands.get(commandName) ||
@@ -294,8 +306,8 @@ module.exports = {
 
         if (commandName === 'lb') {
             const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
-            const donoLogs     = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
-            const sortedUsers  = Object.entries(donoLogs).sort(([, a], [, b]) => b - a).slice(0, 10);
+            const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
+            const sortedUsers = Object.entries(donoLogs).sort(([, a], [, b]) => b - a).slice(0, 10);
 
             if (sortedUsers.length === 0) return message.reply('No donation notes have been set yet!');
 
