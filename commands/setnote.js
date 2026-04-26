@@ -1,8 +1,8 @@
 // slashCommands/setnote.js
-// Usage: /setnote user:<@user> amount:<text> [note:<text>]
+// Usage: /setnote user:<@user> amount:<text> [event:<choice>] [note:<text>]
 // Requires a staff role.
-// Manually adds a donation amount to a user's total and updates milestone roles.
-// Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
+// Manually adds a donation amount to a user's total for the chosen event
+// and updates that event's milestone roles.
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const {
@@ -14,6 +14,8 @@ const {
     handleMilestoneRolesFull,
     getCurrentMilestone,
     getNextMilestone,
+    EVENT_LABELS,
+    EVENT_CURRENCY,
 } = require('../Donations/noteSystem');
 
 const STAFF_ROLE_IDS = [
@@ -25,6 +27,12 @@ const STAFF_ROLE_IDS = [
 
 function isStaffMember(member) {
     return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
+
+function fmtAmount(currency, amount) {
+    return amount >= 1_000_000
+        ? `${currency} ${formatFull(amount)} *(${formatNumber(amount)})*`
+        : `${currency} ${formatFull(amount)}`;
 }
 
 module.exports = {
@@ -45,6 +53,18 @@ module.exports = {
         )
         .addStringOption(option =>
             option
+                .setName('event')
+                .setDescription('Which event to add the donation for. Defaults to Dank Memer.')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'Dank Memer', value: 'dankmemer' },
+                    { name: 'Investor', value: 'investor' },
+                    { name: 'Karuta', value: 'karuta' },
+                    { name: 'OwO', value: 'owo' },
+                )
+        )
+        .addStringOption(option =>
+            option
                 .setName('note')
                 .setDescription('Optional staff note to attach.')
                 .setRequired(false)
@@ -58,8 +78,9 @@ module.exports = {
         }
 
         const targetUser = interaction.options.getUser('user');
-        const amountRaw  = interaction.options.getString('amount');
-        const noteText   = interaction.options.getString('note') ?? null;
+        const amountRaw = interaction.options.getString('amount');
+        const event = interaction.options.getString('event') ?? 'dankmemer';
+        const noteText = interaction.options.getString('note') ?? null;
 
         const amount = parseAmount(amountRaw);
         if (amount === null || amount <= 0) {
@@ -74,93 +95,98 @@ module.exports = {
             return interaction.editReply('Could not find that member in this server.');
         }
 
-        // ── Update data ───────────────────────────────────────────────────────
-        const data = loadDonations();
+        // ── Update data ──────────────────────────────────────────────────────
+        const data = loadDonations(event);
 
         if (!data[targetUser.id]) {
             data[targetUser.id] = {
-                note:         null,
-                noteSetBy:    null,
-                noteSetAt:    null,
+                note: null,
+                noteSetBy: null,
+                noteSetAt: null,
                 totalDonated: 0,
-                donations:    [],
+                donations: [],
             };
         }
 
-        const oldTotal     = data[targetUser.id].totalDonated || 0;
-        const oldMilestone = getCurrentMilestone(oldTotal);
+        const oldTotal = data[targetUser.id].totalDonated || 0;
+        const oldMilestone = getCurrentMilestone(oldTotal, event);
 
         data[targetUser.id].totalDonated = oldTotal + amount;
 
-        // Grab the deferred reply message so we can store a jump link
         const replyMessage = await interaction.fetchReply().catch(() => null);
 
         data[targetUser.id].donations.push({
             amount,
             timestamp: new Date().toISOString(),
-            addedBy:   interaction.user.id,
-            manual:    true,
+            addedBy: interaction.user.id,
+            manual: true,
             channelId: interaction.channelId,
             messageId: replyMessage?.id ?? null,
         });
 
         if (noteText !== null) {
-            data[targetUser.id].note      = noteText;
+            data[targetUser.id].note = noteText;
             data[targetUser.id].noteSetBy = interaction.user.id;
             data[targetUser.id].noteSetAt = new Date().toISOString();
         }
 
-        saveDonations(data);
+        saveDonations(data, event);
 
         const newTotal = data[targetUser.id].totalDonated;
+        const hasRoles = event !== 'owo';
+        const currency = EVENT_CURRENCY[event];
+        const eventLabel = EVENT_LABELS[event];
 
-        await handleMilestoneRolesFull(targetMember, newTotal);
-        const newMilestone  = getCurrentMilestone(newTotal);
-        const nextMilestone = getNextMilestone(newTotal);
-        const roleChanged   = oldMilestone?.roleId !== newMilestone?.roleId;
+        if (hasRoles) {
+            await handleMilestoneRolesFull(targetMember, newTotal, event);
+        }
 
-        // ── Confirmation embed ────────────────────────────────────────────────
+        const newMilestone = getCurrentMilestone(newTotal, event);
+        const nextMilestone = getNextMilestone(newTotal, event);
+        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
+
+        // ── Confirmation embed ───────────────────────────────────────────────
         const embed = new EmbedBuilder()
-            .setTitle('<:message:1000020218229305424>  Donation Added')
+            .setTitle(`<:message:1000020218229305424>  Donation Added — ${eventLabel}`)
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',                                                    value: `<@${targetUser.id}>`,                                                     inline: true },
-                { name: '<:upvote:1303963379945181224> Added',                     value: `⏣ ${formatFull(amount)}`,                                                 inline: true },
-                { name: '<:req:1000019378730975282> New Total',                    value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,                  inline: true },
-                { name: 'Added By',                                                value: `<@${interaction.user.id}>`,                                                inline: true },
+                { name: 'User', value: `<@${targetUser.id}>`, inline: true },
+                { name: '<:upvote:1303963379945181224> Added', value: fmtAmount(currency, amount), inline: true },
+                { name: '<:req:1000019378730975282> New Total', value: fmtAmount(currency, newTotal), inline: true },
+                { name: 'Added By', value: `<@${interaction.user.id}>`, inline: true },
             )
             .setTimestamp();
 
-        if (nextMilestone) {
+        if (hasRoles && nextMilestone) {
             const needed = nextMilestone.amount - newTotal;
             embed.addFields({
-                name:   '<:purpledot:860074414853586984> Next Milestone',
-                value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
+                name: '<:purpledot:860074414853586984> Next Milestone',
+                value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
                 inline: false,
             });
-        } else {
+        } else if (hasRoles && !nextMilestone) {
             embed.addFields({
-                name:   '<:winners:1000018706874781806> Milestone',
-                value:  'Max milestone reached!',
+                name: '<:winners:1000018706874781806> Milestone',
+                value: 'Max milestone reached!',
                 inline: false,
             });
         }
 
-        if (roleChanged) {
+        if (hasRoles && roleChanged) {
             const oldLabel = oldMilestone ? `<@&${oldMilestone.roleId}>` : 'None';
             const newLabel = newMilestone ? `<@&${newMilestone.roleId}>` : 'None';
             embed.addFields({
-                name:   '<:upvote:1303963379945181224> Role Updated',
-                value:  `${oldLabel} → ${newLabel}`,
+                name: '<:upvote:1303963379945181224> Role Updated',
+                value: `${oldLabel} → ${newLabel}`,
                 inline: false,
             });
         }
 
         if (noteText !== null) {
             embed.addFields({
-                name:   '<:message:1000020218229305424> Note Set',
-                value:  noteText,
+                name: '<:message:1000020218229305424> Note Set',
+                value: noteText,
                 inline: false,
             });
         }
