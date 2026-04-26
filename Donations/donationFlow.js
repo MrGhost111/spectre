@@ -112,12 +112,15 @@ function handleStickyMessage(channel, triggerMessage) {
 async function sendGiveawayEmbed(client, channel, member, prizes, time, winners, message) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
-    const hasItems = prizes.some(p => !p.isCoins);
     const prizeStr = buildPrizeString(prizes);
 
+    // Only warn about items that were NOT auto-noted (i.e. not in price cache)
+    const itemsNeedingManualNote = prizes.filter(p => !p.isCoins && !p.autoNoted);
+    const hasUnnoted = itemsNeedingManualNote.length > 0;
+
     let noteInfo = '';
-    if (hasCoins && hasItems) noteInfo = '\n> ⚠️ Coins were auto-added to donations. Items need manual note.';
-    else if (hasItems) noteInfo = '\n> ⚠️ Item donation — staff must set note manually.';
+    if (hasCoins && hasUnnoted) noteInfo = '\n> ⚠️ Coins were auto-noted. Some items need manual note (not in price cache).';
+    else if (hasUnnoted) noteInfo = '\n> ⚠️ Item donation — staff must set note manually (not in price cache).';
 
     const embed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650> Giveaway Request')
@@ -139,12 +142,14 @@ async function sendGiveawayEmbed(client, channel, member, prizes, time, winners,
 async function sendHeistEmbed(client, channel, member, prizes, message) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
-    const hasItems = prizes.some(p => !p.isCoins);
     const prizeStr = buildPrizeString(prizes);
 
+    const itemsNeedingManualNote = prizes.filter(p => !p.isCoins && !p.autoNoted);
+    const hasUnnoted = itemsNeedingManualNote.length > 0;
+
     let noteInfo = '';
-    if (hasCoins && hasItems) noteInfo = '\n> ⚠️ Coins were auto-added to donations. Items need manual note.';
-    else if (hasItems) noteInfo = '\n> ⚠️ Item donation — staff must set note manually.';
+    if (hasCoins && hasUnnoted) noteInfo = '\n> ⚠️ Coins were auto-noted. Some items need manual note (not in price cache).';
+    else if (hasUnnoted) noteInfo = '\n> ⚠️ Item donation — staff must set note manually (not in price cache).';
 
     const embed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650> Heist Request')
@@ -164,12 +169,14 @@ async function sendHeistEmbed(client, channel, member, prizes, message) {
 async function sendEventEmbed(client, channel, member, prizes, eventType, requirement, message) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
-    const hasItems = prizes.some(p => !p.isCoins);
     const prizeStr = buildPrizeString(prizes);
 
+    const itemsNeedingManualNote = prizes.filter(p => !p.isCoins && !p.autoNoted);
+    const hasUnnoted = itemsNeedingManualNote.length > 0;
+
     let noteInfo = '';
-    if (hasCoins && hasItems) noteInfo = '\n> ⚠️ Coins were auto-added to donations. Items need manual note.';
-    else if (hasItems) noteInfo = '\n> ⚠️ Item donation — staff must set note manually.';
+    if (hasCoins && hasUnnoted) noteInfo = '\n> ⚠️ Coins were auto-noted. Some items need manual note (not in price cache).';
+    else if (hasUnnoted) noteInfo = '\n> ⚠️ Item donation — staff must set note manually (not in price cache).';
 
     const embed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650> Events Request')
@@ -356,8 +363,13 @@ async function runEventFlowSafe(client, session) {
 }
 
 async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
-    // skipHeistQuestion is true when the donation was an item (items → always event flow)
-    const flowType = skipHeistQuestion ? 'event' : await askHeistOrEventWithMerge(session);
+    // Re-evaluate skipHeistQuestion using ALL prizes collected so far (including merges).
+    // If any prize is an item, we skip the heist/event question entirely — heists are
+    // always coin donations, so an item prize means it must be an event.
+    const hasAnyItem = session.prizes.some(p => !p.isCoins);
+    const shouldSkip = skipHeistQuestion || hasAnyItem;
+
+    const flowType = shouldSkip ? 'event' : await askHeistOrEventWithMerge(session);
     if (flowType === null) return;
 
     if (flowType === 'heist') {
@@ -369,17 +381,20 @@ async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
-async function handleDonationFlow(client, channelId, channel, userId, prizeText, isCoins, coinAmount) {
+async function handleDonationFlow(client, channelId, channel, userId, prizeText, isCoins, coinAmount, autoNoted = false) {
     const isGiveaway = channelId === GIVEAWAY_CHANNEL_ID;
     const isEvent = channelId === EVENT_CHANNEL_ID;
     if (!isGiveaway && !isEvent) return;
 
-    const newPrize = { text: prizeText, isCoins, amount: coinAmount };
+    // autoNoted: true means dankDetection already called recordDonation for this prize,
+    // so the staff embed should NOT show a "needs manual note" warning for it.
+    const newPrize = { text: prizeText, isCoins, amount: coinAmount, autoNoted };
 
     if (activeSessions.has(userId)) {
         const session = activeSessions.get(userId);
         clearTimeout(session.timer);
         session.timer = null;
+        // autoNoted is already set correctly by dankDetection before calling us
         session.prizes.push(newPrize);
 
         if (session.currentResolve) {

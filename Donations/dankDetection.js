@@ -254,20 +254,26 @@ async function handleDankMessage(client, message) {
     // BRANCH B — Giveaway / Event channel: auto-note + interactive flow
     // ═══════════════════════════════════════════════════════════════════════════
     if (isFlowChannel) {
+        // Track whether this prize was auto-noted so the staff embed knows
+        // not to warn about it needing a manual note.
+        let autoNoted = false;
+
         if (isCoins && coinAmount > 0) {
             await recordDonation(client, donorId, coinAmount, message.channel, message);
+            autoNoted = true;
             console.log(`[DankDetect] ✅ Coins auto-noted for ${donorId} in flow channel`);
         } else if (!isCoins && rawItemName) {
             const cached = getItemPrice(rawItemName);
             if (cached) {
                 await recordDonation(client, donorId, cached.marketAvgValue, message.channel, message);
+                autoNoted = true;
                 console.log(`[DankDetect] ✅ Item auto-noted: "${rawItemName}" → ⏣ ${cached.marketAvgValue.toLocaleString()}`);
             } else {
                 console.log(`[DankDetect] ⚠️  No cached price for "${rawItemName}" — staff must note manually`);
             }
         }
 
-        handleDonationFlow(client, channelId, message.channel, donorId, prizeText, isCoins, coinAmount)
+        handleDonationFlow(client, channelId, message.channel, donorId, prizeText, isCoins, coinAmount, autoNoted)
             .catch(e => console.error('[DankDetect] handleDonationFlow error:', e));
         return;
     }
