@@ -1,9 +1,4 @@
 // slashCommands/removenote.js
-// Usage: /removenote user:<@user> amount:<text> [event:<choice>] [note:<text>]
-// Requires a staff role.
-// Manually removes a donation amount from a user's total for the chosen event
-// (floors at 0) and updates that event's milestone roles.
-
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const {
     loadDonations,
@@ -14,6 +9,7 @@ const {
     handleMilestoneRolesFull,
     getCurrentMilestone,
     getNextMilestone,
+    getAllRolesUpTo,
     EVENT_LABELS,
     EVENT_CURRENCY,
 } = require('../Donations/noteSystem');
@@ -109,9 +105,9 @@ module.exports = {
         }
 
         const oldTotal = data[targetUser.id].totalDonated || 0;
+        const oldRoleIds = getAllRolesUpTo(oldTotal, event).map(m => m.roleId);
         const actualRemoved = Math.min(amount, oldTotal);
         const newTotal = Math.max(0, oldTotal - amount);
-        const oldMilestone = getCurrentMilestone(oldTotal, event);
 
         data[targetUser.id].totalDonated = newTotal;
 
@@ -142,9 +138,10 @@ module.exports = {
             await handleMilestoneRolesFull(targetMember, newTotal, event);
         }
 
-        const newMilestone = getCurrentMilestone(newTotal, event);
+        const newRoleIds = getAllRolesUpTo(newTotal, event).map(m => m.roleId);
         const nextMilestone = getNextMilestone(newTotal, event);
-        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
+        const gained = newRoleIds.filter(id => !oldRoleIds.includes(id));
+        const lost = oldRoleIds.filter(id => !newRoleIds.includes(id));
 
         // ── Confirmation embed ───────────────────────────────────────────────
         const embed = new EmbedBuilder()
@@ -182,12 +179,13 @@ module.exports = {
             });
         }
 
-        if (hasRoles && roleChanged) {
-            const oldLabel = oldMilestone ? `<@&${oldMilestone.roleId}>` : 'None';
-            const newLabel = newMilestone ? `<@&${newMilestone.roleId}>` : 'None';
+        if (hasRoles && (gained.length > 0 || lost.length > 0)) {
+            const lines = [];
+            if (gained.length) lines.push(`**Gained:** ${gained.map(id => `<@&${id}>`).join(' ')}`);
+            if (lost.length) lines.push(`**Lost:** ${lost.map(id => `<@&${id}>`).join(' ')}`);
             embed.addFields({
-                name: '<:downvote:1303963004915679232> Role Updated',
-                value: `${oldLabel} → ${newLabel}`,
+                name: '<:downvote:1303963004915679232> Roles Updated',
+                value: lines.join('\n'),
                 inline: false,
             });
         }

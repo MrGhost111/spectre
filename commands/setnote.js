@@ -1,9 +1,4 @@
 // slashCommands/setnote.js
-// Usage: /setnote user:<@user> amount:<text> [event:<choice>] [note:<text>]
-// Requires a staff role.
-// Manually adds a donation amount to a user's total for the chosen event
-// and updates that event's milestone roles.
-
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const {
     loadDonations,
@@ -14,6 +9,7 @@ const {
     handleMilestoneRolesFull,
     getCurrentMilestone,
     getNextMilestone,
+    getAllRolesUpTo,
     EVENT_LABELS,
     EVENT_CURRENCY,
 } = require('../Donations/noteSystem');
@@ -109,7 +105,7 @@ module.exports = {
         }
 
         const oldTotal = data[targetUser.id].totalDonated || 0;
-        const oldMilestone = getCurrentMilestone(oldTotal, event);
+        const oldRoleIds = getAllRolesUpTo(oldTotal, event).map(m => m.roleId);
 
         data[targetUser.id].totalDonated = oldTotal + amount;
 
@@ -141,9 +137,10 @@ module.exports = {
             await handleMilestoneRolesFull(targetMember, newTotal, event);
         }
 
-        const newMilestone = getCurrentMilestone(newTotal, event);
+        const newRoleIds = getAllRolesUpTo(newTotal, event).map(m => m.roleId);
         const nextMilestone = getNextMilestone(newTotal, event);
-        const roleChanged = oldMilestone?.roleId !== newMilestone?.roleId;
+        const gained = newRoleIds.filter(id => !oldRoleIds.includes(id));
+        const lost = oldRoleIds.filter(id => !newRoleIds.includes(id));
 
         // ── Confirmation embed ───────────────────────────────────────────────
         const embed = new EmbedBuilder()
@@ -165,7 +162,7 @@ module.exports = {
                 value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
                 inline: false,
             });
-        } else if (hasRoles && !nextMilestone) {
+        } else if (hasRoles && !nextMilestone && newTotal > 0) {
             embed.addFields({
                 name: '<:winners:1000018706874781806> Milestone',
                 value: 'Max milestone reached!',
@@ -173,12 +170,13 @@ module.exports = {
             });
         }
 
-        if (hasRoles && roleChanged) {
-            const oldLabel = oldMilestone ? `<@&${oldMilestone.roleId}>` : 'None';
-            const newLabel = newMilestone ? `<@&${newMilestone.roleId}>` : 'None';
+        if (hasRoles && (gained.length > 0 || lost.length > 0)) {
+            const lines = [];
+            if (gained.length) lines.push(`**Gained:** ${gained.map(id => `<@&${id}>`).join(' ')}`);
+            if (lost.length) lines.push(`**Lost:** ${lost.map(id => `<@&${id}>`).join(' ')}`);
             embed.addFields({
-                name: '<:upvote:1303963379945181224> Role Updated',
-                value: `${oldLabel} → ${newLabel}`,
+                name: '<:upvote:1303963379945181224> Roles Updated',
+                value: lines.join('\n'),
                 inline: false,
             });
         }

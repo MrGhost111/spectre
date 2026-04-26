@@ -1,66 +1,46 @@
 // Donations/noteSystem.js
-// Core logic for the global donation tracking & notes system.
-// Completely separate from the Money Makers weekly system.
-//
-// Supports multiple event types: dankmemer (default), investor, karuta, owo.
-// All existing behaviour is preserved — only the file I/O, milestone helpers,
-// and role handlers now accept an optional `event` parameter.
-
 const { EmbedBuilder } = require('discord.js');
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-
 const DONATION_LOG_CHANNEL_ID = '853991066042368020';
-
-const DANK_MEMER_BOT_ID      = '270904126974590976';
+const DANK_MEMER_BOT_ID = '270904126974590976';
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EVENT CONFIG
-// ─────────────────────────────────────────────────────────────────────────────
 
 const EVENT_FILES = {
     dankmemer: path.join(__dirname, '..', 'data', 'donations.json'),
-    investor:  path.join(__dirname, '..', 'data', 'investor.json'),
-    karuta:    path.join(__dirname, '..', 'data', 'karuta.json'),
-    owo:       path.join(__dirname, '..', 'data', 'owo.json'),
+    investor: path.join(__dirname, '..', 'data', 'investor.json'),
+    karuta: path.join(__dirname, '..', 'data', 'karuta.json'),
+    owo: path.join(__dirname, '..', 'data', 'owo.json'),
 };
 
 const EVENT_LABELS = {
     dankmemer: 'Dank Memer',
-    investor:  'Investor',
-    karuta:    'Karuta',
-    owo:       'OwO',
+    investor: 'Investor',
+    karuta: 'Karuta',
+    owo: 'OwO',
 };
 
 const EVENT_CURRENCY = {
     dankmemer: '⏣',
-    investor:  '<a:cash:1498053763183808543>',
-    karuta:    '🎟️',
-    owo:       '<:hc_cowoncy:1498053388775194675>',
+    investor: '<a:cash:1498053763183808543>',
+    karuta: '🎟️',
+    owo: '<:hc_cowoncy:1498053388775194675>',
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MILESTONE ROLES  (per event, ordered descending — highest first)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const MILESTONE_ROLES = {
     dankmemer: [
         { amount: 10_000_000_000, roleId: '1349716423706148894' },
-        { amount:  5_000_000_000, roleId: '946729964328337408'  },
-        { amount:  2_500_000_000, roleId: '768449168297033769'  },
-        { amount:  1_000_000_000, roleId: '768448955804811274'  },
-        { amount:    500_000_000, roleId: '768448715119263774'  },
-        { amount:    250_000_000, roleId: '768448459484692490'  },
-        { amount:    100_000_000, roleId: '768448257495531570'  },
-        { amount:     50_000_000, roleId: '764862842695712770'  },
-        { amount:     25_000_000, roleId: '764862737590910977'  },
-        { amount:     10_000_000, roleId: '924267631761055754'  },
-        { amount:      1_000_000, roleId: '924267243825659945'  },
+        { amount: 5_000_000_000, roleId: '946729964328337408' },
+        { amount: 2_500_000_000, roleId: '768449168297033769' },
+        { amount: 1_000_000_000, roleId: '768448955804811274' },
+        { amount: 500_000_000, roleId: '768448715119263774' },
+        { amount: 250_000_000, roleId: '768448459484692490' },
+        { amount: 100_000_000, roleId: '768448257495531570' },
+        { amount: 50_000_000, roleId: '764862842695712770' },
+        { amount: 25_000_000, roleId: '764862737590910977' },
+        { amount: 10_000_000, roleId: '924267631761055754' },
+        { amount: 1_000_000, roleId: '924267243825659945' },
     ],
     investor: [
         { amount: 100, roleId: '866641313754251297' },
@@ -127,18 +107,18 @@ function parseAmount(input) {
     const match = s.match(/^([\d.]+)\s*(k|m|mil|million|b|bil|billion)?$/);
     if (!match) return null;
 
-    const num    = parseFloat(match[1]);
+    const num = parseFloat(match[1]);
     const suffix = match[2] ?? '';
 
     if (isNaN(num) || num < 0) return null;
 
     const multipliers = {
-        k:       1_000,
-        m:       1_000_000,
-        mil:     1_000_000,
+        k: 1_000,
+        m: 1_000_000,
+        mil: 1_000_000,
         million: 1_000_000,
-        b:       1_000_000_000,
-        bil:     1_000_000_000,
+        b: 1_000_000_000,
+        bil: 1_000_000_000,
         billion: 1_000_000_000,
     };
 
@@ -152,8 +132,8 @@ function parseAmount(input) {
 
 function formatNumber(num) {
     if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-    if (num >= 1_000_000)     return `${(num / 1_000_000).toFixed(2)}M`;
-    if (num >= 1_000)         return `${(num / 1_000).toFixed(1)}K`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
     return num.toString();
 }
 
@@ -178,15 +158,6 @@ function getNextMilestone(total, event = 'dankmemer') {
     return above.length ? above[above.length - 1] : null;
 }
 
-function getBaselineFromRoles(member, event = 'dankmemer') {
-    for (const milestone of getMilestones(event)) {
-        if (member.roles.cache.has(milestone.roleId)) {
-            return milestone.amount;
-        }
-    }
-    return 0;
-}
-
 function getAllRolesUpTo(amount, event = 'dankmemer') {
     return getMilestones(event).filter(m => m.amount <= amount);
 }
@@ -195,15 +166,10 @@ function getAllRolesUpTo(amount, event = 'dankmemer') {
 // ROLE HANDLERS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Used by auto-detection (recordDonation) — only ever adds, never removes.
 async function handleMilestoneRolesUpgradeOnly(member, totalDonated, event = 'dankmemer') {
-    const discordFloor   = getBaselineFromRoles(member, event);
-    const effectiveTotal = Math.max(totalDonated, discordFloor);
-
-    const target = getCurrentMilestone(effectiveTotal, event);
-    if (!target) return null;
-
-    const rolesToHave = getAllRolesUpTo(effectiveTotal, event);
-    let   topAdded    = null;
+    const rolesToHave = getAllRolesUpTo(totalDonated, event);
+    let topAdded = null;
 
     for (const milestone of rolesToHave) {
         if (!member.roles.cache.has(milestone.roleId)) {
@@ -217,47 +183,34 @@ async function handleMilestoneRolesUpgradeOnly(member, totalDonated, event = 'da
     return topAdded;
 }
 
+// Used by setnote / removenote — adds AND removes to match the exact stack.
+// Uses totalDonated directly — no Discord role baseline seeding so removals work correctly.
 async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer') {
-    const allRoleIds = getMilestones(event).map(m => m.roleId);
+    const allMilestones = getMilestones(event);
+    if (allMilestones.length === 0) return null;
 
-    const discordFloor   = getBaselineFromRoles(member, event);
-    const effectiveTotal = Math.max(totalDonated, discordFloor);
+    const rolesToHave = new Set(getAllRolesUpTo(totalDonated, event).map(m => m.roleId));
+    const allRoleIds = allMilestones.map(m => m.roleId);
 
-    const target = getCurrentMilestone(effectiveTotal, event);
-
-    if (!target) {
-        const currentMilestoneRoles = member.roles.cache.filter(r => allRoleIds.includes(r.id));
-        for (const [roleId] of currentMilestoneRoles) {
+    // Remove any milestone roles the member should no longer have
+    for (const roleId of allRoleIds) {
+        if (!rolesToHave.has(roleId) && member.roles.cache.has(roleId)) {
             await member.roles.remove(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to remove role ${roleId}:`, e)
             );
         }
-        return currentMilestoneRoles.size > 0 ? { roleId: null, removed: true } : null;
     }
 
-    const rolesToHave   = new Set(getAllRolesUpTo(effectiveTotal, event).map(m => m.roleId));
-    const rolesToRemove = getMilestones(event).filter(m => !rolesToHave.has(m.roleId));
-    let   changed       = false;
-
-    for (const milestone of rolesToRemove) {
-        if (member.roles.cache.has(milestone.roleId)) {
-            await member.roles.remove(milestone.roleId).catch(e =>
-                console.error(`[NoteSystem] Failed to remove role ${milestone.roleId}:`, e)
-            );
-            changed = true;
-        }
-    }
-
+    // Add any milestone roles the member is missing
     for (const roleId of rolesToHave) {
         if (!member.roles.cache.has(roleId)) {
             await member.roles.add(roleId).catch(e =>
                 console.error(`[NoteSystem] Failed to add role ${roleId}:`, e)
             );
-            changed = true;
         }
     }
 
-    return changed ? target : null;
+    return getCurrentMilestone(totalDonated, event);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -265,7 +218,7 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function recordDonation(client, donorId, donationAmount, sourceChannel = null, sourceMessage = null) {
-    const guild  = client.guilds.cache.first();
+    const guild = client.guilds.cache.first();
     const member = await guild?.members.fetch(donorId).catch(() => null);
     if (!member) {
         console.warn(`[NoteSystem] Member ${donorId} not found — skipping`);
@@ -273,30 +226,22 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
     }
 
     const event = 'dankmemer';
-    const data  = loadDonations(event);
+    const data = loadDonations(event);
 
     if (!data[donorId]) {
-        const baseline = getBaselineFromRoles(member, event);
+        const baseline = 0; // No seeding from roles — trust the JSON as source of truth
         data[donorId] = {
-            note:         null,
-            noteSetBy:    null,
-            noteSetAt:    null,
+            note: null,
+            noteSetBy: null,
+            noteSetAt: null,
             totalDonated: baseline,
-            donations:    baseline > 0 ? [{
-                amount:    baseline,
-                timestamp: new Date().toISOString(),
-                note:      'Baseline seeded from existing Discord role',
-                manual:    true,
-            }] : [],
+            donations: [],
         };
-        if (baseline > 0) {
-            console.log(`[NoteSystem] Seeded baseline ⏣ ${formatFull(baseline)} for ${donorId} from existing role`);
-        }
     }
 
     data[donorId].totalDonated = (data[donorId].totalDonated || 0) + donationAmount;
     data[donorId].donations.push({
-        amount:    donationAmount,
+        amount: donationAmount,
         timestamp: new Date().toISOString(),
         channelId: sourceMessage?.channelId ?? sourceChannel?.id ?? null,
         messageId: sourceMessage?.id ?? null,
@@ -305,9 +250,9 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
     saveDonations(data, event);
 
     const total = data[donorId].totalDonated;
-    const note  = data[donorId].note;
+    const note = data[donorId].note;
 
-    const newRole       = await handleMilestoneRolesUpgradeOnly(member, total, event);
+    const newRole = await handleMilestoneRolesUpgradeOnly(member, total, event);
     const nextMilestone = getNextMilestone(total, event);
 
     const logChannel = await client.channels.fetch(DONATION_LOG_CHANNEL_ID).catch(() => null);
@@ -321,17 +266,17 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         .setColor('#4c00b0')
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields(
-            { name: 'Donor',                                        value: `<@${donorId}>`,                                                    inline: true },
-            { name: '<:upvote:1303963379945181224> Amount',         value: `⏣ ${formatFull(donationAmount)}`,                                  inline: true },
-            { name: '<:req:1000019378730975282> Total',             value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`,                inline: true },
+            { name: 'Donor', value: `<@${donorId}>`, inline: true },
+            { name: '<:upvote:1303963379945181224> Amount', value: `⏣ ${formatFull(donationAmount)}`, inline: true },
+            { name: '<:req:1000019378730975282> Total', value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`, inline: true },
         )
         .setTimestamp();
 
     if (nextMilestone) {
         const needed = nextMilestone.amount - total;
         embed.addFields({
-            name:   '<:purpledot:860074414853586984> Next Milestone',
-            value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
+            name: '<:purpledot:860074414853586984> Next Milestone',
+            value: `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
             inline: false,
         });
     } else {
@@ -344,8 +289,8 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
 
     if (newRole) {
         embed.addFields({
-            name:   '<:winners:1000018706874781806> Role Unlocked!',
-            value:  `<@${donorId}> has reached <@&${newRole.roleId}>`,
+            name: '<:winners:1000018706874781806> Role Unlocked!',
+            value: `<@${donorId}> has reached <@&${newRole.roleId}>`,
             inline: false,
         });
     }
@@ -378,6 +323,7 @@ module.exports = {
     formatFull,
     getCurrentMilestone,
     getNextMilestone,
+    getAllRolesUpTo,
     handleMilestoneRolesFull,
     recordDonation,
     TRANSACTION_CHANNEL_ID,
