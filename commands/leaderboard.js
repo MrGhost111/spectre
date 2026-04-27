@@ -51,10 +51,10 @@ function buildSelectMenu(currentEvent) {
             .setCustomId('lb_event_select')
             .setPlaceholder('Select event leaderboard')
             .addOptions([
-                { label: 'Dank Memer', value: 'dankmemer', emoji: '⏣', default: currentEvent === 'dankmemer' },
-                { label: 'Investor', value: 'investor', emoji: '💰', default: currentEvent === 'investor' },
+                { label: 'Dank Memer', value: 'dankmemer', emoji: '<:PepeHappy:715539014412664873>', default: currentEvent === 'dankmemer' },
+                { label: 'Investor', value: 'investor', emoji: '<a:cash:1498053763183808543>', default: currentEvent === 'investor' },
                 { label: 'Karuta', value: 'karuta', emoji: '🎟️', default: currentEvent === 'karuta' },
-                { label: 'OwO', value: 'owo', emoji: '🌸', default: currentEvent === 'owo' },
+                { label: 'OwO', value: 'owo', emoji: '<:hc_cowoncy:1498053388775194675>', default: currentEvent === 'owo' },
             ])
     );
 }
