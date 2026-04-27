@@ -20,12 +20,7 @@ module.exports = {
                 return;
             }
 
-            // The guess command handles its own modal submissions
-            if (interaction.isModalSubmit() && interaction.customId.startsWith('answer_modal_')) {
-                return; // Handled by the guess.js command
-            }
-
-            // Handle other modal submissions
+            // Handle modal submissions
             if (interaction.isModalSubmit()) {
                 await handleModalSubmit(interaction);
                 return;
@@ -34,6 +29,10 @@ module.exports = {
             // Handle button interactions
             if (interaction.isButton()) {
                 console.log(`Button Interaction Detected: ${interaction.customId}`);
+
+                // Leaderboard buttons are handled by leaderboardInteraction.js
+                if (interaction.customId.startsWith('lb_')) return;
+
                 if (interaction.isMessageComponent() && interaction.customId.includes('confirm')) {
                     const message = interaction.message;
                     if (!client.trackedDonations?.has(message.id)) return;
@@ -78,12 +77,7 @@ module.exports = {
 
                     client.trackedDonations.delete(message.id);
                 }
-                // Skip the sound game buttons - they're handled in the guess.js
-                if (['play_new', 'replay', 'answer', 'leaderboard'].includes(interaction.customId)) {
-                    return; // These are handled in guess.js
-                }
 
-                // Handle other buttons with your existing code
                 if (interaction.customId === 'risk') {
                     return await interaction.client.muteManager.handleRiskButton(interaction);
                 } else if (interaction.customId === 'delete_snipe' || interaction.customId === 'delete_esnipe') {
@@ -94,12 +88,16 @@ module.exports = {
                     await handleLeaderboardButton(interaction);
                 } else if (interaction.customId === 'info') {
                     await handleInfoButton(interaction);
-                } else if (interaction.customId === 'risk') {
-                    await handleRiskButton(interaction);
                 } else if (['add_one', 'add_manual', 'remove_manual', 'view_logs', 'view_overall', 'reset_weekly'].includes(interaction.customId)) {
                     await handleActivityButtons(interaction);
                 }
             }
+
+            // Handle select menus — leaderboard ones are handled by leaderboardInteraction.js
+            if (interaction.isStringSelectMenu()) {
+                if (interaction.customId === 'lb_event_select') return;
+            }
+
         } catch (error) {
             if (error.name === 'InteractionAlreadyReplied') {
                 console.log('Interaction already acknowledged, ignoring:', error.message);
@@ -198,6 +196,7 @@ async function handleChannelButtons(interaction) {
         });
     }
 }
+
 async function updateEmbed(interaction, weeklyData) {
     const sortedUsers = Object.entries(weeklyData)
         .sort(([, a], [, b]) => b - a)
@@ -312,7 +311,6 @@ async function handleActivityButtons(interaction) {
                 return await interaction.reply({ content: 'You do not have permission to reset the weekly tracking.', ephemeral: true });
             }
 
-            // Ask for confirmation to reset
             const confirmEmbed = new EmbedBuilder()
                 .setTitle('Reset Weekly Tracking')
                 .setDescription('Are you sure you want to reset the weekly tracking? This action cannot be undone.')
@@ -334,10 +332,9 @@ async function handleActivityButtons(interaction) {
                 embeds: [confirmEmbed],
                 components: [confirmRow],
                 ephemeral: true,
-                fetchReply: true  // This ensures we get the message object back
+                fetchReply: true,
             });
 
-            // Define a collector for the confirmation message specifically
             const filter = i =>
                 ['confirm_reset_yes', 'confirm_reset_no', 'assign_role_yes', 'assign_role_no'].includes(i.customId) &&
                 i.user.id === interaction.user.id;
@@ -346,17 +343,13 @@ async function handleActivityButtons(interaction) {
 
             collector.on('collect', async i => {
                 if (i.customId === 'confirm_reset_yes') {
-                    // Save the current weekly data to a file before resetting
                     const weeklyPath = './data/weekly.json';
                     fs.writeFileSync(weeklyPath, JSON.stringify(activityData.weekly, null, 2));
 
-                    // Reset the weekly tracking
                     activityData.weekly = {};
-
                     fs.writeFileSync(activityLogsPath, JSON.stringify(activityData, null, 2));
                     await updateEmbed(interaction, activityData.weekly);
 
-                    // Notify user about reset and ask if they want to assign the role
                     const assignRoleEmbed = new EmbedBuilder()
                         .setTitle('Assign Ultimate Staff Host Role')
                         .setDescription('Do you want to assign the Ultimate Staff Host role to the top user?')
@@ -374,67 +367,38 @@ async function handleActivityButtons(interaction) {
 
                     const assignRoleRow = new ActionRowBuilder().addComponents(assignYesButton, assignNoButton);
 
-                    await i.update({
-                        embeds: [assignRoleEmbed],
-                        components: [assignRoleRow]
-                    });
+                    await i.update({ embeds: [assignRoleEmbed], components: [assignRoleRow] });
 
                 } else if (i.customId === 'confirm_reset_no') {
-                    await i.update({
-                        content: 'Reset action has been canceled.',
-                        embeds: [],
-                        components: []
-                    });
+                    await i.update({ content: 'Reset action has been canceled.', embeds: [], components: [] });
 
                 } else if (i.customId === 'assign_role_yes') {
                     const weeklyPath = './data/weekly.json';
                     const savedWeeklyData = JSON.parse(fs.readFileSync(weeklyPath, 'utf8'));
-                    const topUser = Object.entries(savedWeeklyData)
-                        .sort(([, a], [, b]) => b - a)[0];
+                    const topUser = Object.entries(savedWeeklyData).sort(([, a], [, b]) => b - a)[0];
 
                     if (topUser) {
                         const topUserId = topUser[0];
                         const topMember = await interaction.guild.members.fetch(topUserId);
                         if (topMember) {
                             await topMember.roles.add('713452411720827013');
-                            await i.update({
-                                content: 'Ultimate Staff Host role has been assigned to the top user!',
-                                embeds: [],
-                                components: []
-                            });
+                            await i.update({ content: 'Ultimate Staff Host role has been assigned to the top user!', embeds: [], components: [] });
                         } else {
-                            await i.update({
-                                content: 'Top user not found in the guild!',
-                                embeds: [],
-                                components: []
-                            });
+                            await i.update({ content: 'Top user not found in the guild!', embeds: [], components: [] });
                         }
                     } else {
-                        await i.update({
-                            content: 'No top user found to assign the role to.',
-                            embeds: [],
-                            components: []
-                        });
+                        await i.update({ content: 'No top user found to assign the role to.', embeds: [], components: [] });
                     }
 
                 } else if (i.customId === 'assign_role_no') {
-                    await i.update({
-                        content: 'Ultimate Staff Host role assignment has been skipped.',
-                        embeds: [],
-                        components: []
-                    });
+                    await i.update({ content: 'Ultimate Staff Host role assignment has been skipped.', embeds: [], components: [] });
                 }
             });
 
             collector.on('end', async (collected, reason) => {
                 if (reason === 'time') {
-                    // Only try to edit if the message hasn't been modified
                     try {
-                        await confirmMessage.edit({
-                            content: 'Confirmation timed out.',
-                            components: [],
-                            embeds: []
-                        });
+                        await confirmMessage.edit({ content: 'Confirmation timed out.', components: [], embeds: [] });
                     } catch (error) {
                         console.error('Error updating timed out message:', error);
                     }
@@ -467,7 +431,6 @@ async function handleModalSubmit(interaction) {
                 return await interaction.followUp({ content: 'Please provide a valid channel name.', ephemeral: true });
             }
 
-            // Check if user already has a channel
             const hasChannel = Object.values(channelsData).some(entry =>
                 entry.userId === interaction.user.id && entry.channelId && entry.createdAt
             );
@@ -502,7 +465,6 @@ async function handleModalSubmit(interaction) {
                         continue;
                     }
 
-                    // Create channel with inherited permissions
                     channel = await interaction.guild.channels.create({
                         name: channelName,
                         type: ChannelType.GuildText,
@@ -536,13 +498,9 @@ async function handleModalSubmit(interaction) {
                 } else {
                     errorMessage += 'All categories are either full or unavailable.';
                 }
-                return await interaction.followUp({
-                    content: errorMessage,
-                    ephemeral: true
-                });
+                return await interaction.followUp({ content: errorMessage, ephemeral: true });
             }
 
-            // Save channel data in the correct format
             const channelData = {
                 userId: interaction.user.id,
                 channelId: channel.id,
@@ -550,33 +508,15 @@ async function handleModalSubmit(interaction) {
                 friends: []
             };
 
-            // Add new channel data to channels.json
             channelsData[interaction.user.id] = channelData;
-
-            // Save updated data to file
             fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2));
 
             await interaction.followUp({
                 content: `Channel ${channel} has been created successfully!`,
                 ephemeral: true
             });
-        }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        else if (interaction.customId === 'rename_channel_modal') {
+        } else if (interaction.customId === 'rename_channel_modal') {
             try {
                 const newChannelName = interaction.fields.getTextInputValue('new_channel_name_input');
 
@@ -607,22 +547,8 @@ async function handleModalSubmit(interaction) {
                 });
             }
         }
-    }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
+    } else if (interaction.customId === 'add_manual_modal' || interaction.customId === 'remove_manual_modal') {
         const activityLogsPath = path.join(__dirname, '../data/activityLogs.json');
         const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
         let activityData = JSON.parse(fs.readFileSync(activityLogsPath, 'utf8'));
@@ -747,7 +673,6 @@ async function handleLeaderboardButton(interaction) {
 
         const fetchedUser = await interaction.client.users.fetch(user.userId).catch(() => null);
         const userTag = fetchedUser ? fetchedUser.tag : 'Unknown User';
-
         const userEmoji = interaction.user.id === user.userId ? '<:sweg:1010054002202906634>' : '';
 
         return `${rankEmoji} ┊ ${userTag} - ${user.streak} ${userEmoji}`;
@@ -763,11 +688,10 @@ async function handleLeaderboardButton(interaction) {
 
     await interaction.reply({ embeds: [lbEmbed], ephemeral: true });
 }
+
 async function handleInfoButton(interaction) {
-    // Get member roles
     const memberRoles = interaction.member.roles.cache;
 
-    // Base roles with their luck values
     const baseRoles = {
         '1349716423706148894': 80,
         '866641313754251297': 75,
@@ -787,7 +711,6 @@ async function handleInfoButton(interaction) {
         '721331975847411754': 65,
     };
 
-    // Booster roles with their luck bonuses
     const boosterRoles = {
         '1038888209440067604': 5,
         '721331975847411754': 5,
@@ -800,7 +723,6 @@ async function handleInfoButton(interaction) {
     let boosterLuck = 0;
     let contributingRoles = [];
 
-    // Calculate base role luck
     for (const [roleId, luckValue] of Object.entries(baseRoles)) {
         if (memberRoles.has(roleId)) {
             if (luckValue > luck) {
@@ -810,7 +732,6 @@ async function handleInfoButton(interaction) {
         }
     }
 
-    // Calculate booster role luck
     for (const [roleId, boostValue] of Object.entries(boosterRoles)) {
         if (memberRoles.has(roleId)) {
             boosterLuck += boostValue;
@@ -818,7 +739,6 @@ async function handleInfoButton(interaction) {
         }
     }
 
-    // Get user streak from streaks.json
     const streaksPath = path.join(__dirname, '../data/streaks.json');
     let streakBonus = 0;
     let userStreak = 0;
@@ -830,7 +750,6 @@ async function handleInfoButton(interaction) {
 
         if (userStreakData) {
             userStreak = userStreakData.streak;
-            // 1% bonus for every 10 streak points
             streakBonus = Math.floor(userStreak / 10);
 
             if (streakBonus > 0) {
@@ -841,14 +760,12 @@ async function handleInfoButton(interaction) {
         console.error('Error reading streaks data:', error);
     }
 
-    // Calculate total luck with streak bonus
     const totalLuck = Math.min(luck + boosterLuck + streakBonus, 100);
 
     if (!highestBaseRole) {
         contributingRoles.push('No base luck roles assigned.');
     }
 
-    // Create and send the embed
     const luckEmbed = new EmbedBuilder()
         .setTitle('Luck Information')
         .setColor(0x6666FF)
