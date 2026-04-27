@@ -1,19 +1,24 @@
 ﻿// events/leaderboardInteraction.js
-
 const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
     require('../slashCommands/leaderboard')._helpers;
+
+const PAGE_SIZE = 10;
 
 module.exports = {
     name: 'interactionCreate',
     once: false,
+    async execute(interaction) {
+        const client = interaction.client;
 
-    async execute(client, interaction) {
         // ── Select menu — switch event ────────────────────────────────────────
         if (interaction.isStringSelectMenu() && interaction.customId === 'lb_event_select') {
             const cache = client._lbCache?.get(interaction.message.id);
 
             if (cache && interaction.user.id !== cache.interactionUserId) {
-                return interaction.reply({ content: 'Only the person who ran this command can switch tabs.', ephemeral: true });
+                return interaction.reply({
+                    content: 'Only the person who ran this command can switch tabs.',
+                    ephemeral: true,
+                });
             }
 
             const event = interaction.values[0];
@@ -28,9 +33,9 @@ module.exports = {
                 return;
             }
 
-            const totalPages = Math.ceil(sorted.length / 10);
+            const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
             const userIndex = sorted.findIndex(e => e.userId === interaction.user.id);
-            const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / 10);
+            const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
             const page = 0;
 
             const embed = buildLeaderboard(sorted, page, totalPages, interaction, event);
@@ -56,21 +61,27 @@ module.exports = {
         if (!id.startsWith('lb_')) return;
 
         const cache = client._lbCache?.get(interaction.message.id);
+
         if (!cache) {
-            return interaction.reply({ content: 'This leaderboard has expired. Run `/leaderboard` again.', ephemeral: true });
+            return interaction.reply({
+                content: 'This leaderboard has expired. Run `/leaderboard` again.',
+                ephemeral: true,
+            });
         }
 
         if (Date.now() > cache.expiresAt) {
             client._lbCache.delete(interaction.message.id);
-            return interaction.reply({ content: 'This leaderboard has expired. Run `/leaderboard` again.', ephemeral: true });
+            return interaction.reply({
+                content: 'This leaderboard has expired. Run `/leaderboard` again.',
+                ephemeral: true,
+            });
         }
 
         const { sorted, totalPages, userPage, event } = cache;
-
         const parts = id.split('_');
         const currentPage = parseInt(parts[parts.length - 1], 10);
-
         let newPage = currentPage;
+
         if (id.startsWith('lb_first_')) newPage = 0;
         if (id.startsWith('lb_prev_')) newPage = Math.max(0, currentPage - 1);
         if (id.startsWith('lb_next_')) newPage = Math.min(totalPages - 1, currentPage + 1);
