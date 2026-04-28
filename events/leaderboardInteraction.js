@@ -1,6 +1,6 @@
 ﻿// events/leaderboardInteraction.js
 const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
-    require('../slashCommands/leaderboard')._helpers;
+    require('../commands/leaderboard')._helpers;
 
 const PAGE_SIZE = 10;
 
