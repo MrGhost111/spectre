@@ -6,77 +6,6 @@ const { formatFull, formatNumber } = require('../Donations/noteSystem');
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 const YOUR_USER_ID = '753491023208120321';
 
-const PAGE_SIZE = 10;
-
-// ─── Leaderboard helpers ────────────────────────────────────────────────────
-
-function buildLeaderboardEmbed(sorted, page, totalPages, requesterId) {
-    const start = page * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, sorted.length);
-    const entries = sorted.slice(start, end);
-
-    let description = '';
-    for (let i = 0; i < entries.length; i++) {
-        const rank = start + i + 1;
-        const { userId, total } = entries[i];
-        const isYou = userId === requesterId;
-
-        const prefix = rank === 1
-            ? '<:winners:1000018706874781806>'
-            : '<:purpledot:860074414853586984>';
-
-        const youTag = isYou ? ' **← you**' : '';
-        description += `${prefix} **#${rank}** <@${userId}> — ⏣ ${formatFull(total)} *(${formatNumber(total)})*${youTag}\n`;
-    }
-
-    return new EmbedBuilder()
-        .setTitle('<:lbtest:1064919048242090054>  Donation Leaderboard')
-        .setColor('#4c00b0')
-        .setDescription(description || 'No data.')
-        .setFooter({ text: `Page ${page + 1} of ${totalPages} • Showing #${start + 1}–#${end} of ${sorted.length} users` })
-        .setTimestamp();
-}
-
-function buildLeaderboardButtons(page, totalPages, userPage, requesterId, interactionUserId) {
-    const onFirstPage = page === 0;
-    const onLastPage  = page >= totalPages - 1;
-
-    // "My Rank" only works for the original command user
-    const isSameUser   = requesterId === interactionUserId;
-    const onUserPage   = page === userPage;
-    const myRankDisabled = !isSameUser || userPage === -1 || onUserPage;
-
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`lb_first_${page}`)
-            .setLabel('<<')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onFirstPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_prev_${page}`)
-            .setLabel('<')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onFirstPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_myrank_${page}`)
-            .setLabel('My Rank')
-            .setStyle(ButtonStyle.Primary)
-            .setDisabled(myRankDisabled),
-        new ButtonBuilder()
-            .setCustomId(`lb_next_${page}`)
-            .setLabel('>')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onLastPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_last_${page}`)
-            .setLabel('>>')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onLastPage),
-    );
-}
-
-// ─── Main handler ────────────────────────────────────────────────────────────
-
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -84,50 +13,17 @@ module.exports = {
         if (interaction.isButton()) {
             const customId = interaction.customId;
 
+            // ── Leaderboard buttons — handled by leaderboardInteraction.js ───
+            if (customId.startsWith('lb_')) return;
+
             // ── SpectreAI confirmation ───────────────────────────────────────
             if (customId.startsWith('confirm_')) {
                 const isConfirm = customId.endsWith('_confirm');
-                const isCancel  = customId.endsWith('_cancel');
+                const isCancel = customId.endsWith('_cancel');
                 if (isConfirm || isCancel) {
                     await spectreAI.handleConfirmation(interaction, isConfirm);
                     return;
                 }
-            }
-
-            // ── Leaderboard buttons ──────────────────────────────────────────
-            if (customId.startsWith('lb_')) {
-                const cache = client._lbCache?.get(interaction.message.id);
-
-                if (!cache) {
-                    return interaction.reply({
-                        content: '❌ This leaderboard has expired. Please run `/leaderboard` again.',
-                        ephemeral: true,
-                    });
-                }
-
-                // Prune expired cache entries periodically
-                if (client._lbCache) {
-                    for (const [id, entry] of client._lbCache.entries()) {
-                        if (Date.now() > entry.expiresAt) client._lbCache.delete(id);
-                    }
-                }
-
-                const { sorted, totalPages, userPage, interactionUserId } = cache;
-                const parts   = customId.split('_');   // ['lb', action, currentPage]
-                const action  = parts[1];
-                const current = parseInt(parts[2], 10);
-                let newPage   = current;
-
-                if (action === 'first')  newPage = 0;
-                if (action === 'prev')   newPage = Math.max(0, current - 1);
-                if (action === 'next')   newPage = Math.min(totalPages - 1, current + 1);
-                if (action === 'last')   newPage = totalPages - 1;
-                if (action === 'myrank') newPage = userPage >= 0 ? userPage : current;
-
-                const embed   = buildLeaderboardEmbed(sorted, newPage, totalPages, interactionUserId);
-                const buttons = buildLeaderboardButtons(newPage, totalPages, userPage, interaction.user.id, interactionUserId);
-
-                return interaction.update({ embeds: [embed], components: [buttons] });
             }
 
             // ── Story: Finish Submissions ────────────────────────────────────
@@ -192,8 +88,8 @@ module.exports = {
                     });
 
                     storyData.votingChannelId = channel.id;
-                    storyData.votingActive    = true;
-                    storyData.storyMessages   = {};
+                    storyData.votingActive = true;
+                    storyData.storyMessages = {};
                     fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
 
                     const introEmbed = new EmbedBuilder()
@@ -246,7 +142,7 @@ module.exports = {
             // ── Story: Vote ──────────────────────────────────────────────────
             if (customId.startsWith('story_vote_')) {
                 const authorId = customId.replace('story_vote_', '');
-                const voterId  = interaction.user.id;
+                const voterId = interaction.user.id;
 
                 const storyData = JSON.parse(fs.readFileSync(storyDataPath, 'utf8'));
 
@@ -352,7 +248,7 @@ module.exports = {
                 let resultsText = '**📊 Full Results:**\n\n';
                 for (let i = 0; i < sortedAuthors.length; i++) {
                     const [authorId, votes] = sortedAuthors[i];
-                    const data  = storyData.submissions[authorId];
+                    const data = storyData.submissions[authorId];
                     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '<:purpledot:860074414853586984>';
                     resultsText += `${medal} **${data.anonymousName}** (<@${authorId}>): ${votes} vote${votes === 1 ? '' : 's'}\n`;
                 }
@@ -370,7 +266,7 @@ module.exports = {
 
                 await interaction.editReply({ embeds: [winnerEmbed, resultsEmbed] });
 
-                storyData.active       = false;
+                storyData.active = false;
                 storyData.votingActive = false;
                 fs.writeFileSync(storyDataPath, JSON.stringify(storyData, null, 2), 'utf8');
 
@@ -387,6 +283,11 @@ module.exports = {
             if (customId === 'story_announce_cancel') {
                 return interaction.update({ content: '❌ Cancelled.', embeds: [], components: [] });
             }
+        }
+
+        // ── Select menus — leaderboard handled by leaderboardInteraction.js ──
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'lb_event_select') return;
         }
 
         // ── Slash commands ───────────────────────────────────────────────────
