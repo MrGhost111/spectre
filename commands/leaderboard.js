@@ -1,4 +1,4 @@
-// slashCommands/leaderboard.js
+// commands/leaderboard.js
 
 const {
     SlashCommandBuilder,
@@ -18,8 +18,8 @@ function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const entries = sorted.slice(start, end);
 
-    const currency = EVENT_CURRENCY[event];
-    const eventLabel = EVENT_LABELS[event];
+    const currency = EVENT_CURRENCY[event] ?? '';
+    const eventLabel = EVENT_LABELS[event] ?? event;
 
     let description = '';
     for (let i = 0; i < entries.length; i++) {
@@ -32,7 +32,6 @@ function buildLeaderboard(sorted, page, totalPages, interaction, event) {
             : formatFull(total);
 
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
-
         description += `\`#${String(rank).padStart(2, ' ')}\`  <@${userId}> — ${currency} ${totalFmt}${youTag}\n`;
     }
 
@@ -127,7 +126,7 @@ module.exports = {
         const selectRow = buildSelectMenu(event);
         const buttonRow = buildButtons(page, totalPages, userPage);
 
-        // editReply returns the Message directly — no fetchReply needed
+        // editReply() returns the Message directly in v14 and v15
         const reply = await interaction.editReply({
             embeds: [embed],
             components: [selectRow, buttonRow],
@@ -138,9 +137,9 @@ module.exports = {
             sorted,
             totalPages,
             userPage,
-            interactionUserId: interaction.user.id,
             event,
-            expiresAt: Date.now() + 10 * 60 * 1000,
+            page,
+            interactionUserId: interaction.user.id,
         });
     },
 };
