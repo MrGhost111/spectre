@@ -150,13 +150,18 @@ async function handleStickyMessage(channel, triggerMessage) {
             return; // Sticky is already at the bottom — don't repost
         }
 
-        // Delete old sticky
+        // Delete the old sticky ONLY if it's within the last 5 messages
         if (current) {
-            const old = await channel.messages.fetch(current.messageId).catch(() => null);
-            if (old) await old.delete().catch(() => { });
+            const messages = await channel.messages.fetch({ limit: 6 }).catch(() => null);
+            const recentIds = messages ? messages.map(m => m.id) : [];
+
+            if (recentIds.includes(current.messageId)) {
+                const old = await channel.messages.fetch(current.messageId).catch(() => null);
+                if (old) await old.delete().catch(() => { });
+            }
+
             stickyMessages.delete(channel.id);
         }
-
         // Post new sticky
         const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
         if (newSticky) {
