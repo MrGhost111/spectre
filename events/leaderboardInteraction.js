@@ -72,7 +72,7 @@ module.exports = {
 
             Object.assign(msgCache, { sorted, totalPages, userPage, event, page });
 
-            const { embed, selectRow, buttonRow } = buildComponents(
+            const { embed, selectRow, buttonRow } = await buildComponents(
                 { sorted, totalPages, userPage, event }, page, interaction
             );
             return interaction.update({ embeds: [embed], components: [selectRow, buttonRow] });
@@ -93,7 +93,7 @@ module.exports = {
 
             Object.assign(msgCache, { sorted, totalPages, userPage, event, page });
 
-            const { embed, selectRow, buttonRow } = buildComponents(
+            const { embed, selectRow, buttonRow } = await buildComponents(
                 { sorted, totalPages, userPage, event }, page, interaction
             );
             // update() edits their own ephemeral in-place
@@ -115,7 +115,7 @@ module.exports = {
                 page = resolveNewPage(customId, page, totalPages, userPage);
             }
 
-            const { embed, selectRow, buttonRow } = buildComponents(
+            const { embed, selectRow, buttonRow } = await buildComponents(
                 { sorted, totalPages, userPage, event }, page, interaction
             );
 
@@ -172,7 +172,7 @@ module.exports = {
             });
         }
 
-        const { embed, selectRow, buttonRow } = buildComponents(state, page, interaction);
+        const { embed, selectRow, buttonRow } = await buildComponents(state, page, interaction);
 
         // Park state in userCache as a fallback while we await the reply
         client._lbUserCache.set(userId, { ...state, page });
