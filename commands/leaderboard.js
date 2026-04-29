@@ -12,12 +12,14 @@ const {
 const { loadDonations, formatFull, EVENT_LABELS, EVENT_CURRENCY } = require('../Donations/noteSystem');
 
 const PAGE_SIZE = 10;
+const RICKROLL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
-// ANSI escape codes
-const R = '\u001b[0m';      // reset
-const GREY = '\u001b[2;37m';  // dim grey   — rank number + "you" marker
-const YELLOW = '\u001b[0;33m';  // yellow     — amount
-const WHITE = '\u001b[1;37m';  // bold white — name
+const DOTS = [
+    '<:orangedot:860074358092726312>',
+    '<:aquadot:860074237954883585>',
+    '<:purpledot:860074414853586984>',
+    '<:dot:1003254232943693855>',
+];
 
 async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const start = page * PAGE_SIZE;
@@ -27,7 +29,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const currency = EVENT_CURRENCY[event] ?? '';
     const eventLabel = EVENT_LABELS[event] ?? event;
 
-    // Fetch all members on this page in one batch to get display names
+    // Fetch all members on this page in one batch
     const members = new Map();
     await Promise.all(
         entries.map(({ userId }) =>
@@ -37,26 +39,25 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         )
     );
 
-    let ansiBody = '';
+    let description = '';
     for (let i = 0; i < entries.length; i++) {
         const rank = start + i + 1;
         const { userId, total } = entries[i];
         const isYou = userId === interaction.user.id;
         const member = members.get(userId);
-        const displayName = (member?.displayName ?? 'Unknown User').replace(/`/g, "'");
+        const displayName = member?.displayName ?? 'Unknown User';
+        const dot = DOTS[(rank - 1) % DOTS.length];
         const totalFmt = formatFull(total);
-        const youTag = isYou ? `  ${GREY}<- you${R}` : '';
+        const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
-       
-        ansiBody += `● ${GREY}${String(rank).padStart(2, ' ')}${R}   ${YELLOW}${currency} ${totalFmt}${R}   ${WHITE}${displayName}${R}${youTag}\n`;
+        // <dot>  1  ⏣ 90,443,570,000 - [name](rickroll)
+        description += `${dot}  ${rank}  ${currency} ${totalFmt} - [${displayName}](${RICKROLL})${youTag}\n`;
     }
-
-    const description = '```ansi\n' + ansiBody.trimEnd() + '\n```';
 
     return new EmbedBuilder()
         .setTitle(`<:lbtest:1064919048242090054>  ${eventLabel} Donation Leaderboard`)
         .setColor('#4c00b0')
-        .setDescription(description)
+        .setDescription(description || 'No donation data found.')
         .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
         .setTimestamp();
 }
