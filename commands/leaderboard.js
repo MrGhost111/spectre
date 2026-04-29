@@ -39,6 +39,9 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         )
     );
 
+    // Pad rank numbers to match the widest rank on this page (e.g. page 1 = 1-10, widest is "10")
+    const maxRankWidth = String(end).length;
+
     let description = '';
     for (let i = 0; i < entries.length; i++) {
         const rank = start + i + 1;
@@ -50,8 +53,11 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const totalFmt = formatFull(total);
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
-        // <dot>  1  ⏣ 90,443,570,000 - [name](rickroll)
-        description += `${rank} ${dot}  ${currency} ${totalFmt} - [${displayName}](${RICKROLL})${youTag}\n`;
+        // `1 ` or `10` — fixed width code span for alignment
+        const rankStr = String(rank).padStart(maxRankWidth, ' ');
+
+        // rank  dot  amount  dot  [name](rickroll)
+        description += `\`${rankStr}\` ${dot} ${currency} ${totalFmt} ${dot} [${displayName}](${RICKROLL})${youTag}\n`;
     }
 
     return new EmbedBuilder()
