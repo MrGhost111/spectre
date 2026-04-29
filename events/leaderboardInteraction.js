@@ -1,10 +1,10 @@
 ﻿// events/leaderboardInteraction.js
 const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
-    require('../commands/leaderboard')._helpers;
+    require('../slashCommands/leaderboard')._helpers;
 
 const PAGE_SIZE = 10;
 
-async function spawnEphemeralLeaderboard(interaction, event, page = 0) {
+async function spawnEphemeralLeaderboard(client, interaction, event, page = 0) {
     const sorted = getSorted(event);
     if (sorted.length === 0) {
         return interaction.reply({ content: 'No donation data found.', ephemeral: true });
@@ -27,8 +27,8 @@ async function spawnEphemeralLeaderboard(interaction, event, page = 0) {
 
     const msg = await interaction.fetchReply();
 
-    if (!interaction.client._lbCache) interaction.client._lbCache = new Map();
-    interaction.client._lbCache.set(msg.id, {
+    if (!client._lbCache) client._lbCache = new Map();
+    client._lbCache.set(msg.id, {
         sorted,
         totalPages,
         userPage,
@@ -40,8 +40,7 @@ async function spawnEphemeralLeaderboard(interaction, event, page = 0) {
 module.exports = {
     name: 'interactionCreate',
     once: false,
-    async execute(interaction) {
-        const client = interaction.client;
+    async execute(client, interaction) {
 
         // ── Select menu — switch event ────────────────────────────────────────
         if (interaction.isStringSelectMenu() && interaction.customId === 'lb_event_select') {
@@ -50,7 +49,7 @@ module.exports = {
 
             // Not the author — give them their own ephemeral leaderboard
             if (!cache || interaction.user.id !== cache.interactionUserId) {
-                return spawnEphemeralLeaderboard(interaction, event, 0);
+                return spawnEphemeralLeaderboard(client, interaction, event, 0);
             }
 
             const sorted = getSorted(event);
@@ -87,16 +86,16 @@ module.exports = {
 
         const cache = client._lbCache?.get(interaction.message.id);
 
-        // No cache at all — spawn a fresh ephemeral for them
+        // No cache — spawn a fresh ephemeral for them
         if (!cache) {
-            return spawnEphemeralLeaderboard(interaction, 'dankmemer', 0);
+            return spawnEphemeralLeaderboard(client, interaction, 'dankmemer', 0);
         }
 
         // Not the author — spawn their own ephemeral on same event/page
         if (interaction.user.id !== cache.interactionUserId) {
             const parts = id.split('_');
             const currentPage = parseInt(parts[parts.length - 1], 10);
-            return spawnEphemeralLeaderboard(interaction, cache.event, currentPage);
+            return spawnEphemeralLeaderboard(client, interaction, cache.event, currentPage);
         }
 
         // Author — handle pagination normally
