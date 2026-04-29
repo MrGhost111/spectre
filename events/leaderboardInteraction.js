@@ -1,4 +1,5 @@
 ﻿// events/leaderboardInteraction.js
+const { MessageFlags } = require('discord.js');
 const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
     require('../slashCommands/leaderboard')._helpers;
 
@@ -7,7 +8,7 @@ const PAGE_SIZE = 10;
 async function spawnEphemeralLeaderboard(client, interaction, event, page = 0) {
     const sorted = getSorted(event);
     if (sorted.length === 0) {
-        return interaction.reply({ content: 'No donation data found.', ephemeral: true });
+        return interaction.reply({ content: 'No donation data found.', flags: MessageFlags.Ephemeral });
     }
 
     const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -19,13 +20,15 @@ async function spawnEphemeralLeaderboard(client, interaction, event, page = 0) {
     const selectRow = buildSelectMenu(event);
     const buttonRow = buildButtons(clampedPage, totalPages, userPage);
 
-    await interaction.reply({
+    // v15: use withResponse to get the message without a second API call
+    const response = await interaction.reply({
         embeds: [embed],
         components: [selectRow, buttonRow],
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
+        withResponse: true,
     });
 
-    const msg = await interaction.fetchReply();
+    const msg = response.resource.message;
 
     if (!client._lbCache) client._lbCache = new Map();
     client._lbCache.set(msg.id, {
@@ -43,7 +46,8 @@ module.exports = {
     async execute(client, interaction) {
 
         // ── Select menu — switch event ────────────────────────────────────────
-        if (interaction.isStringSelectMenu() && interaction.customId === 'lb_event_select') {
+        // v15: isAnySelectMenu() removed; isSelectMenu() now covers all select types
+        if (interaction.isSelectMenu?.() && interaction.customId === 'lb_event_select') {
             const cache = client._lbCache?.get(interaction.message.id);
             const event = interaction.values[0];
 

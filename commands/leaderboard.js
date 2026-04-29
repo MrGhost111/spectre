@@ -7,6 +7,7 @@ const {
     ButtonBuilder,
     ButtonStyle,
     StringSelectMenuBuilder,
+    MessageFlags,
 } = require('discord.js');
 const { loadDonations, formatFull, formatNumber, EVENT_LABELS, EVENT_CURRENCY } = require('../Donations/noteSystem');
 
@@ -126,6 +127,7 @@ module.exports = {
         const selectRow = buildSelectMenu(event);
         const buttonRow = buildButtons(page, totalPages, userPage);
 
+        // editReply returns the Message directly — no fetchReply needed
         const reply = await interaction.editReply({
             embeds: [embed],
             components: [selectRow, buttonRow],
