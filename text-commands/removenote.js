@@ -1,7 +1,7 @@
 // commands/removenote.js  (text command)
-// Usage: !removenote <@user | userID> <amount> [note text]
+// Usage: ,removenote <@user | userID> <amount> [event] [note text]
+// Event: dankmemer (default), investor, karuta, owo
 // Requires a staff role.
-// Amount supports: 1k, 25m, 1.5b, 1bil, 1million, 1e6, 1,000,000, raw numbers.
 
 const { EmbedBuilder } = require('discord.js');
 const {
@@ -11,8 +11,10 @@ const {
     formatFull,
     formatNumber,
     handleMilestoneRolesFull,
-    getCurrentMilestone,
     getNextMilestone,
+    getAllRolesUpTo,
+    EVENT_LABELS,
+    EVENT_CURRENCY,
 } = require('../Donations/noteSystem');
 
 const STAFF_ROLE_IDS = [
@@ -22,19 +24,28 @@ const STAFF_ROLE_IDS = [
     '746298070685188197', // Admin
 ];
 
+const VALID_EVENTS = ['dankmemer', 'investor', 'karuta', 'owo'];
+
 function isStaffMember(member) {
     return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
 }
 
+function fmtAmount(currency, amount) {
+    return amount >= 1_000_000
+        ? `${currency} ${formatFull(amount)} *(${formatNumber(amount)})*`
+        : `${currency} ${formatFull(amount)}`;
+}
+
 module.exports = {
     name: 'removenote',
-    aliases: ['rn','rm'],
+    aliases: ['rn', 'rm'],
     description: 'Manually remove a donation amount from a user.',
+
     async execute(message, args) {
         if (!isStaffMember(message.member)) return;
 
         if (args.length < 2) {
-            return message.reply('Usage: `!removenote <@user | userID> <amount> [note text]`');
+            return message.reply('Usage: `,removenote <@user | userID> <amount> [event] [note text]`\nEvents: `dankmemer` (default), `investor`, `karuta`, `owo`');
         }
 
         // ── Resolve target ────────────────────────────────────────────────────
@@ -57,99 +68,116 @@ module.exports = {
             );
         }
 
-        const noteText = args.length > 2 ? args.slice(2).join(' ').trim() : null;
+        // ── Parse optional event (args[2]) ────────────────────────────────────
+        let event = 'dankmemer';
+        let noteStart = 2;
+        if (args[2] && VALID_EVENTS.includes(args[2].toLowerCase())) {
+            event = args[2].toLowerCase();
+            noteStart = 3;
+        }
+
+        const noteText = args.length > noteStart ? args.slice(noteStart).join(' ').trim() : null;
 
         // ── Update data ───────────────────────────────────────────────────────
-        const data = loadDonations();
+        const data = loadDonations(event);
 
         if (!data[rawTarget]) {
             data[rawTarget] = {
-                note:         null,
-                noteSetBy:    null,
-                noteSetAt:    null,
+                note: null,
+                noteSetBy: null,
+                noteSetAt: null,
                 totalDonated: 0,
-                donations:    [],
+                donations: [],
             };
         }
 
-        const oldTotal      = data[rawTarget].totalDonated || 0;
+        const oldTotal = data[rawTarget].totalDonated || 0;
+        const oldRoleIds = getAllRolesUpTo(oldTotal, event).map(m => m.roleId);
         const actualRemoved = Math.min(amount, oldTotal);
-        const newTotal      = Math.max(0, oldTotal - amount);
-        const oldMilestone  = getCurrentMilestone(oldTotal);
+        const newTotal = Math.max(0, oldTotal - amount);
 
         data[rawTarget].totalDonated = newTotal;
         data[rawTarget].donations.push({
-            amount:    -actualRemoved,
-            timestamp:  new Date().toISOString(),
-            removedBy:  message.author.id,
-            manual:     true,
-            channelId:  message.channel.id,
-            messageId:  message.id,
+            amount: -actualRemoved,
+            timestamp: new Date().toISOString(),
+            removedBy: message.author.id,
+            manual: true,
+            channelId: message.channel.id,
+            messageId: message.id,
         });
 
         if (noteText) {
-            data[rawTarget].note      = noteText;
+            data[rawTarget].note = noteText;
             data[rawTarget].noteSetBy = message.author.id;
             data[rawTarget].noteSetAt = new Date().toISOString();
         }
 
-        saveDonations(data);
+        saveDonations(data, event);
 
-        await handleMilestoneRolesFull(targetMember, newTotal);
-        const newMilestone  = getCurrentMilestone(newTotal);
-        const nextMilestone = getNextMilestone(newTotal);
-        const roleChanged   = oldMilestone?.roleId !== newMilestone?.roleId;
+        const hasRoles = event !== 'owo';
+        const currency = EVENT_CURRENCY[event];
+        const eventLabel = EVENT_LABELS[event];
+
+        if (hasRoles) {
+            await handleMilestoneRolesFull(targetMember, newTotal, event);
+        }
+
+        const newRoleIds = getAllRolesUpTo(newTotal, event).map(m => m.roleId);
+        const nextMilestone = getNextMilestone(newTotal, event);
+        const gained = newRoleIds.filter(id => !oldRoleIds.includes(id));
+        const lost = oldRoleIds.filter(id => !newRoleIds.includes(id));
 
         // ── Confirmation embed ────────────────────────────────────────────────
         const embed = new EmbedBuilder()
-            .setTitle('<:message:1000020218229305424>  Donation Removed')
+            .setTitle(`<:message:1000020218229305424>  Donation Removed — ${eventLabel}`)
             .setColor('#4c00b0')
             .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'User',                                            value: `<@${rawTarget}>`,                                                     inline: true },
-                { name: '<:downvote:1303963004915679232> Removed',         value: `⏣ ${formatFull(actualRemoved)}`,                                      inline: true },
-                { name: '<:req:1000019378730975282> New Total',            value: `⏣ ${formatFull(newTotal)} *(${formatNumber(newTotal)})*`,              inline: true },
-                { name: 'Removed By',                                      value: `<@${message.author.id}>`,                                             inline: true },
+                { name: 'User', value: `<@${rawTarget}>`, inline: true },
+                { name: '<:downvote:1303963004915679232> Removed', value: fmtAmount(currency, actualRemoved), inline: true },
+                { name: '<:req:1000019378730975282> New Total', value: fmtAmount(currency, newTotal), inline: true },
+                { name: 'Removed By', value: `<@${message.author.id}>`, inline: true },
             )
             .setTimestamp();
 
         if (actualRemoved < amount) {
             embed.addFields({
-                name:   '<:purpledot:860074414853586984> Floored',
-                value:  `Only ⏣ ${formatFull(actualRemoved)} could be removed — total cannot go below 0.`,
+                name: '<:purpledot:860074414853586984> Floored',
+                value: `Only ${fmtAmount(currency, actualRemoved)} could be removed — total cannot go below 0.`,
                 inline: false,
             });
         }
 
-        if (nextMilestone) {
+        if (hasRoles && nextMilestone) {
             const needed = nextMilestone.amount - newTotal;
             embed.addFields({
-                name:   '<:purpledot:860074414853586984> Next Milestone',
-                value:  `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
+                name: '<:purpledot:860074414853586984> Next Milestone',
+                value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
                 inline: false,
             });
-        } else if (newTotal > 0) {
+        } else if (hasRoles && newTotal > 0 && !nextMilestone) {
             embed.addFields({
-                name:   '<:winners:1000018706874781806> Milestone',
-                value:  'Max milestone reached!',
+                name: '<:winners:1000018706874781806> Milestone',
+                value: 'Max milestone reached!',
                 inline: false,
             });
         }
 
-        if (roleChanged) {
-            const oldLabel = oldMilestone ? `<@&${oldMilestone.roleId}>` : 'None';
-            const newLabel = newMilestone ? `<@&${newMilestone.roleId}>` : 'None';
+        if (hasRoles && (gained.length > 0 || lost.length > 0)) {
+            const lines = [];
+            if (gained.length) lines.push(`**Gained:** ${gained.map(id => `<@&${id}>`).join(' ')}`);
+            if (lost.length) lines.push(`**Lost:** ${lost.map(id => `<@&${id}>`).join(' ')}`);
             embed.addFields({
-                name:   '<:downvote:1303963004915679232> Role Updated',
-                value:  `${oldLabel} → ${newLabel}`,
+                name: '<:downvote:1303963004915679232> Roles Updated',
+                value: lines.join('\n'),
                 inline: false,
             });
         }
 
         if (noteText) {
             embed.addFields({
-                name:   '<:message:1000020218229305424> Note Set',
-                value:  noteText,
+                name: '<:message:1000020218229305424> Note Set',
+                value: noteText,
                 inline: false,
             });
         }

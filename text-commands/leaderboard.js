@@ -1,103 +1,53 @@
-// commands/leaderboard.js
+// commands/leaderboard.js  (text command)
+// Usage: ,leaderboard
+// Shows the Dank Memer donation leaderboard with pagination buttons and event selector.
+// Delegates rendering entirely to the slash command helpers.
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { loadDonations, formatFull, formatNumber } = require('../Donations/noteSystem');
-
-const PAGE_SIZE = 10;
-
-function buildLeaderboardEmbed(sorted, page, totalPages, requesterId) {
-    const start = page * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, sorted.length);
-    const entries = sorted.slice(start, end);
-
-    let description = '';
-    for (let i = 0; i < entries.length; i++) {
-        const rank = start + i + 1;
-        const { userId, total } = entries[i];
-        const isYou = userId === requesterId;
-
-        const prefix = rank === 1
-            ? '<:winners:1000018706874781806>'
-            : '<:purpledot:860074414853586984>';
-
-        const youTag = isYou ? ' **← you**' : '';
-        description += `${prefix} **#${rank}** <@${userId}> — ⏣ ${formatFull(total)} *(${formatNumber(total)})*${youTag}\n`;
-    }
-
-    return new EmbedBuilder()
-        .setTitle('<:lbtest:1064919048242090054>  Donation Leaderboard')
-        .setColor('#4c00b0')
-        .setDescription(description || 'No donation data found.')
-        .setFooter({ text: `Page ${page + 1} of ${totalPages} • Showing #${start + 1}–#${end} of ${sorted.length} users` })
-        .setTimestamp();
-}
-
-function buildLeaderboardButtons(page, totalPages, userPage) {
-    const onFirstPage    = page === 0;
-    const onLastPage     = page >= totalPages - 1;
-    const myRankDisabled = userPage === -1 || page === userPage;
-
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`lb_first_${page}`)
-            .setLabel('<<')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onFirstPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_prev_${page}`)
-            .setLabel('<')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onFirstPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_myrank_${page}`)
-            .setLabel('My Rank')
-            .setStyle(ButtonStyle.Primary)
-            .setDisabled(myRankDisabled),
-        new ButtonBuilder()
-            .setCustomId(`lb_next_${page}`)
-            .setLabel('>')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onLastPage),
-        new ButtonBuilder()
-            .setCustomId(`lb_last_${page}`)
-            .setLabel('>>')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(onLastPage),
-    );
-}
+const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
+    require('../commands/leaderboard')._helpers;
 
 module.exports = {
     name: 'leaderboard',
-    async execute(message, args) {
-        const data = loadDonations();
+    aliases: ['lb'],
+    description: 'View the donation leaderboard.',
 
-        const sorted = Object.entries(data)
-            .map(([userId, userData]) => ({ userId, total: userData?.totalDonated ?? 0 }))
-            .filter(e => e.total > 0)
-            .sort((a, b) => b.total - a.total);
+    async execute(message) {
+        const event = 'dankmemer';
+        const sorted = getSorted(event);
 
         if (sorted.length === 0) {
             return message.reply('No donation data found.');
         }
 
-        const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-        const userIndex  = sorted.findIndex(e => e.userId === message.author.id);
-        const userPage   = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
+        const totalPages = Math.ceil(sorted.length / 10);
+        const userIndex = sorted.findIndex(e => e.userId === message.author.id);
+        const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / 10);
+        const page = 0;
 
-        const page    = 0;
-        const embed   = buildLeaderboardEmbed(sorted, page, totalPages, message.author.id);
-        const buttons = buildLeaderboardButtons(page, totalPages, userPage);
+        // buildLeaderboard expects an interaction-like object for user.id and guild.members.fetch
+        const interactionLike = {
+            user: message.author,
+            guild: message.guild,
+        };
 
-        const reply = await message.reply({ embeds: [embed], components: [buttons] });
+        const embed = await buildLeaderboard(sorted, page, totalPages, interactionLike, event);
+        const selectRow = buildSelectMenu(event);
+        const buttonRow = buildButtons(page, totalPages, userPage);
 
-        // Cache the sorted data so the button handler in interactionCreate.js can use it
+        const sent = await message.channel.send({
+            embeds: [embed],
+            components: [selectRow, buttonRow],
+        });
+
+        // Register in the lb cache so leaderboardInteraction.js can handle button/select events
         if (!message.client._lbCache) message.client._lbCache = new Map();
-        message.client._lbCache.set(reply.id, {
+        message.client._lbCache.set(sent.id, {
             sorted,
             totalPages,
             userPage,
+            event,
+            page,
             interactionUserId: message.author.id,
-            expiresAt: Date.now() + 10 * 60 * 1000, // 10 min TTL
         });
     },
 };
