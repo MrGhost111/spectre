@@ -51,7 +51,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
         // <dot>  1  ⏣ 90,443,570,000 - [name](rickroll)
-        description += `${dot}  ${rank}  ${currency} ${totalFmt} - [${displayName}](${RICKROLL})${youTag}\n`;
+        description += `${rank} ${dot}  ${currency} ${totalFmt} - [${displayName}](${RICKROLL})${youTag}\n`;
     }
 
     return new EmbedBuilder()
