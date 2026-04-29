@@ -51,7 +51,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const totalFmt = formatFull(total);
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
-        description += `${dot} [${displayName}](${RICKROLL}) — ${currency} ${totalFmt}${youTag}\n`;
+        description += `${dot} [${currency} ${totalFmt} - ${displayName}](${RICKROLL}) ${youTag}\n`;
     }
 
     return new EmbedBuilder()
