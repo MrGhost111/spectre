@@ -13,7 +13,7 @@ const { loadDonations, formatFull, formatNumber, EVENT_LABELS, EVENT_CURRENCY } 
 
 const PAGE_SIZE = 10;
 
-function buildLeaderboard(sorted, page, totalPages, interaction, event) {
+async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const start = page * PAGE_SIZE;
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const entries = sorted.slice(start, end);
@@ -21,18 +21,30 @@ function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const currency = EVENT_CURRENCY[event] ?? '';
     const eventLabel = EVENT_LABELS[event] ?? event;
 
+    // Fetch all members on this page in one batch to get display names
+    const userIds = entries.map(e => e.userId);
+    const members = new Map();
+    await Promise.all(
+        userIds.map(id =>
+            interaction.guild.members.fetch(id)
+                .then(m => members.set(id, m))
+                .catch(() => null) // user may have left the server
+        )
+    );
+
     let description = '';
     for (let i = 0; i < entries.length; i++) {
         const rank = start + i + 1;
         const { userId, total } = entries[i];
         const isYou = userId === interaction.user.id;
 
-        const totalFmt = total >= 1_000_000
-            ? `${formatFull(total)} *(${formatNumber(total)})*`
-            : formatFull(total);
+        const member = members.get(userId);
+        const displayName = member?.displayName ?? `Unknown User`;
 
-        const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
-        description += `\`#${String(rank).padStart(2, ' ')}\`  <@${userId}> — ${currency} ${totalFmt}${youTag}\n`;
+        const totalFmt = formatFull(total);
+        const youTag = isYou ? `  <:sweg:1010054002202906634>` : '';
+
+        description += `\`#${String(rank).padStart(2, ' ')}\`  **${displayName}** — ${currency} ${totalFmt}${youTag}\n`;
     }
 
     return new EmbedBuilder()
@@ -78,7 +90,7 @@ function buildButtons(page, totalPages, userPage, disabled = false) {
             .setDisabled(disabled || onFirstPage),
         new ButtonBuilder()
             .setCustomId(`lb_myrank_${page}`)
-            .setLabel('My Rank')
+            .setEmoji('<:sweg:1010054002202906634>')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(disabled || userUnranked || onUserPage),
         new ButtonBuilder()
@@ -122,11 +134,10 @@ module.exports = {
         const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
         const page = 0;
 
-        const embed = buildLeaderboard(sorted, page, totalPages, interaction, event);
+        const embed = await buildLeaderboard(sorted, page, totalPages, interaction, event);
         const selectRow = buildSelectMenu(event);
         const buttonRow = buildButtons(page, totalPages, userPage);
 
-        // editReply() returns the Message directly in v14 and v15
         const reply = await interaction.editReply({
             embeds: [embed],
             components: [selectRow, buttonRow],

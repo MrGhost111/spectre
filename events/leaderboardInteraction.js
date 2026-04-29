@@ -24,8 +24,8 @@ function buildState(event, userId) {
     return { sorted, totalPages, userPage, event };
 }
 
-function buildComponents(state, page, interaction) {
-    const embed = buildLeaderboard(state.sorted, page, state.totalPages, interaction, state.event);
+async function buildComponents(state, page, interaction) {
+    const embed = await buildLeaderboard(state.sorted, page, state.totalPages, interaction, state.event);
     const selectRow = buildSelectMenu(state.event);
     const buttonRow = buildButtons(page, state.totalPages, state.userPage);
     return { embed, selectRow, buttonRow };
