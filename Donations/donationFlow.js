@@ -117,49 +117,57 @@ function stripEmojiMarkup(text) {
 // posted after 30 seconds of silence in the channel. This prevents the
 // rapid-fire multi-sticky bug caused by several messages arriving at once.
 
-function handleStickyMessage(channel, triggerMessage) {
-    // Ignore Dank Memer messages — they shouldn't reset the timer or post stickies
+async function handleStickyMessage(channel, triggerMessage) {
+    // Ignore Dank Memer messages
     if (triggerMessage.author?.id === DANK_MEMER_BOT_ID) return;
 
-    // If the trigger IS the current sticky message, ignore it
+    // Ignore if the trigger IS the sticky
     const existing = stickyMessages.get(channel.id);
     if (existing && triggerMessage.id === existing.messageId) return;
 
-    // If a flow session is active in this channel, don't post a sticky at all
+    // Ignore if a flow session is active
     for (const session of activeSessions.values()) {
         if (session.channel.id === channel.id) return;
     }
 
-    // Clear any pending timer — we're resetting the 30s countdown
+    // Reset timer
     const existingTimer = stickyTimers.get(channel.id);
     if (existingTimer) clearTimeout(existingTimer);
 
-    // Schedule the sticky post after 30 seconds of inactivity
     const timer = setTimeout(async () => {
         stickyTimers.delete(channel.id);
 
-        // Re-check: if a session started while we were waiting, skip
+        // Re-check for active session
         for (const session of activeSessions.values()) {
             if (session.channel.id === channel.id) return;
         }
 
-        // Delete the old sticky if it exists
         const current = stickyMessages.get(channel.id);
+
+        // 🛑 NEW CHECK: If last message is already the sticky, do nothing
+        const lastMsg = await channel.messages.fetch({ limit: 1 }).then(m => m.first()).catch(() => null);
+        if (lastMsg && current && lastMsg.id === current.messageId) {
+            return; // Sticky is already at the bottom — don't repost
+        }
+
+        // Delete old sticky
         if (current) {
             const old = await channel.messages.fetch(current.messageId).catch(() => null);
             if (old) await old.delete().catch(() => { });
             stickyMessages.delete(channel.id);
         }
 
-        // Post the new sticky
+        // Post new sticky
         const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
         if (newSticky) {
             stickyMessages.set(channel.id, { messageId: newSticky.id });
         }
+
     }, STICKY_DELAY_MS);
 
     stickyTimers.set(channel.id, timer);
 }
+
 
 // ─── Staff embed senders ──────────────────────────────────────────────────────
 
