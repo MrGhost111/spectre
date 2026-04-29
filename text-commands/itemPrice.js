@@ -60,7 +60,7 @@ module.exports = {
                 const updated = e.lastUpdated
                     ? `<t:${Math.floor(new Date(e.lastUpdated).getTime() / 1000)}:R>`
                     : 'unknown';
-                return `**${e.displayName}** — avg ⏣ ${e.marketAvgValue.toLocaleString()}${e.netValue ? ` | net ⏣ ${e.netValue.toLocaleString()}` : ''} *(updated ${updated})*`;
+                return `**${e.displayName}** — ${e.marketAvgValue.toLocaleString()}${e.netValue :} *(updated ${updated})*`;
             });
 
             const embed = new EmbedBuilder()
