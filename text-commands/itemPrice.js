@@ -45,7 +45,7 @@ module.exports = {
 
             const totalPages = Math.ceil(entries.length / PAGE_SIZE);
 
-            // Parse optional page number from args[1]
+            // Parse optional page number
             let page = 1;
             if (args[1]) {
                 page = parseInt(args[1], 10);
@@ -60,7 +60,8 @@ module.exports = {
                 const updated = e.lastUpdated
                     ? `<t:${Math.floor(new Date(e.lastUpdated).getTime() / 1000)}:R>`
                     : 'unknown';
-                return `**${e.displayName}** — ${e.marketAvgValue.toLocaleString()}${e.netValue :} *(updated ${updated})*`;
+
+                return `${e.displayName} — ⏣ ${e.marketAvgValue.toLocaleString()} (${updated})`;
             });
 
             const embed = new EmbedBuilder()
