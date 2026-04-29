@@ -47,8 +47,8 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const totalFmt = formatFull(total);
         const youTag = isYou ? `  ${GREY}<- you${R}` : '';
 
-        // ●  #1   $ 1,000,000   Name  <- you
-        ansiBody += `● ${GREY}#${String(rank).padStart(2, ' ')}${R}   ${YELLOW}${currency} ${totalFmt}${R}   ${WHITE}${displayName}${R}${youTag}\n`;
+       
+        ansiBody += `● ${GREY}${String(rank).padStart(2, ' ')}${R}   ${YELLOW}${currency} ${totalFmt}${R}   ${WHITE}${displayName}${R}${youTag}\n`;
     }
 
     const description = '```ansi\n' + ansiBody.trimEnd() + '\n```';
