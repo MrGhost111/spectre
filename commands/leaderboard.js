@@ -32,28 +32,33 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         )
     );
 
+    const DOTS = [
+        '<:orangedot:860074358092726312>',
+        '<:aquadot:860074237954883585>',
+        '<:purpledot:860074414853586984>',
+        '<:dot:1003254232943693855>',
+    ];
+    const RICKROLL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
     let description = '';
     for (let i = 0; i < entries.length; i++) {
         const rank = start + i + 1;
         const { userId, total } = entries[i];
         const isYou = userId === interaction.user.id;
-
         const member = members.get(userId);
-        const displayName = member?.displayName ?? `Unknown User`;
-
+        const displayName = member?.displayName ?? 'Unknown User';
+        const dot = DOTS[(rank - 1) % DOTS.length];
         const totalFmt = formatFull(total);
-        const youTag = isYou ? `  <:sweg:1010054002202906634>` : '';
+        const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
-        description += `\`#${String(rank).padStart(2, ' ')}\`  **${displayName}** — ${currency} ${totalFmt}${youTag}\n`;
+        description += `${dot} [${displayName}](${RICKROLL}) — ${currency} ${totalFmt}${youTag}\n`;
     }
 
     return new EmbedBuilder()
         .setTitle(`<:lbtest:1064919048242090054>  ${eventLabel} Donation Leaderboard`)
         .setColor('#4c00b0')
         .setDescription(description || 'No donation data found.')
-        .setFooter({
-            text: `Page ${page + 1} of ${totalPages} • Showing #${start + 1}–#${end} of ${sorted.length} users`,
-        })
+        .setFooter({ text: `Page ${page + 1} of ${totalPages}` })
         .setTimestamp();
 }
 
