@@ -42,8 +42,11 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     // Fixed rank width based on widest rank on this page
     const maxRankWidth = String(end).length;
 
+    // Only show currency for dank memer — others use custom emojis that won't render in code spans
+    const showCurrency = event === 'dankmemer';
+
     // Pre-format all amounts so we can pad them all to the same length
-    const formatted = entries.map(({ total }) => `${currency} ${formatFull(total)}`);
+    const formatted = entries.map(({ total }) => showCurrency ? `${currency} ${formatFull(total)}` : formatFull(total));
     const maxAmtLen = Math.max(...formatted.map(s => s.length));
 
     let description = '';
