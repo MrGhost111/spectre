@@ -39,25 +39,28 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         )
     );
 
-    // Pad rank numbers to match the widest rank on this page (e.g. page 1 = 1-10, widest is "10")
+    // Fixed rank width based on widest rank on this page
     const maxRankWidth = String(end).length;
+
+    // Pre-format all amounts so we can pad them all to the same length
+    const formatted = entries.map(({ total }) => `${currency} ${formatFull(total)}`);
+    const maxAmtLen = Math.max(...formatted.map(s => s.length));
 
     let description = '';
     for (let i = 0; i < entries.length; i++) {
         const rank = start + i + 1;
-        const { userId, total } = entries[i];
+        const { userId } = entries[i];
         const isYou = userId === interaction.user.id;
         const member = members.get(userId);
         const displayName = member?.displayName ?? 'Unknown User';
         const dot = DOTS[(rank - 1) % DOTS.length];
-        const totalFmt = formatFull(total);
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
-        // `1 ` or `10` — fixed width code span for alignment
         const rankStr = String(rank).padStart(maxRankWidth, ' ');
+        const amtStr = formatted[i].padEnd(maxAmtLen, ' ');
 
-        // rank  dot  amount  dot  [name](rickroll)
-        description += `\`${rankStr}\` ${dot} ${currency} ${totalFmt} ${dot} [${displayName}](${RICKROLL})${youTag}\n`;
+        // `rank`  dot  `amount   `  [name](rickroll)
+        description += `\`${rankStr}\` ${dot} \`${amtStr}\` [${displayName}](${RICKROLL})${youTag}\n`;
     }
 
     return new EmbedBuilder()
