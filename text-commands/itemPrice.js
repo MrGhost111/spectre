@@ -3,7 +3,7 @@
 // Admin command to view, manually set, or delete cached item prices.
 //
 // Usage:
-//   ,itemprice list                        — show all cached prices
+//   ,itemprice list [page]                 — show all cached prices (paginated)
 //   ,itemprice get <item name>             — look up one item
 //   ,itemprice set <item name> | <amount>  — manually set a price
 //   ,itemprice delete <item name>          — remove from cache
@@ -17,6 +17,7 @@ const {
 } = require('../Donations/itemPriceCache');
 
 const STAFF_ROLE_ID = '712970141834674207';
+const PAGE_SIZE = 20;
 
 module.exports = {
     name: 'itemprice',
@@ -39,22 +40,34 @@ module.exports = {
                 return message.reply('📦 No item prices cached yet. Use `/item` in any channel and I\'ll auto-detect the price.');
             }
 
-            // Sort by name
+            // Sort alphabetically
             entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-            const lines = entries.map(e => {
+            const totalPages = Math.ceil(entries.length / PAGE_SIZE);
+
+            // Parse optional page number from args[1]
+            let page = 1;
+            if (args[1]) {
+                page = parseInt(args[1], 10);
+                if (isNaN(page) || page < 1) page = 1;
+                if (page > totalPages) page = totalPages;
+            }
+
+            const start = (page - 1) * PAGE_SIZE;
+            const slice = entries.slice(start, start + PAGE_SIZE);
+
+            const lines = slice.map(e => {
                 const updated = e.lastUpdated
                     ? `<t:${Math.floor(new Date(e.lastUpdated).getTime() / 1000)}:R>`
                     : 'unknown';
                 return `**${e.displayName}** — avg ⏣ ${e.marketAvgValue.toLocaleString()}${e.netValue ? ` | net ⏣ ${e.netValue.toLocaleString()}` : ''} *(updated ${updated})*`;
             });
 
-            // Chunk into embed fields (1024 char limit each)
             const embed = new EmbedBuilder()
                 .setTitle('📦 Item Price Cache')
                 .setColor('#4c00b0')
-                .setDescription(lines.join('\n').substring(0, 4000))
-                .setFooter({ text: `${entries.length} item(s) cached` })
+                .setDescription(lines.join('\n'))
+                .setFooter({ text: `Page ${page} of ${totalPages} • ${entries.length} item(s) total` })
                 .setTimestamp();
 
             return message.channel.send({ embeds: [embed] });
@@ -87,7 +100,6 @@ module.exports = {
 
         // ── SET ───────────────────────────────────────────────────────────────
         if (sub === 'set') {
-            // Format: ,itemprice set Item Name | 6000000
             const rest = args.slice(1).join(' ');
             const parts = rest.split('|');
             if (parts.length < 2) return message.reply('Usage: `,itemprice set <item name> | <amount>`\nExample: `,itemprice set A Plus | 6000000`');
@@ -114,6 +126,6 @@ module.exports = {
             return message.reply(`✅ Removed **${itemName}** from cache.`);
         }
 
-        return message.reply('❓ Unknown subcommand. Options: `list`, `get <name>`, `set <name> | <amount>`, `delete <name>`');
+        return message.reply('❓ Unknown subcommand. Options: `list [page]`, `get <name>`, `set <name> | <amount>`, `delete <name>`');
     },
 };
