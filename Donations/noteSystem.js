@@ -217,7 +217,7 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
 // When provided, the log embed shows:
 //   Amount:  500 × Banknote
 //            ⏣ 5,000,000 total  (⏣ 10,000 each)
-// And a "Jump to Donation" link is added when sourceMessage is available.
+// And a "Jump to Donation" link is added to the log channel embed only.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function recordDonation(
@@ -290,63 +290,69 @@ async function recordDonation(
         amountValue = `⏣ ${formatFull(donationAmount)}`;
     }
 
-    // ── Jump-to-donation link ─────────────────────────────────────────────────
+    // ── Jump-to-donation link (log channel only) ──────────────────────────────
     const srcChannelId = sourceMessage?.channelId ?? sourceMessage?.channel?.id ?? null;
     const srcMessageId = sourceMessage?.id ?? null;
     const jumpLink = (srcChannelId && srcMessageId)
         ? `https://discord.com/channels/${guild.id}/${srcChannelId}/${srcMessageId}`
         : null;
 
-    // ── Build embed ───────────────────────────────────────────────────────────
-    const embed = new EmbedBuilder()
-        .setTitle('<:prize:1000016483369369650>  Donation Recorded')
-        .setColor('#4c00b0')
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .addFields(
-            { name: 'Donor', value: `<@${donorId}>`, inline: true },
-            { name: '<:upvote:1303963379945181224> Amount', value: amountValue, inline: true },
-            { name: '<:req:1000019378730975282> Total', value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`, inline: true },
-        )
-        .setTimestamp();
+    // ── Shared embed fields builder ───────────────────────────────────────────
+    function buildEmbed({ includeJumpLink } = {}) {
+        const embed = new EmbedBuilder()
+            .setTitle('<:prize:1000016483369369650>  Donation Recorded')
+            .setColor('#4c00b0')
+            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: 'Donor', value: `<@${donorId}>`, inline: true },
+                { name: '<:upvote:1303963379945181224> Amount', value: amountValue, inline: true },
+                { name: '<:req:1000019378730975282> Total', value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`, inline: true },
+            )
+            .setTimestamp();
 
-    if (nextMilestone) {
-        const needed = nextMilestone.amount - total;
-        embed.addFields({
-            name: '<:purpledot:860074414853586984> Next Milestone',
-            value: `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
-            inline: false,
-        });
-    } else {
-        embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
+        if (nextMilestone) {
+            const needed = nextMilestone.amount - total;
+            embed.addFields({
+                name: '<:purpledot:860074414853586984> Next Milestone',
+                value: `<@&${nextMilestone.roleId}> — ⏣ ${formatFull(needed)} *(${formatNumber(needed)})* to go`,
+                inline: false,
+            });
+        } else {
+            embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
+        }
+
+        if (note) {
+            embed.addFields({ name: '<:message:1000020218229305424> Staff Note', value: note, inline: false });
+        }
+
+        if (newRole) {
+            embed.addFields({
+                name: '<:winners:1000018706874781806> Role Unlocked!',
+                value: `<@${donorId}> has reached <@&${newRole.roleId}>`,
+                inline: false,
+            });
+        }
+
+        if (includeJumpLink && jumpLink) {
+            embed.addFields({
+                name: '🔗 Source',
+                value: `[Jump to donation](${jumpLink})`,
+                inline: false,
+            });
+        }
+
+        return embed;
     }
 
-    if (note) {
-        embed.addFields({ name: '<:message:1000020218229305424> Staff Note', value: note, inline: false });
-    }
-
-    if (newRole) {
-        embed.addFields({
-            name: '<:winners:1000018706874781806> Role Unlocked!',
-            value: `<@${donorId}> has reached <@&${newRole.roleId}>`,
-            inline: false,
-        });
-    }
-
-    if (jumpLink) {
-        embed.addFields({
-            name: '🔗 Source',
-            value: `[Jump to donation](${jumpLink})`,
-            inline: false,
-        });
-    }
-
+    // ── Send to source channel (no jump link) ────────────────────────────────
     if (sourceChannel) {
-        await sourceChannel.send({ embeds: [embed] }).catch(e =>
+        await sourceChannel.send({ embeds: [buildEmbed({ includeJumpLink: false })] }).catch(e =>
             console.error('[NoteSystem] Failed to send embed to source channel:', e)
         );
     }
 
-    await logChannel.send({ embeds: [embed] }).catch(e =>
+    // ── Send to log channel (with jump link) ─────────────────────────────────
+    await logChannel.send({ embeds: [buildEmbed({ includeJumpLink: true })] }).catch(e =>
         console.error('[NoteSystem] Failed to send donation log embed:', e)
     );
 

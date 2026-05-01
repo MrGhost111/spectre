@@ -26,7 +26,6 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const entries = sorted.slice(start, end);
 
-    const currency = EVENT_CURRENCY[event] ?? '';
     const eventLabel = EVENT_LABELS[event] ?? event;
 
     // Fetch all members on this page in one batch
@@ -42,11 +41,8 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     // Fixed rank width based on widest rank on this page
     const maxRankWidth = String(end).length;
 
-    // Only show currency for dank memer — others use custom emojis that won't render in code spans
-    const showCurrency = event === 'dankmemer';
-
-    // Pre-format all amounts so we can pad them all to the same length
-    const formatted = entries.map(({ total }) => showCurrency ? `${currency} ${formatFull(total)}` : formatFull(total));
+    // Pre-format all amounts (no currency symbol for any event)
+    const formatted = entries.map(({ total }) => formatFull(total));
     const maxAmtLen = Math.max(...formatted.map(s => s.length));
 
     let description = '';
@@ -55,15 +51,15 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const { userId } = entries[i];
         const isYou = userId === interaction.user.id;
         const member = members.get(userId);
-        const displayName = member?.displayName ?? 'Unknown User';
+        const username = member?.user?.username ?? member?.displayName ?? 'Unknown User';
         const dot = DOTS[(rank - 1) % DOTS.length];
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
         const rankStr = String(rank).padStart(maxRankWidth, ' ');
         const amtStr = formatted[i].padEnd(maxAmtLen, ' ');
 
-        // `rank`  dot  `amount   `  [name](rickroll)
-        description += `\`${rankStr}\` ${dot} \`${amtStr}\` [${displayName}](${RICKROLL})${youTag}\n`;
+        // `rank` - `amount` • dot [username](rickroll)
+        description += `\`${rankStr}\` - \`${amtStr}\` ${dot} [${username}](${RICKROLL})${youTag}\n`;
     }
 
     return new EmbedBuilder()
