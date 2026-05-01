@@ -1,11 +1,5 @@
 // Donations/donationFlow.js
 // Handles the interactive post-donation Q&A flow for giveaway and event/heist channels.
-//
-// Changes from previous version:
-//  - Heist-or-Event question now uses plain text instead of buttons (buttons were broken)
-//  - All question timeouts extended to 5 minutes (300s), final message question 10 minutes (600s)
-//  - Event type is open free-text input (Mafia, Dice, Rumble, Mudae Tea, etc.)
-//  - No ActionRowBuilder / ButtonBuilder used anywhere in the flow
 
 const { EmbedBuilder } = require('discord.js');
 
@@ -14,83 +8,87 @@ const EVENT_CHANNEL_ID = '762204827131838515';
 const STAFF_ROLE_ID = '712970141834674207';
 const DANK_MEMER_BOT_ID = '270904126974590976';
 
-// Timeouts
-const PROMPT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes  — all questions
-const PROMPT_TIMEOUT_MESSAGE_MS = 10 * 60 * 1000; // 10 minutes — optional message question
+const PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
+const PROMPT_TIMEOUT_MESSAGE_MS = 10 * 60 * 1000;
 
 const STICKY_CONTENT = 'Want to sponsor a giveaway or event? Use </serverevents donate:1011560371267579936> to get started!';
 
-// ─── Active sessions keyed by userId ─────────────────────────────────────────
 const activeSessions = new Map();
-
-// ─── Sticky message tracking: channelId → { messageId } ──────────────────────
 const stickyMessages = new Map();
-
-// ─── Sticky debounce timers: channelId → setTimeout handle ───────────────────
-// Instead of sending a sticky on every message (causes 2-4 rapid stickies),
-// we wait 30 seconds of channel inactivity before posting. Each new message
-// resets the timer. Only one timer runs per channel at a time.
 const stickyTimers = new Map();
-const STICKY_DELAY_MS = 30_000; // 30 seconds of inactivity
+const STICKY_DELAY_MS = 30_000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Build a human-readable prize string from the session's prize list.
+ *
+ * Coins are summed with a breakdown if donated multiple times.
+ * Items are grouped by name; each group shows:
+ *   qty × Name
+ *   ⏣ total  (⏣ X each)          ← only when price is known
+ *   (N + M across donations)     ← only when donated more than once
+ */
 function buildPrizeString(prizes) {
-    // ── Group coins: sum all coin prizes into one entry ───────────────────────
     const coinPrizes = prizes.filter(p => p.isCoins);
     const itemPrizes = prizes.filter(p => !p.isCoins);
-
     const groups = [];
 
+    // ── Coins ─────────────────────────────────────────────────────────────────
     if (coinPrizes.length === 1) {
-        // Single coin donation — show as-is
-        groups.push(coinPrizes[0].text);
+        groups.push(`⏣ ${(coinPrizes[0].amount || 0).toLocaleString()}`);
     } else if (coinPrizes.length > 1) {
-        // Multiple coin donations — show total with breakdown
         const total = coinPrizes.reduce((sum, p) => sum + (p.amount || 0), 0);
-        const parts = coinPrizes.map(p => p.text).join(' + ');
-        const totalStr = total > 0
-            ? `⏣ ${total.toLocaleString()} (${parts})`
-            : parts;
-        groups.push(totalStr);
+        const parts = coinPrizes.map(p => `⏣ ${(p.amount || 0).toLocaleString()}`).join(' + ');
+        groups.push(`⏣ ${total.toLocaleString()} (${parts})`);
     }
 
-    // ── Group items: merge identical item names, sum quantities ──────────────
-    // Item prizeText looks like "2 A Plus (avg ⏣ 6,000,000)" or "1 A Plus"
-    // We normalise by stripping the leading quantity and any " (avg ...)" suffix
-    // to get a clean item name key, then re-sum quantities.
-    const itemMap = new Map(); // key: clean item name → { qty, texts, autoNoted }
+    // ── Items: group identical names, sum qty and value ───────────────────────
+    // Prize text is "10 × Adventure Ticket" — parse name from that.
+    const itemMap = new Map(); // name → { totalQty, totalValue, pricePerUnit, donations[] }
 
     for (const p of itemPrizes) {
-        // Strip "(avg ...)" suffix added by dankDetection for display purposes
-        const textNoAvg = p.text.replace(/\s*\(avg ⏣[\d,]+\)/i, '').trim();
-
-        // Extract leading quantity and item name: "2 A Plus" → qty=2, name="A Plus"
-        const qtyMatch = textNoAvg.match(/^(\d+)\s+(.+)$/);
-        const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-        const name = qtyMatch ? qtyMatch[2].trim() : textNoAvg;
+        // Parse "10 × Adventure Ticket" format (× or x, case-insensitive)
+        const crossMatch = p.text.match(/^(\d+)\s*[×x]\s*(.+)$/i);
+        const qty = crossMatch ? parseInt(crossMatch[1], 10) : (p.itemQty || 1);
+        const name = crossMatch ? crossMatch[2].trim() : p.text.trim();
 
         if (itemMap.has(name)) {
             const entry = itemMap.get(name);
-            entry.qty += qty;
-            entry.texts.push(p.text); // keep originals for breakdown
+            entry.totalQty += qty;
+            entry.totalValue += (p.amount || 0);
+            entry.donations.push(qty);
         } else {
-            itemMap.set(name, { qty, texts: [p.text], autoNoted: p.autoNoted });
+            itemMap.set(name, {
+                totalQty: qty,
+                totalValue: p.amount || 0,
+                pricePerUnit: p.pricePerUnit || null,
+                donations: [qty],
+            });
         }
     }
 
     for (const [name, entry] of itemMap) {
-        if (entry.texts.length === 1) {
-            // Only donated once — show original text unchanged
-            groups.push(entry.texts[0]);
-        } else {
-            // Donated multiple times — show merged quantity with breakdown
-            const breakdown = entry.texts.join(' + ');
-            groups.push(`${entry.qty} ${name} (${breakdown})`);
+        // Line 1: quantity and name
+        let line = `**${entry.totalQty} × ${name}**`;
+
+        // Line 2: value info (only when we have a cached price)
+        if (entry.totalValue > 0) {
+            line += `\n⏣ ${entry.totalValue.toLocaleString()} total`;
+            if (entry.pricePerUnit && entry.totalQty > 1) {
+                line += ` (⏣ ${entry.pricePerUnit.toLocaleString()} each)`;
+            }
         }
+
+        // Line 3: donation breakdown if donated in multiple transactions
+        if (entry.donations.length > 1) {
+            line += `\n*(${entry.donations.join(' + ')} across ${entry.donations.length} donations)*`;
+        }
+
+        groups.push(line);
     }
 
-    return groups.join(' + ') || 'Unknown';
+    return groups.join('\n\n') || 'Unknown';
 }
 
 function hasCoinPrize(prizes) {
@@ -105,52 +103,38 @@ async function safeDelete(msg) {
 /**
  * Strip Discord custom emoji markup from a string.
  * "<:AdventureTicket:934112100970807336>" → ""
- * Also handles animated emojis: "<a:name:id>"
  */
 function stripEmojiMarkup(text) {
     return text.replace(/<a?:[^:>]+:\d+>/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
 // ─── Sticky message handler ───────────────────────────────────────────────────
-//
-// Debounced: resets a 30-second timer on every message. The sticky is only
-// posted after 30 seconds of silence in the channel. This prevents the
-// rapid-fire multi-sticky bug caused by several messages arriving at once.
 
 async function handleStickyMessage(channel, triggerMessage) {
-    // Ignore Dank Memer messages
     if (triggerMessage.author?.id === DANK_MEMER_BOT_ID) return;
 
-    // Ignore if the trigger IS the sticky
     const existing = stickyMessages.get(channel.id);
     if (existing && triggerMessage.id === existing.messageId) return;
 
-    // Ignore if a flow session is active
     for (const session of activeSessions.values()) {
         if (session.channel.id === channel.id) return;
     }
 
-    // Reset timer
     const existingTimer = stickyTimers.get(channel.id);
     if (existingTimer) clearTimeout(existingTimer);
 
     const timer = setTimeout(async () => {
         stickyTimers.delete(channel.id);
 
-        // Re-check for active session
         for (const session of activeSessions.values()) {
             if (session.channel.id === channel.id) return;
         }
 
         const current = stickyMessages.get(channel.id);
 
-        // 🛑 NEW CHECK: If last message is already the sticky, do nothing
         const lastMsg = await channel.messages.fetch({ limit: 1 }).then(m => m.first()).catch(() => null);
-        if (lastMsg && current && lastMsg.id === current.messageId) {
-            return; // Sticky is already at the bottom — don't repost
-        }
+        if (lastMsg && current && lastMsg.id === current.messageId) return;
 
-        // Delete the old sticky ONLY if it's within the last 5 messages
         if (current) {
             const messages = await channel.messages.fetch({ limit: 6 }).catch(() => null);
             const recentIds = messages ? messages.map(m => m.id) : [];
@@ -162,17 +146,15 @@ async function handleStickyMessage(channel, triggerMessage) {
 
             stickyMessages.delete(channel.id);
         }
-        // Post new sticky
+
         const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
         if (newSticky) {
             stickyMessages.set(channel.id, { messageId: newSticky.id });
         }
-
     }, STICKY_DELAY_MS);
 
     stickyTimers.set(channel.id, timer);
 }
-
 
 // ─── Staff embed senders ──────────────────────────────────────────────────────
 
@@ -181,7 +163,6 @@ async function sendGiveawayEmbed(client, channel, member, prizes, time, winners,
     const hasCoins = hasCoinPrize(prizes);
     const prizeStr = buildPrizeString(prizes);
 
-    // Only warn about items that were NOT auto-noted (i.e. not in price cache)
     const itemsNeedingManualNote = prizes.filter(p => !p.isCoins && !p.autoNoted);
     const hasUnnoted = itemsNeedingManualNote.length > 0;
 
@@ -195,7 +176,7 @@ async function sendGiveawayEmbed(client, channel, member, prizes, time, winners,
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .addFields(
             { name: '<:req:1000019378730975282> Donor', value: member.user.username, inline: true },
-            { name: '<:prize:1000016483369369650> Prize', value: prizeStr, inline: true },
+            { name: '<:prize:1000016483369369650> Prize', value: prizeStr, inline: false },
             { name: '<:time:1000024854478721125> Time', value: time, inline: true },
             { name: '<:winners:1000018706874781806> Winners', value: winners, inline: true },
             { name: '<:message:1000020218229305424> Message', value: message || 'None', inline: false },
@@ -224,7 +205,7 @@ async function sendHeistEmbed(client, channel, member, prizes, message) {
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .addFields(
             { name: '<:req:1000019378730975282> Donor', value: member.user.username, inline: true },
-            { name: '<:prize:1000016483369369650> Heist Amount', value: prizeStr, inline: true },
+            { name: '<:prize:1000016483369369650> Heist Amount', value: prizeStr, inline: false },
             { name: '<:message:1000020218229305424> Message', value: message || 'None', inline: false },
         )
         .setFooter({ text: `ID: ${member.user.id}` })
@@ -251,7 +232,7 @@ async function sendEventEmbed(client, channel, member, prizes, eventType, requir
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .addFields(
             { name: '<:req:1000019378730975282> Donor', value: member.user.username, inline: true },
-            { name: '<:prize:1000016483369369650> Amount', value: prizeStr, inline: true },
+            { name: '<:prize:1000016483369369650> Amount', value: prizeStr, inline: false },
             { name: '<:time:1000024854478721125> Event Type', value: eventType, inline: true },
             { name: '<:winners:1000018706874781806> Requirement', value: requirement || 'None', inline: true },
             { name: '<:message:1000020218229305424> Message', value: message || 'None', inline: false },
@@ -264,13 +245,6 @@ async function sendEventEmbed(client, channel, member, prizes, eventType, requir
 
 // ─── Prompt helpers ───────────────────────────────────────────────────────────
 
-/**
- * Ask a single question and wait for the user's text reply.
- * @param {object}  session
- * @param {string}  promptContent
- * @param {boolean} isOptional     - If true, adds "or type skip/none" hint
- * @param {number}  timeoutMs      - How long to wait before cancelling
- */
 async function askQuestion(session, promptContent, isOptional = false, timeoutMs = PROMPT_TIMEOUT_MS) {
     await safeDelete(session.promptMsg);
 
@@ -294,10 +268,6 @@ async function askQuestion(session, promptContent, isOptional = false, timeoutMs
     });
 }
 
-/**
- * Ask whether this is a Heist or Event using plain text.
- * User types "heist" or "event" (case-insensitive). Anything else re-asks.
- */
 async function askHeistOrEvent(session) {
     await safeDelete(session.promptMsg);
 
@@ -321,8 +291,6 @@ async function askHeistOrEvent(session) {
 }
 
 // ─── Merge-aware wrappers ─────────────────────────────────────────────────────
-// When a second donation arrives mid-flow, we resolve the current promise with
-// '__reask__' so the loop here retries the same question automatically.
 
 async function askWithMerge(session, promptContent, isOptional = false, timeoutMs = PROMPT_TIMEOUT_MS) {
     let answer;
@@ -334,16 +302,14 @@ async function askWithMerge(session, promptContent, isOptional = false, timeoutM
 }
 
 async function askHeistOrEventWithMerge(session) {
-    // Keep re-asking until we get a valid "heist" or "event" answer, or timeout
     while (true) {
         const answer = await askHeistOrEvent(session);
-        if (answer === null) return null;           // timed out
-        if (answer === '__reask__') continue;       // mid-flow donation merge
+        if (answer === null) return null;
+        if (answer === '__reask__') continue;
 
         const lower = answer.trim().toLowerCase();
         if (lower === 'heist' || lower === 'event') return lower;
 
-        // Invalid input — tell them and loop
         await safeDelete(session.promptMsg);
         session.promptMsg = null;
         const warn = await session.channel.send(
@@ -369,7 +335,7 @@ async function runGiveawayFlowSafe(client, session) {
         session,
         '**Any message for the giveaway?**',
         true,
-        PROMPT_TIMEOUT_MESSAGE_MS  // 10 minutes for optional message
+        PROMPT_TIMEOUT_MESSAGE_MS
     );
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
@@ -386,7 +352,7 @@ async function runHeistFlowSafe(client, session) {
         session,
         '**Any message for the heist?**',
         true,
-        PROMPT_TIMEOUT_MESSAGE_MS  // 10 minutes
+        PROMPT_TIMEOUT_MESSAGE_MS
     );
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
@@ -405,11 +371,7 @@ async function runEventFlowSafe(client, session) {
     );
     if (eventType === null) return;
 
-    const reqRaw = await askWithMerge(
-        session,
-        '**Any entry requirement?**',
-        true
-    );
+    const reqRaw = await askWithMerge(session, '**Any entry requirement?**', true);
     if (reqRaw === null) return;
     const requirement = /^(skip|none)$/i.test((reqRaw || '').trim()) ? null : reqRaw.trim();
 
@@ -417,7 +379,7 @@ async function runEventFlowSafe(client, session) {
         session,
         '**Any additional message?**',
         true,
-        PROMPT_TIMEOUT_MESSAGE_MS  // 10 minutes
+        PROMPT_TIMEOUT_MESSAGE_MS
     );
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
@@ -430,9 +392,6 @@ async function runEventFlowSafe(client, session) {
 }
 
 async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
-    // Re-evaluate skipHeistQuestion using ALL prizes collected so far (including merges).
-    // If any prize is an item, we skip the heist/event question entirely — heists are
-    // always coin donations, so an item prize means it must be an event.
     const hasAnyItem = session.prizes.some(p => !p.isCoins);
     const shouldSkip = skipHeistQuestion || hasAnyItem;
 
@@ -447,21 +406,25 @@ async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
 }
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
+//
+// itemQty      — number of items donated (default 1, ignored for coin donations)
+// pricePerUnit — cached market avg price per item (null if not in cache)
 
-async function handleDonationFlow(client, channelId, channel, userId, prizeText, isCoins, coinAmount, autoNoted = false) {
+async function handleDonationFlow(
+    client, channelId, channel, userId,
+    prizeText, isCoins, amount, autoNoted = false,
+    itemQty = 1, pricePerUnit = null
+) {
     const isGiveaway = channelId === GIVEAWAY_CHANNEL_ID;
     const isEvent = channelId === EVENT_CHANNEL_ID;
     if (!isGiveaway && !isEvent) return;
 
-    // autoNoted: true means dankDetection already called recordDonation for this prize,
-    // so the staff embed should NOT show a "needs manual note" warning for it.
-    const newPrize = { text: prizeText, isCoins, amount: coinAmount, autoNoted };
+    const newPrize = { text: prizeText, isCoins, amount, autoNoted, itemQty, pricePerUnit };
 
     if (activeSessions.has(userId)) {
         const session = activeSessions.get(userId);
         clearTimeout(session.timer);
         session.timer = null;
-        // autoNoted is already set correctly by dankDetection before calling us
         session.prizes.push(newPrize);
 
         if (session.currentResolve) {
@@ -496,8 +459,6 @@ async function handleDonationFlow(client, channelId, channel, userId, prizeText,
             activeSessions.delete(userId);
         });
     } else {
-        // For item donations in the event channel we skip "heist or event?" and
-        // go straight to event flow (heists are always coins)
         const skipHeistQuestion = !isCoins;
         runEventChannelFlowSafe(client, session, skipHeistQuestion).catch(e => {
             console.error('[DonationFlow] Event flow error:', e);
@@ -533,7 +494,6 @@ function handleFlowMessage(message) {
 async function handleFlowButton(interaction) {
     if (!interaction.isButton()) return false;
     if (!interaction.customId.startsWith('dflow_')) return false;
-    // Buttons are no longer used — just dismiss gracefully
     await interaction.reply({ content: '❌ This button is no longer active. Please type your response in the channel.', ephemeral: true });
     return true;
 }

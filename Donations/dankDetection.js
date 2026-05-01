@@ -18,10 +18,6 @@ const TRANSACTION_CHANNEL_ID = '833246120389902356';
 const FLOW_CHANNELS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
 
 // ─── Dedup: prevent re-processing the same message ID ────────────────────────
-// Both messageCreate AND messageUpdate can fire for the same Dank Memer message
-// (slash = create fires fully formed; text = update fires after embed edit).
-// Staff replies also cause messageUpdate to re-fire on the original message.
-// We track processed IDs so each message is only ever handled once.
 const processedIds = new Set();
 
 function isAlreadyProcessed(messageId) {
@@ -30,7 +26,7 @@ function isAlreadyProcessed(messageId) {
 
 function markProcessed(messageId) {
     processedIds.add(messageId);
-    setTimeout(() => processedIds.delete(messageId), 600_000); // clean up after 10 min
+    setTimeout(() => processedIds.delete(messageId), 600_000);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,8 +53,6 @@ function buildFullText(message) {
 }
 
 // ─── Item info embed parser ───────────────────────────────────────────────────
-// embed.title          → item name
-// embed.fields[?].name === 'Market' → value contains "Average Value: ⏣ X"
 function parseItemInfoEmbed(embeds) {
     if (!embeds?.length) return null;
     const embed = embeds[0];
@@ -85,8 +79,7 @@ function parseItemInfoEmbed(embeds) {
 
 // ─── Donation prize parser ────────────────────────────────────────────────────
 // Coin:  "Successfully donated **⏣ 50,000,000**"
-// Item:  "Successfully donated **1 <:emoji:id> Item Name**"
-//        "Successfully donated **500 <:emoji:id> Item Name**"
+// Item:  "Successfully donated **500 <:emoji:id> Item Name**"
 function parsePrize(fullText) {
     const coinMatch = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
     if (coinMatch) {
@@ -105,13 +98,13 @@ function parsePrize(fullText) {
         const rawItem = itemMatch[1].trim();
         const cleanItem = stripEmojiMarkup(rawItem);
 
-        // Extract leading quantity AND item name (e.g. "500 Banknote" → qty=500, name="Banknote")
+        // Extract leading quantity AND item name ("500 Banknote" → qty=500, name="Banknote")
         const nameMatch = cleanItem.match(/^(\d+)\s+(.+)$/);
         const itemQty = nameMatch ? parseInt(nameMatch[1], 10) : 1;
         const rawItemName = nameMatch ? nameMatch[2].trim() : cleanItem;
 
         return {
-            prizeText: cleanItem,
+            prizeText: `${itemQty} × ${rawItemName}`,   // clean display: "500 × Banknote"
             isCoins: false,
             coinAmount: 0,
             rawItemName,
@@ -122,10 +115,9 @@ function parsePrize(fullText) {
     return null;
 }
 
-// ─── Main handler — called from both messageCreate and messageUpdate ───────────
+// ─── Main handler — called from both messageCreate and messageUpdate ──────────
 
 async function handleDankMessage(client, message) {
-    // Must be Dank Memer
     if (message.author?.id !== DANK_MEMER_BOT_ID) return;
 
     const fullText = buildFullText(message);
@@ -146,7 +138,6 @@ async function handleDankMessage(client, message) {
     // ── Donation detection ────────────────────────────────────────────────────
     if (!fullText.includes('Successfully donated')) return;
 
-    // Dedup — skip if already handled (covers: slash→create, text→update, staff reply→update)
     if (isAlreadyProcessed(message.id)) {
         console.log(`[DankDetect] ⏭️  Already processed ${message.id}, skipping.`);
         return;
@@ -159,20 +150,11 @@ async function handleDankMessage(client, message) {
         return;
     }
 
-    let { prizeText, isCoins, coinAmount, rawItemName, itemQty } = prizeInfo;
+    const { prizeText, isCoins, coinAmount, rawItemName, itemQty } = prizeInfo;
 
     if (isCoins && coinAmount <= 0) {
         console.warn('[DankDetect] Invalid coin amount:', fullText);
         return;
-    }
-
-    // Enrich item prizeText with cached price if available (show total value)
-    if (!isCoins && rawItemName) {
-        const cached = getItemPrice(rawItemName);
-        if (cached) {
-            const totalValue = cached.marketAvgValue * itemQty;
-            prizeText = `${prizeText} (avg ⏣ ${totalValue.toLocaleString()})`;
-        }
     }
 
     // Resolve donor
@@ -184,6 +166,15 @@ async function handleDankMessage(client, message) {
         console.warn('[DankDetect] Could not resolve donor ID. Prize:', prizeText);
         return;
     }
+
+    // Resolve cached item price once — used in all branches below
+    const cached = (!isCoins && rawItemName) ? getItemPrice(rawItemName) : null;
+    const totalItemValue = cached ? cached.marketAvgValue * itemQty : 0;
+
+    // Meta passed to recordDonation so the log embed can show per-unit breakdown
+    const donationMeta = (!isCoins && rawItemName)
+        ? { itemName: rawItemName, itemQty, pricePerUnit: cached?.marketAvgValue ?? null }
+        : null;
 
     const channelId = message.channel?.id;
     const isTransactionChannel = channelId === TRANSACTION_CHANNEL_ID;
@@ -259,28 +250,30 @@ async function handleDankMessage(client, message) {
     // BRANCH B — Giveaway / Event channel: auto-note + interactive flow
     // ═══════════════════════════════════════════════════════════════════════════
     if (isFlowChannel) {
-        // Track whether this prize was auto-noted so the staff embed knows
-        // not to warn about it needing a manual note.
         let autoNoted = false;
+        // Pass the real monetary amount to the flow so buildPrizeString can
+        // display totals — coins use coinAmount, items use totalItemValue.
+        const flowAmount = isCoins ? coinAmount : totalItemValue;
 
         if (isCoins && coinAmount > 0) {
             await recordDonation(client, donorId, coinAmount, message.channel, message);
             autoNoted = true;
             console.log(`[DankDetect] ✅ Coins auto-noted for ${donorId} in flow channel`);
         } else if (!isCoins && rawItemName) {
-            const cached = getItemPrice(rawItemName);
             if (cached) {
-                const totalValue = cached.marketAvgValue * itemQty;
-                await recordDonation(client, donorId, totalValue, message.channel, message);
+                await recordDonation(client, donorId, totalItemValue, message.channel, message, donationMeta);
                 autoNoted = true;
-                console.log(`[DankDetect] ✅ Item auto-noted: ${itemQty}x "${rawItemName}" → ⏣ ${totalValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
+                console.log(`[DankDetect] ✅ Item auto-noted: ${itemQty}× "${rawItemName}" → ⏣ ${totalItemValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
             } else {
                 console.log(`[DankDetect] ⚠️  No cached price for "${rawItemName}" — staff must note manually`);
             }
         }
 
-        handleDonationFlow(client, channelId, message.channel, donorId, prizeText, isCoins, coinAmount, autoNoted)
-            .catch(e => console.error('[DankDetect] handleDonationFlow error:', e));
+        handleDonationFlow(
+            client, channelId, message.channel, donorId,
+            prizeText, isCoins, flowAmount, autoNoted,
+            itemQty, cached?.marketAvgValue ?? null
+        ).catch(e => console.error('[DankDetect] handleDonationFlow error:', e));
         return;
     }
 
@@ -291,11 +284,9 @@ async function handleDankMessage(client, message) {
         await recordDonation(client, donorId, coinAmount, message.channel, message);
         console.log('[DankDetect] ✅ Regular donation recorded for', donorId);
     } else if (rawItemName) {
-        const cached = getItemPrice(rawItemName);
         if (cached) {
-            const totalValue = cached.marketAvgValue * itemQty;
-            await recordDonation(client, donorId, totalValue, message.channel, message);
-            console.log(`[DankDetect] ✅ Item auto-noted (other ch): ${itemQty}x "${rawItemName}" → ⏣ ${totalValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
+            await recordDonation(client, donorId, totalItemValue, message.channel, message, donationMeta);
+            console.log(`[DankDetect] ✅ Item auto-noted (other ch): ${itemQty}× "${rawItemName}" → ⏣ ${totalItemValue.toLocaleString()}`);
         } else {
             console.log(`[DankDetect] Item outside flow, no cached price for "${rawItemName}"`);
         }

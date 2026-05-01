@@ -166,7 +166,6 @@ function getAllRolesUpTo(amount, event = 'dankmemer') {
 // ROLE HANDLERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Used by auto-detection (recordDonation) — only ever adds, never removes.
 async function handleMilestoneRolesUpgradeOnly(member, totalDonated, event = 'dankmemer') {
     const rolesToHave = getAllRolesUpTo(totalDonated, event);
     let topAdded = null;
@@ -183,8 +182,6 @@ async function handleMilestoneRolesUpgradeOnly(member, totalDonated, event = 'da
     return topAdded;
 }
 
-// Used by setnote / removenote — adds AND removes to match the exact stack.
-// Uses totalDonated directly — no Discord role baseline seeding so removals work correctly.
 async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer') {
     const allMilestones = getMilestones(event);
     if (allMilestones.length === 0) return null;
@@ -192,7 +189,6 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
     const rolesToHave = new Set(getAllRolesUpTo(totalDonated, event).map(m => m.roleId));
     const allRoleIds = allMilestones.map(m => m.roleId);
 
-    // Remove any milestone roles the member should no longer have
     for (const roleId of allRoleIds) {
         if (!rolesToHave.has(roleId) && member.roles.cache.has(roleId)) {
             await member.roles.remove(roleId).catch(e =>
@@ -201,7 +197,6 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
         }
     }
 
-    // Add any milestone roles the member is missing
     for (const roleId of rolesToHave) {
         if (!member.roles.cache.has(roleId)) {
             await member.roles.add(roleId).catch(e =>
@@ -214,10 +209,25 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE: RECORD A DONATION  (called by mupdate.js — always Dank Memer)
+// CORE: RECORD A DONATION
+//
+// donationMeta (optional) — extra context for item donations:
+//   { itemName: string, itemQty: number, pricePerUnit: number | null }
+//
+// When provided, the log embed shows:
+//   Amount:  500 × Banknote
+//            ⏣ 5,000,000 total  (⏣ 10,000 each)
+// And a "Jump to Donation" link is added when sourceMessage is available.
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function recordDonation(client, donorId, donationAmount, sourceChannel = null, sourceMessage = null) {
+async function recordDonation(
+    client,
+    donorId,
+    donationAmount,
+    sourceChannel = null,
+    sourceMessage = null,
+    donationMeta = null,   // { itemName, itemQty, pricePerUnit }
+) {
     const guild = client.guilds.cache.first();
     const member = await guild?.members.fetch(donorId).catch(() => null);
     if (!member) {
@@ -229,12 +239,11 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
     const data = loadDonations(event);
 
     if (!data[donorId]) {
-        const baseline = 0; // No seeding from roles — trust the JSON as source of truth
         data[donorId] = {
             note: null,
             noteSetBy: null,
             noteSetAt: null,
-            totalDonated: baseline,
+            totalDonated: 0,
             donations: [],
         };
     }
@@ -245,6 +254,12 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         timestamp: new Date().toISOString(),
         channelId: sourceMessage?.channelId ?? sourceChannel?.id ?? null,
         messageId: sourceMessage?.id ?? null,
+        // Persist item meta in history for audit purposes
+        ...(donationMeta ? {
+            itemName: donationMeta.itemName,
+            itemQty: donationMeta.itemQty,
+            pricePerUnit: donationMeta.pricePerUnit,
+        } : {}),
     });
 
     saveDonations(data, event);
@@ -261,13 +276,35 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         return { total, newRole };
     }
 
+    // ── Amount field ──────────────────────────────────────────────────────────
+    // Coins:  "⏣ 5,000,000"
+    // Items:  "500 × Banknote\n⏣ 5,000,000 total  (⏣ 10,000 each)"
+    let amountValue;
+    if (donationMeta?.itemName) {
+        const { itemName, itemQty, pricePerUnit } = donationMeta;
+        amountValue = `**${itemQty} × ${itemName}**\n⏣ ${formatFull(donationAmount)} total`;
+        if (pricePerUnit && itemQty > 1) {
+            amountValue += `  (⏣ ${formatFull(pricePerUnit)} each)`;
+        }
+    } else {
+        amountValue = `⏣ ${formatFull(donationAmount)}`;
+    }
+
+    // ── Jump-to-donation link ─────────────────────────────────────────────────
+    const srcChannelId = sourceMessage?.channelId ?? sourceMessage?.channel?.id ?? null;
+    const srcMessageId = sourceMessage?.id ?? null;
+    const jumpLink = (srcChannelId && srcMessageId)
+        ? `https://discord.com/channels/${guild.id}/${srcChannelId}/${srcMessageId}`
+        : null;
+
+    // ── Build embed ───────────────────────────────────────────────────────────
     const embed = new EmbedBuilder()
         .setTitle('<:prize:1000016483369369650>  Donation Recorded')
         .setColor('#4c00b0')
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields(
             { name: 'Donor', value: `<@${donorId}>`, inline: true },
-            { name: '<:upvote:1303963379945181224> Amount', value: `⏣ ${formatFull(donationAmount)}`, inline: true },
+            { name: '<:upvote:1303963379945181224> Amount', value: amountValue, inline: true },
             { name: '<:req:1000019378730975282> Total', value: `⏣ ${formatFull(total)} *(${formatNumber(total)})*`, inline: true },
         )
         .setTimestamp();
@@ -291,6 +328,14 @@ async function recordDonation(client, donorId, donationAmount, sourceChannel = n
         embed.addFields({
             name: '<:winners:1000018706874781806> Role Unlocked!',
             value: `<@${donorId}> has reached <@&${newRole.roleId}>`,
+            inline: false,
+        });
+    }
+
+    if (jumpLink) {
+        embed.addFields({
+            name: '🔗 Source',
+            value: `[Jump to donation](${jumpLink})`,
             inline: false,
         });
     }
