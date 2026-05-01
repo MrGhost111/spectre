@@ -86,6 +86,7 @@ function parseItemInfoEmbed(embeds) {
 // ─── Donation prize parser ────────────────────────────────────────────────────
 // Coin:  "Successfully donated **⏣ 50,000,000**"
 // Item:  "Successfully donated **1 <:emoji:id> Item Name**"
+//        "Successfully donated **500 <:emoji:id> Item Name**"
 function parsePrize(fullText) {
     const coinMatch = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
     if (coinMatch) {
@@ -95,6 +96,7 @@ function parsePrize(fullText) {
             isCoins: true,
             coinAmount: isNaN(coinAmount) ? 0 : coinAmount,
             rawItemName: null,
+            itemQty: 1,
         };
     }
 
@@ -103,15 +105,17 @@ function parsePrize(fullText) {
         const rawItem = itemMatch[1].trim();
         const cleanItem = stripEmojiMarkup(rawItem);
 
-        // Try to extract just the item name (strip leading quantity e.g. "1 ")
-        const nameMatch = cleanItem.match(/^\d+\s+(.+)$/);
-        const rawItemName = nameMatch ? nameMatch[1].trim() : cleanItem;
+        // Extract leading quantity AND item name (e.g. "500 Banknote" → qty=500, name="Banknote")
+        const nameMatch = cleanItem.match(/^(\d+)\s+(.+)$/);
+        const itemQty = nameMatch ? parseInt(nameMatch[1], 10) : 1;
+        const rawItemName = nameMatch ? nameMatch[2].trim() : cleanItem;
 
         return {
             prizeText: cleanItem,
             isCoins: false,
             coinAmount: 0,
             rawItemName,
+            itemQty,
         };
     }
 
@@ -155,18 +159,19 @@ async function handleDankMessage(client, message) {
         return;
     }
 
-    let { prizeText, isCoins, coinAmount, rawItemName } = prizeInfo;
+    let { prizeText, isCoins, coinAmount, rawItemName, itemQty } = prizeInfo;
 
     if (isCoins && coinAmount <= 0) {
         console.warn('[DankDetect] Invalid coin amount:', fullText);
         return;
     }
 
-    // Enrich item prizeText with cached price if available
+    // Enrich item prizeText with cached price if available (show total value)
     if (!isCoins && rawItemName) {
         const cached = getItemPrice(rawItemName);
         if (cached) {
-            prizeText = `${prizeText} (avg ⏣ ${cached.marketAvgValue.toLocaleString()})`;
+            const totalValue = cached.marketAvgValue * itemQty;
+            prizeText = `${prizeText} (avg ⏣ ${totalValue.toLocaleString()})`;
         }
     }
 
@@ -265,9 +270,10 @@ async function handleDankMessage(client, message) {
         } else if (!isCoins && rawItemName) {
             const cached = getItemPrice(rawItemName);
             if (cached) {
-                await recordDonation(client, donorId, cached.marketAvgValue, message.channel, message);
+                const totalValue = cached.marketAvgValue * itemQty;
+                await recordDonation(client, donorId, totalValue, message.channel, message);
                 autoNoted = true;
-                console.log(`[DankDetect] ✅ Item auto-noted: "${rawItemName}" → ⏣ ${cached.marketAvgValue.toLocaleString()}`);
+                console.log(`[DankDetect] ✅ Item auto-noted: ${itemQty}x "${rawItemName}" → ⏣ ${totalValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
             } else {
                 console.log(`[DankDetect] ⚠️  No cached price for "${rawItemName}" — staff must note manually`);
             }
@@ -287,8 +293,9 @@ async function handleDankMessage(client, message) {
     } else if (rawItemName) {
         const cached = getItemPrice(rawItemName);
         if (cached) {
-            await recordDonation(client, donorId, cached.marketAvgValue, message.channel, message);
-            console.log(`[DankDetect] ✅ Item auto-noted (other ch): "${rawItemName}" → ⏣ ${cached.marketAvgValue.toLocaleString()}`);
+            const totalValue = cached.marketAvgValue * itemQty;
+            await recordDonation(client, donorId, totalValue, message.channel, message);
+            console.log(`[DankDetect] ✅ Item auto-noted (other ch): ${itemQty}x "${rawItemName}" → ⏣ ${totalValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
         } else {
             console.log(`[DankDetect] Item outside flow, no cached price for "${rawItemName}"`);
         }
