@@ -55,7 +55,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const { userId } = entries[i];
         const isYou = userId === interaction.user.id;
         const member = members.get(userId);
-        const displayName = member?.displayName ?? 'Unknown User';
+        const displayName = member?.user?.username ?? member?.displayName ?? 'Unknown User';
         const dot = DOTS[(rank - 1) % DOTS.length];
         const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
 
