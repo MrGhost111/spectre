@@ -135,7 +135,7 @@ async function fetchMember(guild, userId) {
 
 module.exports = {
     name: 'stfu',
-    aliases: ['shut', 'quiet', 'chill', 'fuck you shut up for a minute'],
+    aliases: ['shut', 'quiet', 'chill', 'silence'],
     description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
     async execute(message, args) {
         try {
