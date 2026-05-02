@@ -106,17 +106,26 @@ const loadEvents = () => {
 };
 
 // Client ready handler
-client.once('ready', () => {
+client.once('ready', async () => {       // <-- add async here
     logToConsole(`Logged in as ${client.user.tag}!`);
 
     // Set the bot's status to idle
     client.user.setStatus('idle');
     client.user.setActivity('your DMs', { type: ActivityType.Listening });
 
+    // Bulk fetch all guild members into cache so leaderboard lookups are instant
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            await guild.members.fetch();
+            logToConsole(`Cached ${guild.memberCount} members for guild: ${guild.name}`);
+        } catch (error) {
+            logToConsole(`Failed to fetch members for ${guild.name}: ${error.message}`, true);
+        }
+    }
+
     // Load commands and events
     loadCommands();
-    loadEvents(); 
-
+    loadEvents();
     // Initialize systems
     client.muteManager = new MuteManager(client);
     logToConsole('Mute Manager initialized');

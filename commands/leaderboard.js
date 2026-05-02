@@ -26,22 +26,18 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const entries = sorted.slice(start, end);
 
-    const currency = EVENT_CURRENCY[event] ?? '';
     const eventLabel = EVENT_LABELS[event] ?? event;
 
-    
+    // Use guild member cache — no API calls
     const members = new Map();
-    await Promise.all(
-        entries.map(({ userId }) =>
-            interaction.guild.members.fetch(userId)
-                .then(m => members.set(userId, m))
-                .catch(() => null)
-        )
-    );
+    for (const { userId } of entries) {
+        const member = interaction.guild.members.cache.get(userId);
+        if (member) members.set(userId, member);
+    }
 
-   
     const maxRankWidth = String(end).length;
 
+    // All events now use formatFull only, no currency prefix
     const formatted = entries.map(({ total }) => formatFull(total));
     const maxAmtLen = Math.max(...formatted.map(s => s.length));
 
@@ -58,7 +54,6 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const rankStr = String(rank).padStart(maxRankWidth, ' ');
         const amtStr = formatted[i].padEnd(maxAmtLen, ' ');
 
-        // `rank`  dot  `amount   `  [name](rickroll)
         description += `\`${rankStr}\` ${dot} \`${amtStr}\` [${displayName}](${RICKROLL})${youTag}\n`;
     }
 

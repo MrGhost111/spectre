@@ -1,5 +1,6 @@
 // textcommands/leaderboard.js
 // Usage: ,leaderboard  (or ,lb)
+
 const { buildLeaderboard, buildSelectMenu, buildButtons, getSorted } =
     require('../commands/leaderboard')._helpers;
 
@@ -21,7 +22,6 @@ module.exports = {
         const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / 10);
         const page = 0;
 
-        // Mimic the interaction object shape that buildLeaderboard expects
         const interactionLike = {
             user: message.author,
             guild: message.guild,
@@ -36,7 +36,6 @@ module.exports = {
             components: [selectRow, buttonRow],
         });
 
-        // Register in the lb cache so leaderboardInteraction.js can handle buttons/selects
         if (!message.client._lbCache) message.client._lbCache = new Map();
         message.client._lbCache.set(sent.id, {
             sorted,
