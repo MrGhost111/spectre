@@ -304,21 +304,6 @@ module.exports = {
             return message.reply('Successfully reset the donation note tracking system!');
         }
 
-        if (commandName === 'lb') {
-            const donoLogsPath = path.join(__dirname, '../data/donoLogs.json');
-            const donoLogs = JSON.parse(fs.readFileSync(donoLogsPath, 'utf8'));
-            const sortedUsers = Object.entries(donoLogs).sort(([, a], [, b]) => b - a).slice(0, 10);
-
-            if (sortedUsers.length === 0) return message.reply('No donation notes have been set yet!');
-
-            let lbMessage = '**🏆 Donation Note Setters Leaderboard**\n\n';
-            for (let i = 0; i < sortedUsers.length; i++) {
-                const [userId, count] = sortedUsers[i];
-                lbMessage += `${i + 1}. <@${userId}>: ${count} notes\n`;
-            }
-            return message.reply(lbMessage);
-        }
-
         try {
             await command.execute(message, args);
         } catch (error) {
