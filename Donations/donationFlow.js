@@ -1,40 +1,46 @@
 // Donations/donationFlow.js
-// Handles the interactive post-donation Q&A flow for giveaway and event/heist channels.
 
 const { EmbedBuilder } = require('discord.js');
 
 const GIVEAWAY_CHANNEL_ID = '715528041673129984';
 const EVENT_CHANNEL_ID = '762204827131838515';
+const SERVER_DONATION_CHANNEL_ID = '1289101664426397717';
 const STAFF_ROLE_ID = '712970141834674207';
 const DANK_MEMER_BOT_ID = '270904126974590976';
 
 const PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
 const PROMPT_TIMEOUT_MESSAGE_MS = 10 * 60 * 1000;
+const STICKY_DELAY_MS = 30_000;
 
-const STICKY_CONTENT = 'Want to sponsor a giveaway or event? Use </serverevents donate:1011560371267579936> to get started!';
+const STICKY_CONTENT = {
+    [GIVEAWAY_CHANNEL_ID]: {
+        title: '<:prize:1000016483369369650> Want to sponsor a giveaway?',
+        description: 'Make a donation using </serverevents donate:1011560371267579936> and the bot will walk you through the rest — duration, winners, and a custom message.\n\nNo need to ping staff, it\'s all automated!',
+        color: '#4c00b0',
+    },
+    [EVENT_CHANNEL_ID]: {
+        title: '<:prize:1000016483369369650> Want to sponsor an event or heist?',
+        description: 'Make a donation using </serverevents donate:1011560371267579936> and the bot will ask you whether it\'s for a **heist** or an **event**, then handle the rest.\n\nNo need to ping staff, it\'s all automated!',
+        color: '#4c00b0',
+    },
+    [SERVER_DONATION_CHANNEL_ID]: {
+        title: '<:prize:1000016483369369650> Want to donate to the server?',
+        description: 'Make a donation using </serverevents donate:1011560371267579936> — no giveaway or event needed. Just donate and staff will put it to good use!\n\nNo need to ping staff, it\'s all automated!',
+        color: '#4c00b0',
+    },
+};
 
 const activeSessions = new Map();
-const stickyMessages = new Map();
-const stickyTimers = new Map();
-const STICKY_DELAY_MS = 30_000;
+const stickyMessages = new Map();  // channelId → messageId
+const stickyTimers = new Map();    // channelId → timeout
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Build a human-readable prize string from the session's prize list.
- *
- * Coins are summed with a breakdown if donated multiple times.
- * Items are grouped by name; each group shows:
- *   qty × Name
- *   ⏣ total  (⏣ X each)          ← only when price is known
- *   (N + M across donations)     ← only when donated more than once
- */
 function buildPrizeString(prizes) {
     const coinPrizes = prizes.filter(p => p.isCoins);
     const itemPrizes = prizes.filter(p => !p.isCoins);
     const groups = [];
 
-    // ── Coins ─────────────────────────────────────────────────────────────────
     if (coinPrizes.length === 1) {
         groups.push(`⏣ ${(coinPrizes[0].amount || 0).toLocaleString()}`);
     } else if (coinPrizes.length > 1) {
@@ -43,12 +49,8 @@ function buildPrizeString(prizes) {
         groups.push(`⏣ ${total.toLocaleString()} (${parts})`);
     }
 
-    // ── Items: group identical names, sum qty and value ───────────────────────
-    // Prize text is "10 × Adventure Ticket" — parse name from that.
-    const itemMap = new Map(); // name → { totalQty, totalValue, pricePerUnit, donations[] }
-
+    const itemMap = new Map();
     for (const p of itemPrizes) {
-        // Parse "10 × Adventure Ticket" format (× or x, case-insensitive)
         const crossMatch = p.text.match(/^(\d+)\s*[×x]\s*(.+)$/i);
         const qty = crossMatch ? parseInt(crossMatch[1], 10) : (p.itemQty || 1);
         const name = crossMatch ? crossMatch[2].trim() : p.text.trim();
@@ -69,22 +71,16 @@ function buildPrizeString(prizes) {
     }
 
     for (const [name, entry] of itemMap) {
-        // Line 1: quantity and name
         let line = `**${entry.totalQty} × ${name}**`;
-
-        // Line 2: value info (only when we have a cached price)
         if (entry.totalValue > 0) {
             line += `\n⏣ ${entry.totalValue.toLocaleString()} total`;
             if (entry.pricePerUnit && entry.totalQty > 1) {
                 line += ` (⏣ ${entry.pricePerUnit.toLocaleString()} each)`;
             }
         }
-
-        // Line 3: donation breakdown if donated in multiple transactions
         if (entry.donations.length > 1) {
             line += `\n*(${entry.donations.join(' + ')} across ${entry.donations.length} donations)*`;
         }
-
         groups.push(line);
     }
 
@@ -100,10 +96,6 @@ async function safeDelete(msg) {
     await msg.delete().catch(() => { });
 }
 
-/**
- * Strip Discord custom emoji markup from a string.
- * "<:AdventureTicket:934112100970807336>" → ""
- */
 function stripEmojiMarkup(text) {
     return text.replace(/<a?:[^:>]+:\d+>/g, '').replace(/\s{2,}/g, ' ').trim();
 }
@@ -111,45 +103,56 @@ function stripEmojiMarkup(text) {
 // ─── Sticky message handler ───────────────────────────────────────────────────
 
 async function handleStickyMessage(channel, triggerMessage) {
+    // Don't trigger on Dank Memer messages
     if (triggerMessage.author?.id === DANK_MEMER_BOT_ID) return;
 
-    const existing = stickyMessages.get(channel.id);
-    if (existing && triggerMessage.id === existing.messageId) return;
+    // Only handle known sticky channels
+    if (!STICKY_CONTENT[channel.id]) return;
 
+    // Don't trigger while a donation session is active in this channel
     for (const session of activeSessions.values()) {
         if (session.channel.id === channel.id) return;
     }
 
+    // Clear any existing pending timer
     const existingTimer = stickyTimers.get(channel.id);
     if (existingTimer) clearTimeout(existingTimer);
 
     const timer = setTimeout(async () => {
         stickyTimers.delete(channel.id);
 
+        // Double-check no session started while we were waiting
         for (const session of activeSessions.values()) {
             if (session.channel.id === channel.id) return;
         }
 
-        const current = stickyMessages.get(channel.id);
+        // Fetch the actual last message in the channel
+        const lastMsg = await channel.messages.fetch({ limit: 1 })
+            .then(m => m.first())
+            .catch(() => null);
 
-        const lastMsg = await channel.messages.fetch({ limit: 1 }).then(m => m.first()).catch(() => null);
-        if (lastMsg && current && lastMsg.id === current.messageId) return;
+        // If the last message is already our sticky, do nothing — regardless of age
+        const currentStickyId = stickyMessages.get(channel.id);
+        if (lastMsg && currentStickyId && lastMsg.id === currentStickyId) return;
 
-        if (current) {
-            const messages = await channel.messages.fetch({ limit: 6 }).catch(() => null);
-            const recentIds = messages ? messages.map(m => m.id) : [];
-
-            if (recentIds.includes(current.messageId)) {
-                const old = await channel.messages.fetch(current.messageId).catch(() => null);
-                if (old) await old.delete().catch(() => { });
-            }
-
+        // Delete the old sticky if it still exists somewhere in the channel
+        if (currentStickyId) {
+            const old = await channel.messages.fetch(currentStickyId).catch(() => null);
+            if (old) await old.delete().catch(() => { });
             stickyMessages.delete(channel.id);
         }
 
-        const newSticky = await channel.send(STICKY_CONTENT).catch(() => null);
+        // Send the new sticky embed
+        const config = STICKY_CONTENT[channel.id];
+        const embed = new EmbedBuilder()
+            .setTitle(config.title)
+            .setDescription(config.description)
+            .setColor(config.color)
+            .setFooter({ text: 'Powered by /serverevents donate' });
+
+        const newSticky = await channel.send({ embeds: [embed] }).catch(() => null);
         if (newSticky) {
-            stickyMessages.set(channel.id, { messageId: newSticky.id });
+            stickyMessages.set(channel.id, newSticky.id);
         }
     }, STICKY_DELAY_MS);
 
@@ -322,21 +325,13 @@ async function askHeistOrEventWithMerge(session) {
 // ─── Flow runners ─────────────────────────────────────────────────────────────
 
 async function runGiveawayFlowSafe(client, session) {
-    const time = await askWithMerge(
-        session,
-        '**How long should the giveaway last?** (e.g. `1d`, `12h`, `30m`)'
-    );
+    const time = await askWithMerge(session, '**How long should the giveaway last?** (e.g. `1d`, `12h`, `30m`)');
     if (time === null) return;
 
     const winners = await askWithMerge(session, '**How many winners?**');
     if (winners === null) return;
 
-    const messageRaw = await askWithMerge(
-        session,
-        '**Any message for the giveaway?**',
-        true,
-        PROMPT_TIMEOUT_MESSAGE_MS
-    );
+    const messageRaw = await askWithMerge(session, '**Any message for the giveaway?**', true, PROMPT_TIMEOUT_MESSAGE_MS);
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
@@ -348,12 +343,7 @@ async function runGiveawayFlowSafe(client, session) {
 }
 
 async function runHeistFlowSafe(client, session) {
-    const messageRaw = await askWithMerge(
-        session,
-        '**Any message for the heist?**',
-        true,
-        PROMPT_TIMEOUT_MESSAGE_MS
-    );
+    const messageRaw = await askWithMerge(session, '**Any message for the heist?**', true, PROMPT_TIMEOUT_MESSAGE_MS);
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
@@ -375,12 +365,7 @@ async function runEventFlowSafe(client, session) {
     if (reqRaw === null) return;
     const requirement = /^(skip|none)$/i.test((reqRaw || '').trim()) ? null : reqRaw.trim();
 
-    const messageRaw = await askWithMerge(
-        session,
-        '**Any additional message?**',
-        true,
-        PROMPT_TIMEOUT_MESSAGE_MS
-    );
+    const messageRaw = await askWithMerge(session, '**Any additional message?**', true, PROMPT_TIMEOUT_MESSAGE_MS);
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
@@ -406,9 +391,6 @@ async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
 }
 
 // ─── Main entry ───────────────────────────────────────────────────────────────
-//
-// itemQty      — number of items donated (default 1, ignored for coin donations)
-// pricePerUnit — cached market avg price per item (null if not in cache)
 
 async function handleDonationFlow(
     client, channelId, channel, userId,
@@ -489,7 +471,7 @@ function handleFlowMessage(message) {
     }
 }
 
-// ─── Button handler (kept for safety but no longer used in flow) ──────────────
+// ─── Button handler ───────────────────────────────────────────────────────────
 
 async function handleFlowButton(interaction) {
     if (!interaction.isButton()) return false;
@@ -506,5 +488,6 @@ module.exports = {
     stripEmojiMarkup,
     GIVEAWAY_CHANNEL_ID,
     EVENT_CHANNEL_ID,
+    SERVER_DONATION_CHANNEL_ID,
     DANK_MEMER_BOT_ID,
 };
