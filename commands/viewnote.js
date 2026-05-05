@@ -88,25 +88,31 @@ module.exports = {
         const hasRoles = event !== 'owo';
         const guildId = interaction.guild.id;
 
+        // Invisible emoji used as a blank spacer line
+        const SP = '<:invisible:1277372701710749777>';
+
         // ── Build container ───────────────────────────────────────────────────
         const container = new ContainerBuilder().setAccentColor(ACCENT_COLOR);
 
         // ── Section 1: avatar thumbnail + header info ─────────────────────────
-        // \n\n between each block gives breathing room on mobile
+        // SP before Total Donated = space above it
+        // SP after Current Role   = space below it
         const headerParts = [
             `## <:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`,
-            `**<:req:1000019378730975282> Total Donated:**\n${fmtAmount(currency, total)}`,
+            `${SP}\n**<:req:1000019378730975282> Total Donated:**\n${fmtAmount(currency, total)}`,
         ];
 
         if (hasRoles) {
             headerParts.push(
-                `**<:edit:1064822995014651914> Current Role:**\n${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
+                `**<:edit:1064822995014651914> Current Role:**\n${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}\n${SP}`
             );
+        } else {
+            // No role line — still add trailing spacer after the amount
+            headerParts[1] += `\n${SP}`;
         }
 
         const headerSection = new SectionBuilder()
             .addTextDisplayComponents(
-                // join with double newline so each block has a blank line above/below it
                 new TextDisplayBuilder().setContent(headerParts.join('\n\n'))
             )
             .setThumbnailAccessory(
