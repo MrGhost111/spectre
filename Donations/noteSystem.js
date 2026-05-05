@@ -25,7 +25,7 @@ const EVENT_CURRENCY = {
     dankmemer: '⏣',
     investor: '<a:cash:1498053763183808543>',
     karuta: '🎟️',
-    owo: '<:hc_cowoncy:1498053388775194675>',
+    owo: '<:owo_cash:1501038176817512560>',
 };
 
 const MILESTONE_ROLES = {
@@ -210,14 +210,6 @@ async function handleMilestoneRolesFull(member, totalDonated, event = 'dankmemer
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORE: RECORD A DONATION
-//
-// donationMeta (optional) — extra context for item donations:
-//   { itemName: string, itemQty: number, pricePerUnit: number | null }
-//
-// When provided, the log embed shows:
-//   Amount:  500 × Banknote
-//            ⏣ 5,000,000 total  (⏣ 10,000 each)
-// And a "Jump to Donation" link is added to the log channel embed only.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function recordDonation(
@@ -226,7 +218,7 @@ async function recordDonation(
     donationAmount,
     sourceChannel = null,
     sourceMessage = null,
-    donationMeta = null,   // { itemName, itemQty, pricePerUnit }
+    donationMeta = null,
 ) {
     const guild = client.guilds.cache.first();
     const member = await guild?.members.fetch(donorId).catch(() => null);
@@ -243,6 +235,8 @@ async function recordDonation(
             note: null,
             noteSetBy: null,
             noteSetAt: null,
+            noteChannelId: null,
+            noteMessageId: null,
             totalDonated: 0,
             donations: [],
         };
@@ -254,7 +248,6 @@ async function recordDonation(
         timestamp: new Date().toISOString(),
         channelId: sourceMessage?.channelId ?? sourceChannel?.id ?? null,
         messageId: sourceMessage?.id ?? null,
-        // Persist item meta in history for audit purposes
         ...(donationMeta ? {
             itemName: donationMeta.itemName,
             itemQty: donationMeta.itemQty,
@@ -276,9 +269,6 @@ async function recordDonation(
         return { total, newRole };
     }
 
-    // ── Amount field ──────────────────────────────────────────────────────────
-    // Coins:  "⏣ 5,000,000"
-    // Items:  "500 × Banknote\n⏣ 5,000,000 total  (⏣ 10,000 each)"
     let amountValue;
     if (donationMeta?.itemName) {
         const { itemName, itemQty, pricePerUnit } = donationMeta;
@@ -290,14 +280,12 @@ async function recordDonation(
         amountValue = `⏣ ${formatFull(donationAmount)}`;
     }
 
-    // ── Jump-to-donation link (log channel only) ──────────────────────────────
     const srcChannelId = sourceMessage?.channelId ?? sourceMessage?.channel?.id ?? null;
     const srcMessageId = sourceMessage?.id ?? null;
     const jumpLink = (srcChannelId && srcMessageId)
         ? `https://discord.com/channels/${guild.id}/${srcChannelId}/${srcMessageId}`
         : null;
 
-    // ── Shared embed fields builder ───────────────────────────────────────────
     function buildEmbed({ includeJumpLink } = {}) {
         const embed = new EmbedBuilder()
             .setTitle('<:prize:1000016483369369650>  Donation Recorded')
@@ -344,14 +332,12 @@ async function recordDonation(
         return embed;
     }
 
-    // ── Send to source channel (no jump link) ────────────────────────────────
     if (sourceChannel) {
         await sourceChannel.send({ embeds: [buildEmbed({ includeJumpLink: false })] }).catch(e =>
             console.error('[NoteSystem] Failed to send embed to source channel:', e)
         );
     }
 
-    // ── Send to log channel (with jump link) ─────────────────────────────────
     await logChannel.send({ embeds: [buildEmbed({ includeJumpLink: true })] }).catch(e =>
         console.error('[NoteSystem] Failed to send donation log embed:', e)
     );
@@ -365,7 +351,6 @@ async function recordDonation(
 
 module.exports = {
     EVENT_FILES,
-    DONATION_LOG_CHANNEL_ID, 
     EVENT_LABELS,
     EVENT_CURRENCY,
     loadDonations,
@@ -380,5 +365,6 @@ module.exports = {
     recordDonation,
     TRANSACTION_CHANNEL_ID,
     DANK_MEMER_BOT_ID,
+    DONATION_LOG_CHANNEL_ID,
     MILESTONE_ROLES,
 };

@@ -15,6 +15,8 @@ const STAFF_ROLE_IDS = [
     '806450472474116136',
     '710572344745132114',
     '746298070685188197',
+    '1028276735357227029',
+    '1487607589998166157',
 ];
 
 function isStaffMember(member) {
@@ -108,12 +110,14 @@ module.exports = {
                 embed.addFields({
                     name: '<:lbtest:1064919048242090054> Recent Donations',
                     value: recent.map(d => {
-                        const sign = d.amount >= 0 ? '+' : '-';
+                        const sign = d.amount >= 0
+                            ? '<:plus:1501036176944009366>'
+                            : '<:minus:1501036902256476291>';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
                         const amountStr = d.channelId && d.messageId
-                            ? `[${sign}${currency} ${formatFull(Math.abs(d.amount))}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : `${sign}${currency} ${formatFull(Math.abs(d.amount))}`;
+                            ? `[${sign} ${currency} ${formatFull(Math.abs(d.amount))}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : `${sign} ${currency} ${formatFull(Math.abs(d.amount))}`;
                         return `${amountStr}  ${date}${manual}`;
                     }).join('\n'),
                     inline: false,
@@ -136,16 +140,13 @@ module.exports = {
                     ? `https://discord.com/channels/${guildId}/${userData.noteChannelId}/${userData.noteMessageId}`
                     : null;
 
-                const byLine = noteLink
-                    ? `*Set by <@${userData.noteSetBy}> on ${setAt} — [view entry](${noteLink})*`
-                    : `*Set by <@${userData.noteSetBy}> on ${setAt}*`;
-
                 embed.addFields({
                     name: '<:message:1000020218229305424> Staff Note',
-                    value: `${note}\n${byLine}`,
+                    value: noteLink
+                        ? `${setAt} — [${note}](${noteLink})`
+                        : `${setAt} — ${note}`,
                     inline: false,
                 });
-
             }
         }
 
