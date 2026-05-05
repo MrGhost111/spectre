@@ -92,16 +92,15 @@ module.exports = {
         const container = new ContainerBuilder().setAccentColor(ACCENT_COLOR);
 
         // ── Section 1: avatar thumbnail + header info ─────────────────────────
-        // SectionBuilder lets you put a thumbnail beside text — this is the
-        // component that actually solves the mobile wrapping problem.
+        // Label on one line, value on the next — prevents mid-value wrapping on mobile
         const headerLines = [
             `## <:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`,
-            `**<:req:1000019378730975282> Total Donated:** ${fmtAmount(currency, total)}`,
+            `**<:req:1000019378730975282> Total Donated:**\n${fmtAmount(currency, total)}`,
         ];
 
         if (hasRoles) {
             headerLines.push(
-                `**<:idk:1064831073881694278> Current Role:** ${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
+                `**<:edit:1064822995014651914> Current Role:**\n${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
             );
         }
 
@@ -128,7 +127,7 @@ module.exports = {
                 const needed = nextMilestone.amount - total;
                 container.addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
-                        `**<:idk:1064831073881694278> Next Milestone:** <@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
+                        `**<:edit:1064822995014651914> Next Milestone:**\n<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
                     )
                 );
             } else if (total > 0) {
@@ -162,9 +161,9 @@ module.exports = {
                     const manual = d.manual ? ' *(manual)*' : '';
                     const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
 
-                    // Item donations: show qty × name breakdown if available
+                    // Item donations: show qty x name breakdown if available
                     const itemDetail = (d.itemName && d.itemQty)
-                        ? ` *(${d.itemQty} × ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
+                        ? ` *(${d.itemQty} x ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
                         : '';
 
                     const linkedAmount = (d.channelId && d.messageId)
