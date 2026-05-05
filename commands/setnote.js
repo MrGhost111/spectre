@@ -12,18 +12,27 @@ const {
     getAllRolesUpTo,
     EVENT_LABELS,
     EVENT_CURRENCY,
-    DONATION_LOG_CHANNEL_ID,   // ← new
+    DONATION_LOG_CHANNEL_ID,
 } = require('../Donations/noteSystem');
 
-const STAFF_ROLE_IDS = [
-    '712970141834674207',
-    '806450472474116136',
-    '710572344745132114',
-    '746298070685188197',
-];
+// ── Permissions ───────────────────────────────────────────────────────────────
+const ROLE_EVENT_PERMISSIONS = {
+    '746298070685188197': ['dankmemer', 'investor'],  // Admin
+    '710572344745132114': ['dankmemer', 'investor'],  // Mod
+    '806450472474116136': ['dankmemer', 'investor'],  // Chat Mod
+    '712970141834674207': ['dankmemer', 'investor'],  // Staff
+    '1028276735357227029': ['karuta'],                // Karuta Staff
+    '1487607589998166157': ['owo'],                   // OwO Staff
+};
 
-function isStaffMember(member) {
-    return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
+function getAllowedEvents(member) {
+    const allowed = new Set();
+    for (const [roleId, events] of Object.entries(ROLE_EVENT_PERMISSIONS)) {
+        if (member.roles.cache.has(roleId)) {
+            events.forEach(e => allowed.add(e));
+        }
+    }
+    return allowed;
 }
 
 function fmtAmount(currency, amount) {
@@ -58,7 +67,8 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: false });
 
-        if (!isStaffMember(interaction.member)) {
+        const allowedEvents = getAllowedEvents(interaction.member);
+        if (allowedEvents.size === 0) {
             return interaction.editReply('You do not have permission to use this command.');
         }
 
@@ -66,6 +76,13 @@ module.exports = {
         const amountRaw = interaction.options.getString('amount');
         const event = interaction.options.getString('event') ?? 'dankmemer';
         const noteText = interaction.options.getString('note') ?? null;
+
+        if (!allowedEvents.has(event)) {
+            return interaction.editReply(
+                `You do not have permission to edit **${EVENT_LABELS[event]}** donations. ` +
+                `Your role only allows: ${[...allowedEvents].map(e => EVENT_LABELS[e]).join(', ')}.`
+            );
+        }
 
         const amount = parseAmount(amountRaw);
         if (amount === null || amount <= 0) {
@@ -88,8 +105,8 @@ module.exports = {
                 note: null,
                 noteSetBy: null,
                 noteSetAt: null,
-                noteChannelId: null,   // ← new
-                noteMessageId: null,   // ← new
+                noteChannelId: null,
+                noteMessageId: null,
                 totalDonated: 0,
                 donations: [],
             };
@@ -115,7 +132,6 @@ module.exports = {
             data[targetUser.id].note = noteText;
             data[targetUser.id].noteSetBy = interaction.user.id;
             data[targetUser.id].noteSetAt = new Date().toISOString();
-            // ← store where this note was set so viewnote can hyperlink it
             data[targetUser.id].noteChannelId = interaction.channelId;
             data[targetUser.id].noteMessageId = replyMessage?.id ?? null;
         }

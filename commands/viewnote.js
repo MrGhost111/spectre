@@ -145,6 +145,7 @@ module.exports = {
                     value: `${note}\n${byLine}`,
                     inline: false,
                 });
+
             }
         }
 
