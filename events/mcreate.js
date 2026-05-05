@@ -115,31 +115,6 @@ module.exports = {
         }
 
         // ===========================================
-        // SPECTRE AI HANDLER
-        // ===========================================
-        const spectreKeywords = ['spectre', '@spectre'];
-        const lowerContent = message.content.toLowerCase();
-
-        if (spectreKeywords.some(keyword => lowerContent.startsWith(keyword))) {
-            let userMessage = message.content;
-            for (const keyword of spectreKeywords) {
-                if (lowerContent.startsWith(keyword)) {
-                    userMessage = message.content.substring(keyword.length).trim();
-                    break;
-                }
-            }
-
-            if (userMessage.length === 0) return;
-
-            const result = await spectreAI.process(message, userMessage);
-
-            if (result.type === 'no_permission') return;
-            if (result.type === 'error') await message.reply({ embeds: [result.embed] });
-
-            return;
-        }
-
-        // ===========================================
         // REST OF EXISTING CODE
         // ===========================================
 
