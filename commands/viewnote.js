@@ -148,8 +148,8 @@ module.exports = {
                 embed.addFields({
                     name: '<:message:1000020218229305424> Staff Note',
                     value: noteLink
-                        ? `${setAt} — [${note}](${noteLink})`
-                        : `${setAt} — ${note}`,
+                        ? `${setAt} [${note}](${noteLink})`
+                        : `${setAt} ${note}`,
                     inline: false,
                 });
             }
