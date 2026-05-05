@@ -365,6 +365,7 @@ async function recordDonation(
 
 module.exports = {
     EVENT_FILES,
+    DONATION_LOG_CHANNEL_ID, 
     EVENT_LABELS,
     EVENT_CURRENCY,
     loadDonations,

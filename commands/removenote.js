@@ -12,13 +12,14 @@ const {
     getAllRolesUpTo,
     EVENT_LABELS,
     EVENT_CURRENCY,
+    DONATION_LOG_CHANNEL_ID,   // ← new
 } = require('../Donations/noteSystem');
 
 const STAFF_ROLE_IDS = [
-    '712970141834674207', // Staff
-    '806450472474116136', // Chat Mod
-    '710572344745132114', // Mod
-    '746298070685188197', // Admin
+    '712970141834674207',
+    '806450472474116136',
+    '710572344745132114',
+    '746298070685188197',
 ];
 
 function isStaffMember(member) {
@@ -36,22 +37,13 @@ module.exports = {
         .setName('removenote')
         .setDescription('Manually remove a donation amount from a user.')
         .addUserOption(option =>
-            option
-                .setName('user')
-                .setDescription('The user to remove the donation from.')
-                .setRequired(true)
+            option.setName('user').setDescription('The user to remove the donation from.').setRequired(true)
         )
         .addStringOption(option =>
-            option
-                .setName('amount')
-                .setDescription('Amount to remove. Supports: 1k, 25m, 1.5b, 1bil, 1e6, 1000000, etc.')
-                .setRequired(true)
+            option.setName('amount').setDescription('Amount to remove. Supports: 1k, 25m, 1.5b, 1bil, 1e6, 1000000, etc.').setRequired(true)
         )
         .addStringOption(option =>
-            option
-                .setName('event')
-                .setDescription('Which event to remove the donation from. Defaults to Dank Memer.')
-                .setRequired(false)
+            option.setName('event').setDescription('Which event to remove the donation from. Defaults to Dank Memer.').setRequired(false)
                 .addChoices(
                     { name: 'Dank Memer', value: 'dankmemer' },
                     { name: 'Investor', value: 'investor' },
@@ -60,10 +52,7 @@ module.exports = {
                 )
         )
         .addStringOption(option =>
-            option
-                .setName('note')
-                .setDescription('Optional staff note to attach.')
-                .setRequired(false)
+            option.setName('note').setDescription('Optional staff note to attach.').setRequired(false)
         ),
 
     async execute(interaction) {
@@ -99,6 +88,8 @@ module.exports = {
                 note: null,
                 noteSetBy: null,
                 noteSetAt: null,
+                noteChannelId: null,   // ← new
+                noteMessageId: null,   // ← new
                 totalDonated: 0,
                 donations: [],
             };
@@ -126,6 +117,9 @@ module.exports = {
             data[targetUser.id].note = noteText;
             data[targetUser.id].noteSetBy = interaction.user.id;
             data[targetUser.id].noteSetAt = new Date().toISOString();
+            // ← store where this note was set so viewnote can hyperlink it
+            data[targetUser.id].noteChannelId = interaction.channelId;
+            data[targetUser.id].noteMessageId = replyMessage?.id ?? null;
         }
 
         saveDonations(data, event);
@@ -172,32 +166,79 @@ module.exports = {
                 inline: false,
             });
         } else if (hasRoles && newTotal > 0 && !nextMilestone) {
-            embed.addFields({
-                name: '<:winners:1000018706874781806> Milestone',
-                value: 'Max milestone reached!',
-                inline: false,
-            });
+            embed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
         }
 
         if (hasRoles && (gained.length > 0 || lost.length > 0)) {
             const lines = [];
             if (gained.length) lines.push(`**Gained:** ${gained.map(id => `<@&${id}>`).join(' ')}`);
             if (lost.length) lines.push(`**Lost:** ${lost.map(id => `<@&${id}>`).join(' ')}`);
-            embed.addFields({
-                name: '<:downvote:1303963004915679232> Roles Updated',
-                value: lines.join('\n'),
-                inline: false,
-            });
+            embed.addFields({ name: '<:downvote:1303963004915679232> Roles Updated', value: lines.join('\n'), inline: false });
         }
 
         if (noteText !== null) {
-            embed.addFields({
-                name: '<:message:1000020218229305424> Note Set',
-                value: noteText,
-                inline: false,
-            });
+            embed.addFields({ name: '<:message:1000020218229305424> Note Set', value: noteText, inline: false });
         }
 
         await interaction.editReply({ embeds: [embed] });
+
+        // ── Log to donation log channel ──────────────────────────────────────
+        const logChannel = await interaction.client.channels.fetch(DONATION_LOG_CHANNEL_ID).catch(() => null);
+        if (logChannel) {
+            const jumpLink = replyMessage
+                ? `https://discord.com/channels/${interaction.guildId}/${interaction.channelId}/${replyMessage.id}`
+                : null;
+
+            const logEmbed = new EmbedBuilder()
+                .setTitle('<:prize:1000016483369369650>  Donation Removed (Manual)')
+                .setColor('#b00000')
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: 'Donor', value: `<@${targetUser.id}>`, inline: true },
+                    { name: '<:downvote:1303963004915679232> Removed', value: fmtAmount(currency, actualRemoved), inline: true },
+                    { name: '<:req:1000019378730975282> New Total', value: fmtAmount(currency, newTotal), inline: true },
+                    { name: 'Removed By', value: `<@${interaction.user.id}>`, inline: true },
+                    { name: '📋 Event', value: eventLabel, inline: true },
+                )
+                .setTimestamp();
+
+            if (actualRemoved < amount) {
+                logEmbed.addFields({
+                    name: '<:purpledot:860074414853586984> Floored',
+                    value: `Only ${fmtAmount(currency, actualRemoved)} could be removed — total cannot go below 0.`,
+                    inline: false,
+                });
+            }
+
+            if (hasRoles && nextMilestone) {
+                const needed = nextMilestone.amount - newTotal;
+                logEmbed.addFields({
+                    name: '<:purpledot:860074414853586984> Next Milestone',
+                    value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
+                    inline: false,
+                });
+            } else if (hasRoles && newTotal > 0 && !nextMilestone) {
+                logEmbed.addFields({ name: '<:winners:1000018706874781806> Milestone', value: 'Max milestone reached!', inline: false });
+            }
+
+            if (hasRoles && (gained.length > 0 || lost.length > 0)) {
+                const lines = [];
+                if (gained.length) lines.push(`**Gained:** ${gained.map(id => `<@&${id}>`).join(' ')}`);
+                if (lost.length) lines.push(`**Lost:** ${lost.map(id => `<@&${id}>`).join(' ')}`);
+                logEmbed.addFields({ name: '<:downvote:1303963004915679232> Roles Updated', value: lines.join('\n'), inline: false });
+            }
+
+            if (noteText !== null) {
+                logEmbed.addFields({ name: '<:message:1000020218229305424> Note Set', value: noteText, inline: false });
+            }
+
+            if (jumpLink) {
+                logEmbed.addFields({ name: '🔗 Source', value: `[Jump to command](${jumpLink})`, inline: false });
+            }
+
+            await logChannel.send({ embeds: [logEmbed] }).catch(e =>
+                console.error('[removenote] Failed to send to log channel:', e)
+            );
+        }
     },
 };

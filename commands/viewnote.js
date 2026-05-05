@@ -130,9 +130,19 @@ module.exports = {
                 const setAt = userData.noteSetAt
                     ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
                     : 'unknown';
+
+                const guildId = interaction.guild.id;
+                const noteLink = (userData.noteChannelId && userData.noteMessageId)
+                    ? `https://discord.com/channels/${guildId}/${userData.noteChannelId}/${userData.noteMessageId}`
+                    : null;
+
+                const byLine = noteLink
+                    ? `*Set by <@${userData.noteSetBy}> on ${setAt} — [view entry](${noteLink})*`
+                    : `*Set by <@${userData.noteSetBy}> on ${setAt}*`;
+
                 embed.addFields({
                     name: '<:message:1000020218229305424> Staff Note',
-                    value: `${note}\n*Set by <@${userData.noteSetBy}> on ${setAt}*`,
+                    value: `${note}\n${byLine}`,
                     inline: false,
                 });
             }

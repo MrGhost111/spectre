@@ -13,24 +13,18 @@ const {
     TIER_1_REQUIREMENT, TIER_2_REQUIREMENT,
 } = require('../donationSystem');
 const { EmbedBuilder } = require('discord.js');
-
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
 const FLOW_CHANNELS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
-
 // ─── Dedup: prevent re-processing the same message ID ────────────────────────
 const processedIds = new Set();
-
 function isAlreadyProcessed(messageId) {
     return processedIds.has(messageId);
 }
-
 function markProcessed(messageId) {
     processedIds.add(messageId);
     setTimeout(() => processedIds.delete(messageId), 600_000);
 }
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function extractComponentText(components = []) {
     let text = '';
     for (const c of components) {
@@ -39,7 +33,6 @@ function extractComponentText(components = []) {
     }
     return text;
 }
-
 function buildFullText(message) {
     let text = message.content || '';
     for (const embed of message.embeds || []) {
@@ -51,35 +44,24 @@ function buildFullText(message) {
     }
     return text;
 }
-
 // ─── Item info embed parser ───────────────────────────────────────────────────
 function parseItemInfoEmbed(embeds) {
     if (!embeds?.length) return null;
     const embed = embeds[0];
     if (!embed.title || !embed.fields?.length) return null;
-
     const marketField = embed.fields.find(f => f.name === 'Market');
     if (!marketField) return null;
-
     const avgMatch = marketField.value.match(/Average Value:\s*⏣\s*([\d,]+)/);
     if (!avgMatch) return null;
-
     const marketAvgValue = parseInt(avgMatch[1].replace(/,/g, ''), 10);
     if (isNaN(marketAvgValue) || marketAvgValue <= 0) return null;
-
     const netField = embed.fields.find(f => f.name === 'Net Value');
     const netValue = netField ? parseInt(netField.value.replace(/[^0-9]/g, ''), 10) : null;
-
     return {
         itemName: embed.title.trim(),
         marketAvgValue,
         netValue: (netValue && !isNaN(netValue)) ? netValue : null,
     };
-}
-
-// ─── Donation prize parser ────────────────────────────────────────────────────
-// Coin:  "Successfully donated **⏣ 50,000,000**"
-// Item:  "Successfully donated **500 <:emoji:id> Item Name**"
 function parsePrize(fullText) {
     const coinMatch = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
     if (coinMatch) {
@@ -97,12 +79,9 @@ function parsePrize(fullText) {
     if (itemMatch) {
         const rawItem = itemMatch[1].trim();
         const cleanItem = stripEmojiMarkup(rawItem);
-
-        // Extract leading quantity AND item name ("500 Banknote" → qty=500, name="Banknote")
         const nameMatch = cleanItem.match(/^(\d+)\s+(.+)$/);
         const itemQty = nameMatch ? parseInt(nameMatch[1], 10) : 1;
         const rawItemName = nameMatch ? nameMatch[2].trim() : cleanItem;
-
         return {
             prizeText: `${itemQty} × ${rawItemName}`,   // clean display: "500 × Banknote"
             isCoins: false,
@@ -111,7 +90,6 @@ function parsePrize(fullText) {
             itemQty,
         };
     }
-
     return null;
 }
 
