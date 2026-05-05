@@ -116,7 +116,7 @@ module.exports = {
                     value: recent.map(d => {
                         const sign = d.amount >= 0
                             ? '<:plus:1501036176944009366>'
-                            : '<:minus:1501036902256476291>';
+                            : '—';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
                         const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
