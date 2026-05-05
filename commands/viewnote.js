@@ -119,7 +119,7 @@ module.exports = {
                             : '<:minus:1501036902256476291>';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
-                        const paddedNum = fmtPadded(Math.abs(d.amount));
+                        const paddedNum = formatFull(Math.abs(d.amount));
                         const jump = d.channelId && d.messageId
                             ? ` [↗](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
                             : '';
