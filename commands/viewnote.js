@@ -101,7 +101,7 @@ module.exports = {
 
         if (hasRoles) {
             headerLines.push(
-                `**<:purpledot:860074414853586984> Current Role:** ${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
+                `**<:idk:1064831073881694278> Current Role:** ${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
             );
         }
 
@@ -128,7 +128,7 @@ module.exports = {
                 const needed = nextMilestone.amount - total;
                 container.addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(
-                        `**<:purpledot:860074414853586984> Next Milestone:** <@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
+                        `**<:idk:1064831073881694278> Next Milestone:** <@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
                     )
                 );
             } else if (total > 0) {
