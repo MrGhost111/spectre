@@ -119,11 +119,11 @@ module.exports = {
                             : '<:minus:1501036902256476291>';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
-                        const paddedNum = formatFull(Math.abs(d.amount));
-                        const jump = d.channelId && d.messageId
-                            ? ` [↗](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : '';
-                        return `${sign} ${currency} ${paddedNum} ${date}${jump}${manual}`;
+                        const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
+                        const linkedAmount = d.channelId && d.messageId
+                            ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : amountStr;
+                        return `${date} ${sign} ${linkedAmount}${manual}`;
                     }).join('\n'),
                     inline: false,
                 });
