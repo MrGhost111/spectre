@@ -1,5 +1,14 @@
 // slashCommands/viewnote.js
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const {
+    SlashCommandBuilder,
+    MessageFlags,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SectionBuilder,
+    ThumbnailBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+} = require('discord.js');
 const {
     loadDonations,
     formatFull,
@@ -19,6 +28,9 @@ const STAFF_ROLE_IDS = [
     '1487607589998166157',
 ];
 
+// Purple accent colour (0x4c00b0)
+const ACCENT_COLOR = 0x4c00b0;
+
 function isStaffMember(member) {
     return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
 }
@@ -27,21 +39,21 @@ function fmtAmount(currency, amount) {
     return `${currency} ${formatFull(amount)}`;
 }
 
-// Right-aligns the number inside a fixed 15-char monospace code span.
-// "999,999,999,999" is the max (15 chars), so padStart(15) covers everything.
-function fmtPadded(amount) {
-    return `\`${formatFull(amount).padStart(15)}\``;
-}
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('viewnote')
         .setDescription('View donation profile for a user.')
         .addUserOption(option =>
-            option.setName('user').setDescription('User to view (defaults to yourself).').setRequired(false)
+            option
+                .setName('user')
+                .setDescription('User to view (defaults to yourself).')
+                .setRequired(false)
         )
         .addStringOption(option =>
-            option.setName('event').setDescription('Which event to view. Defaults to Dank Memer.').setRequired(false)
+            option
+                .setName('event')
+                .setDescription('Which event to view. Defaults to Dank Memer.')
+                .setRequired(false)
                 .addChoices(
                     { name: 'Dank Memer', value: 'dankmemer' },
                     { name: 'Investor', value: 'investor' },
@@ -53,108 +65,151 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply({ ephemeral: false });
 
+        // ── Resolve target ────────────────────────────────────────────────────
         const targetUser = interaction.options.getUser('user') ?? interaction.user;
         const event = interaction.options.getString('event') ?? 'dankmemer';
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
-        if (!targetMember) return interaction.editReply('Could not find that member in this server.');
+        if (!targetMember) {
+            return interaction.editReply({ content: 'Could not find that member in this server.' });
+        }
 
+        // ── Load data ─────────────────────────────────────────────────────────
         const data = loadDonations(event);
         const userData = data[targetUser.id];
         const total = userData?.totalDonated ?? 0;
         const note = userData?.note ?? null;
         const history = userData?.donations ?? [];
-
         const currentMilestone = getCurrentMilestone(total, event);
         const nextMilestone = getNextMilestone(total, event);
         const staff = isStaffMember(interaction.member);
         const currency = EVENT_CURRENCY[event];
         const eventLabel = EVENT_LABELS[event];
         const hasRoles = event !== 'owo';
+        const guildId = interaction.guild.id;
 
-        const embed = new EmbedBuilder()
-            .setTitle(`<:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`)
-            .setColor('#4c00b0')
-            .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
-            .addFields({
-                name: '<:req:1000019378730975282> Total Donated',
-                value: fmtAmount(currency, total),
-                inline: true,
-            });
+        // ── Build container ───────────────────────────────────────────────────
+        const container = new ContainerBuilder().setAccentColor(ACCENT_COLOR);
+
+        // ── Section 1: avatar thumbnail + header info ─────────────────────────
+        // SectionBuilder lets you put a thumbnail beside text — this is the
+        // component that actually solves the mobile wrapping problem.
+        const headerLines = [
+            `## <:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`,
+            `**<:req:1000019378730975282> Total Donated:** ${fmtAmount(currency, total)}`,
+        ];
 
         if (hasRoles) {
-            embed.addFields({
-                name: '<:purpledot:860074414853586984> Current Role',
-                value: currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None',
-                inline: true,
-            });
+            headerLines.push(
+                `**<:purpledot:860074414853586984> Current Role:** ${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
+            );
         }
 
-        embed.setTimestamp();
+        const headerSection = new SectionBuilder()
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(headerLines.join('\n'))
+            )
+            .setThumbnailAccessory(
+                new ThumbnailBuilder().setURL(
+                    targetMember.user.displayAvatarURL({ dynamic: true })
+                )
+            );
 
-        if (hasRoles && nextMilestone) {
-            const needed = nextMilestone.amount - total;
-            embed.addFields({
-                name: '<:purpledot:860074414853586984> Next Milestone',
-                value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
-                inline: false,
-            });
-        } else if (hasRoles && total > 0 && !nextMilestone) {
-            embed.addFields({
-                name: '<:winners:1000018706874781806> Milestone',
-                value: 'Max milestone reached!',
-                inline: false,
-            });
-        }
+        container.addSectionComponents(headerSection);
 
-        if (staff) {
-            const recent = [...history].reverse().slice(0, 5);
-            if (recent.length > 0) {
-                const guildId = interaction.guild.id;
-                embed.addFields({
-                    name: '<:lbtest:1064919048242090054> Recent Donations',
-                    value: recent.map(d => {
-                        const sign = d.amount >= 0
-                            ? '<:plus:1501036176944009366>'
-                            : '—';
-                        const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
-                        const manual = d.manual ? ' *(manual)*' : '';
-                        const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
-                        const linkedAmount = d.channelId && d.messageId
-                            ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : amountStr;
-                        return `${date} ${sign} ${linkedAmount}${manual}`;
-                    }).join('\n'),
-                    inline: false,
-                });
-            } else {
-                embed.addFields({
-                    name: '<:lbtest:1064919048242090054> Recent Donations',
-                    value: 'No donations recorded yet.',
-                    inline: false,
-                });
+        // ── Separator ─────────────────────────────────────────────────────────
+        container.addSeparatorComponents(
+            new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+        );
+
+        // ── Next milestone ────────────────────────────────────────────────────
+        if (hasRoles) {
+            if (nextMilestone) {
+                const needed = nextMilestone.amount - total;
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:purpledot:860074414853586984> Next Milestone:** <@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
+                    )
+                );
+            } else if (total > 0) {
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:winners:1000018706874781806> Milestone:** Max milestone reached!`
+                    )
+                );
             }
 
+            container.addSeparatorComponents(
+                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+            );
+        }
+
+        // ── Staff-only section ────────────────────────────────────────────────
+        if (staff) {
+            // Recent donations — each entry on its own line, no field width limit
+            const recent = [...history].reverse().slice(0, 5);
+
+            container.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    '**<:lbtest:1064919048242090054> Recent Donations**'
+                )
+            );
+
+            if (recent.length > 0) {
+                const lines = recent.map(d => {
+                    const sign = d.amount >= 0 ? '<:plus:1501036176944009366>' : '—';
+                    const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
+                    const manual = d.manual ? ' *(manual)*' : '';
+                    const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
+
+                    // Item donations: show qty × name breakdown if available
+                    const itemDetail = (d.itemName && d.itemQty)
+                        ? ` *(${d.itemQty} × ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
+                        : '';
+
+                    const linkedAmount = (d.channelId && d.messageId)
+                        ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                        : amountStr;
+
+                    return `${date} ${sign} ${linkedAmount}${itemDetail}${manual}`;
+                });
+
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(lines.join('\n'))
+                );
+            } else {
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent('No donations recorded yet.')
+                );
+            }
+
+            // Staff note
             if (note) {
+                container.addSeparatorComponents(
+                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+                );
+
                 const setAt = userData.noteSetAt
                     ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
                     : 'unknown';
 
-                const guildId = interaction.guild.id;
                 const noteLink = (userData.noteChannelId && userData.noteMessageId)
                     ? `https://discord.com/channels/${guildId}/${userData.noteChannelId}/${userData.noteMessageId}`
                     : null;
 
-                embed.addFields({
-                    name: '<:message:1000020218229305424> Staff Note',
-                    value: noteLink
-                        ? `${setAt} [${note}](${noteLink})`
-                        : `${setAt} ${note}`,
-                    inline: false,
-                });
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:message:1000020218229305424> Staff Note**\n` +
+                        (noteLink ? `${setAt} [${note}](${noteLink})` : `${setAt} ${note}`)
+                    )
+                );
             }
         }
 
-        await interaction.editReply({ embeds: [embed] });
+        // ── Send ──────────────────────────────────────────────────────────────
+        await interaction.editReply({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+        });
     },
 };
