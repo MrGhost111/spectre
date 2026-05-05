@@ -24,9 +24,13 @@ function isStaffMember(member) {
 }
 
 function fmtAmount(currency, amount) {
-    return amount >= 1_000_000
-        ? `${currency} ${formatFull(amount)} *(${formatNumber(amount)})*`
-        : `${currency} ${formatFull(amount)}`;
+    return `${currency} ${formatFull(amount)}`;
+}
+
+// Right-aligns the number inside a fixed 15-char monospace code span.
+// "999,999,999,999" is the max (15 chars), so padStart(15) covers everything.
+function fmtPadded(amount) {
+    return `\`${formatFull(amount).padStart(15)}\``;
 }
 
 module.exports = {
@@ -115,11 +119,11 @@ module.exports = {
                             : '<:minus:1501036902256476291>';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
-                        const label = `${sign} ${currency} ${formatNumber(Math.abs(d.amount))}`;
-                        const amountStr = d.channelId && d.messageId
-                            ? `[${label}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : label;
-                        return `${date} — ${amountStr}${manual}`;
+                        const paddedNum = fmtPadded(Math.abs(d.amount));
+                        const jump = d.channelId && d.messageId
+                            ? ` [↗](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : '';
+                        return `${sign} ${currency} ${paddedNum} ${date}${jump}${manual}`;
                     }).join('\n'),
                     inline: false,
                 });
