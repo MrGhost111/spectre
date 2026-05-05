@@ -92,21 +92,22 @@ module.exports = {
         const container = new ContainerBuilder().setAccentColor(ACCENT_COLOR);
 
         // ── Section 1: avatar thumbnail + header info ─────────────────────────
-        // Label on one line, value on the next — prevents mid-value wrapping on mobile
-        const headerLines = [
+        // \n\n between each block gives breathing room on mobile
+        const headerParts = [
             `## <:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`,
             `**<:req:1000019378730975282> Total Donated:**\n${fmtAmount(currency, total)}`,
         ];
 
         if (hasRoles) {
-            headerLines.push(
+            headerParts.push(
                 `**<:edit:1064822995014651914> Current Role:**\n${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}`
             );
         }
 
         const headerSection = new SectionBuilder()
             .addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(headerLines.join('\n'))
+                // join with double newline so each block has a blank line above/below it
+                new TextDisplayBuilder().setContent(headerParts.join('\n\n'))
             )
             .setThumbnailAccessory(
                 new ThumbnailBuilder().setURL(
@@ -145,7 +146,6 @@ module.exports = {
 
         // ── Staff-only section ────────────────────────────────────────────────
         if (staff) {
-            // Recent donations — each entry on its own line, no field width limit
             const recent = [...history].reverse().slice(0, 5);
 
             container.addTextDisplayComponents(
@@ -161,7 +161,6 @@ module.exports = {
                     const manual = d.manual ? ' *(manual)*' : '';
                     const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
 
-                    // Item donations: show qty x name breakdown if available
                     const itemDetail = (d.itemName && d.itemQty)
                         ? ` *(${d.itemQty} x ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
                         : '';
