@@ -62,6 +62,7 @@ function parseItemInfoEmbed(embeds) {
         marketAvgValue,
         netValue: (netValue && !isNaN(netValue)) ? netValue : null,
     };
+}
 function parsePrize(fullText) {
     const coinMatch = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
     if (coinMatch) {
