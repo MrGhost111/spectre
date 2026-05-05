@@ -115,10 +115,11 @@ module.exports = {
                             : '<:minus:1501036902256476291>';
                         const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                         const manual = d.manual ? ' *(manual)*' : '';
+                        const label = `${sign} ${currency} ${formatNumber(Math.abs(d.amount))}`;
                         const amountStr = d.channelId && d.messageId
-                            ? `[${sign} ${currency} ${formatFull(Math.abs(d.amount))}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : `${sign} ${currency} ${formatFull(Math.abs(d.amount))}`;
-                        return `${amountStr}  ${date}${manual}`;
+                            ? `[${label}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                            : label;
+                        return `${date} — ${amountStr}${manual}`;
                     }).join('\n'),
                     inline: false,
                 });
