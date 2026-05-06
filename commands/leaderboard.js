@@ -128,7 +128,22 @@ module.exports = {
         .setDescription('View the donation leaderboard.'),
 
     async execute(interaction) {
-        await interaction.deferReply();
+        // Bail out if the interaction is already older than 2.5 seconds — Discord's window is 3s
+        const age = Date.now() - interaction.createdTimestamp;
+        if (age > 2500) {
+            console.warn(`[leaderboard] Interaction already ${age}ms old — skipping.`);
+            return;
+        }
+
+        try {
+            await interaction.deferReply();
+        } catch (err) {
+            if (err.code === 10062) {
+                console.warn('[leaderboard] Interaction expired before deferReply — discarding.');
+                return;
+            }
+            throw err;
+        }
 
         const event = 'dankmemer';
         const sorted = getSorted(event);
