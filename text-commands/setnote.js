@@ -36,9 +36,7 @@ function getAllowedEvents(member) {
 }
 
 function fmtAmount(currency, amount) {
-    return amount >= 1_000_000
-        ? `${currency} ${formatFull(amount)} *(${formatNumber(amount)})*`
-        : `${currency} ${formatFull(amount)}`;
+    return `${currency} ${formatFull(amount)}`;
 }
 
 module.exports = {
