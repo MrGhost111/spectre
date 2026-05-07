@@ -1,13 +1,18 @@
-// commands/viewnote.js  (text command)
-// Usage: ,viewnote [<@user | userID>] [event]
-// Event: dankmemer (default), investor, karuta, owo
-// Anyone can use. Recent donations + staff note only visible to staff.
+// textcommands/viewnote.js
+// Usage: ,viewnote [@user] [event]
 
-const { EmbedBuilder } = require('discord.js');
+const {
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SectionBuilder,
+    ThumbnailBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    MessageFlags,
+} = require('discord.js');
 const {
     loadDonations,
     formatFull,
-    formatNumber,
     getCurrentMilestone,
     getNextMilestone,
     EVENT_LABELS,
@@ -15,142 +20,167 @@ const {
 } = require('../Donations/noteSystem');
 
 const STAFF_ROLE_IDS = [
-    '712970141834674207', // Staff
-    '806450472474116136', // Chat Mod
-    '710572344745132114', // Mod
-    '746298070685188197', // Admin
+    '712970141834674207',
+    '806450472474116136',
+    '710572344745132114',
+    '746298070685188197',
+    '1028276735357227029',
+    '1487607589998166157',
 ];
 
 const VALID_EVENTS = ['dankmemer', 'investor', 'karuta', 'owo'];
+const ACCENT_COLOR = 0x4c00b0;
 
 function isStaffMember(member) {
     return STAFF_ROLE_IDS.some(id => member.roles.cache.has(id));
 }
 
 function fmtAmount(currency, amount) {
-    return amount >= 1_000_000
-        ? `${currency} ${formatFull(amount)} *(${formatNumber(amount)})*`
-        : `${currency} ${formatFull(amount)}`;
+    return `${currency} ${formatFull(amount)}`;
 }
 
 module.exports = {
     name: 'viewnote',
-    aliases: ['note', 'notes', 'vn'],
+    aliases: ['vn'],
     description: 'View donation profile for a user.',
-
     async execute(message, args) {
-        // ── Resolve target ────────────────────────────────────────────────────
-        let rawTarget = message.mentions.users.first()?.id ?? null;
-        let argOffset = 0;
+        const targetUser = message.mentions.users.first() ?? message.author;
+        const eventArg = args.find(a => VALID_EVENTS.includes(a.toLowerCase()));
+        const event = eventArg ?? 'dankmemer';
 
-        if (!rawTarget && args[0]) {
-            const cleaned = args[0].replace(/[<@!>]/g, '');
-            if (/^\d{17,19}$/.test(cleaned)) {
-                rawTarget = cleaned;
-                argOffset = 1;
-            }
-        } else if (rawTarget) {
-            argOffset = 1;
-        }
-
-        if (!rawTarget) rawTarget = message.author.id;
-
-        // ── Parse optional event ──────────────────────────────────────────────
-        let event = 'dankmemer';
-        if (args[argOffset] && VALID_EVENTS.includes(args[argOffset].toLowerCase())) {
-            event = args[argOffset].toLowerCase();
-        }
-
-        const targetMember = await message.guild.members.fetch(rawTarget).catch(() => null);
+        const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
         if (!targetMember) {
             return message.reply('Could not find that member in this server.');
         }
 
         const data = loadDonations(event);
-        const userData = data[rawTarget];
+        const userData = data[targetUser.id];
         const total = userData?.totalDonated ?? 0;
         const note = userData?.note ?? null;
         const history = userData?.donations ?? [];
-
         const currentMilestone = getCurrentMilestone(total, event);
         const nextMilestone = getNextMilestone(total, event);
         const staff = isStaffMember(message.member);
         const currency = EVENT_CURRENCY[event];
         const eventLabel = EVENT_LABELS[event];
         const hasRoles = event !== 'owo';
+        const guildId = message.guild.id;
 
-        const embed = new EmbedBuilder()
-            .setTitle(`<:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`)
-            .setColor('#4c00b0')
-            .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
-            .addFields({
-                name: '<:req:1000019378730975282> Total Donated',
-                value: fmtAmount(currency, total),
-                inline: true,
-            });
+        const SP = '<:invisible:1277372701710749777>';
+
+        const container = new ContainerBuilder().setAccentColor(ACCENT_COLOR);
+
+        const headerParts = [
+            `## <:prize:1000016483369369650>  ${eventLabel} Donations — ${targetMember.displayName}`,
+            `${SP}\n**<:req:1000019378730975282> Total Donated:**\n${fmtAmount(currency, total)}`,
+        ];
 
         if (hasRoles) {
-            embed.addFields({
-                name: '<:purpledot:860074414853586984> Current Role',
-                value: currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None',
-                inline: true,
-            });
+            headerParts.push(
+                `**<:edit:1064822995014651914> Current Role:**\n${currentMilestone ? `<@&${currentMilestone.roleId}>` : 'None'}\n${SP}`
+            );
+        } else {
+            headerParts[1] += `\n${SP}`;
         }
 
-        embed.setTimestamp();
+        const headerSection = new SectionBuilder()
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(headerParts.join('\n\n'))
+            )
+            .setThumbnailAccessory(
+                new ThumbnailBuilder().setURL(
+                    targetMember.user.displayAvatarURL({ dynamic: true })
+                )
+            );
 
-        if (hasRoles && nextMilestone) {
-            const needed = nextMilestone.amount - total;
-            embed.addFields({
-                name: '<:purpledot:860074414853586984> Next Milestone',
-                value: `<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`,
-                inline: false,
-            });
-        } else if (hasRoles && total > 0 && !nextMilestone) {
-            embed.addFields({
-                name: '<:winners:1000018706874781806> Milestone',
-                value: 'Max milestone reached!',
-                inline: false,
-            });
+        container.addSectionComponents(headerSection);
+
+        container.addSeparatorComponents(
+            new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+        );
+
+        if (hasRoles) {
+            if (nextMilestone) {
+                const needed = nextMilestone.amount - total;
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:edit:1064822995014651914> Next Milestone:**\n<@&${nextMilestone.roleId}> — ${fmtAmount(currency, needed)} to go`
+                    )
+                );
+            } else if (total > 0) {
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:winners:1000018706874781806> Milestone:** Max milestone reached!`
+                    )
+                );
+            }
+
+            container.addSeparatorComponents(
+                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+            );
         }
 
         if (staff) {
             const recent = [...history].reverse().slice(0, 5);
+
+            container.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                    '**<:lbtest:1064919048242090054> Recent Donations**'
+                )
+            );
+
             if (recent.length > 0) {
-                const guildId = message.guild.id;
-                embed.addFields({
-                    name: '<:lbtest:1064919048242090054> Recent Donations',
-                    value: recent.map(d => {
-                        const sign = d.amount >= 0 ? '+' : '-';
-                        const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
-                        const manual = d.manual ? ' *(manual)*' : '';
-                        const amountStr = d.channelId && d.messageId
-                            ? `[${sign}${currency} ${formatFull(Math.abs(d.amount))}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                            : `${sign}${currency} ${formatFull(Math.abs(d.amount))}`;
-                        return `${amountStr}  ${date}${manual}`;
-                    }).join('\n'),
-                    inline: false,
+                const lines = recent.map(d => {
+                    const sign = d.amount >= 0 ? '<:plus:1501036176944009366>' : '—';
+                    const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
+                    const manual = d.manual ? ' *(manual)*' : '';
+                    const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
+
+                    const itemDetail = (d.itemName && d.itemQty)
+                        ? ` *(${d.itemQty} x ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
+                        : '';
+
+                    const linkedAmount = (d.channelId && d.messageId)
+                        ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                        : amountStr;
+
+                    return `${date} ${sign} ${linkedAmount}${itemDetail}${manual}`;
                 });
+
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(lines.join('\n'))
+                );
             } else {
-                embed.addFields({
-                    name: '<:lbtest:1064919048242090054> Recent Donations',
-                    value: 'No donations recorded yet.',
-                    inline: false,
-                });
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent('No donations recorded yet.')
+                );
             }
 
             if (note) {
+                container.addSeparatorComponents(
+                    new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
+                );
+
                 const setAt = userData.noteSetAt
                     ? `<t:${Math.floor(new Date(userData.noteSetAt).getTime() / 1000)}:d>`
                     : 'unknown';
-                embed.addFields({
-                    name: '<:message:1000020218229305424> Staff Note',
-                    value: `${note}\n*Set by <@${userData.noteSetBy}> on ${setAt}*`,
-                    inline: false,
-                });
+
+                const noteLink = (userData.noteChannelId && userData.noteMessageId)
+                    ? `https://discord.com/channels/${guildId}/${userData.noteChannelId}/${userData.noteMessageId}`
+                    : null;
+
+                container.addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(
+                        `**<:message:1000020218229305424> Staff Note**\n` +
+                        (noteLink ? `${setAt} [${note}](${noteLink})` : `${setAt} ${note}`)
+                    )
+                );
             }
         }
 
-        await message.reply({ embeds: [embed] });
+        await message.channel.send({
+            components: [container],
+            flags: MessageFlags.IsComponentsV2,
+        });
     },
 };
