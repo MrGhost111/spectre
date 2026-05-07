@@ -292,6 +292,13 @@ module.exports = {
 
         // ── Slash commands ───────────────────────────────────────────────────
         if (interaction.isChatInputCommand()) {
+            // Discard stale interactions before doing any work
+            const age = Date.now() - interaction.createdTimestamp;
+            if (age > 2500) {
+                console.warn(`[interactionCreate] Stale slash command "${interaction.commandName}" (${age}ms old) — discarding.`);
+                return;
+            }
+
             const command = client.commands.get(interaction.commandName);
 
             if (!command) {
