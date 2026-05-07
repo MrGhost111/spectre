@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { formatFull, formatNumber } = require('../Donations/noteSystem');
 
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
@@ -312,12 +312,21 @@ module.exports = {
                 console.error(`Error executing ${interaction.commandName}`);
                 console.error(error);
 
-                const errorMessage = { content: 'There was an error while executing this command!', ephemeral: true };
+                const errorMessage = {
+                    content: 'There was an error while executing this command!',
+                    flags: MessageFlags.Ephemeral,
+                };
 
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp(errorMessage);
-                } else {
-                    await interaction.reply(errorMessage);
+                try {
+                    if (interaction.deferred && !interaction.replied) {
+                        await interaction.editReply(errorMessage);
+                    } else if (interaction.replied) {
+                        await interaction.followUp(errorMessage);
+                    } else {
+                        await interaction.reply(errorMessage);
+                    }
+                } catch (followUpErr) {
+                    console.error('Failed to send error response:', followUpErr);
                 }
             }
         }
