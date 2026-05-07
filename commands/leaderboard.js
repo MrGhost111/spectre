@@ -28,7 +28,6 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
 
     const eventLabel = EVENT_LABELS[event] ?? event;
 
-    // Use guild member cache — no API calls
     const members = new Map();
     for (const { userId } of entries) {
         const member = interaction.guild.members.cache.get(userId);
@@ -37,7 +36,6 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
 
     const maxRankWidth = String(end).length;
 
-    // All events now use formatFull only, no currency prefix
     const formatted = entries.map(({ total }) => formatFull(total));
     const maxAmtLen = Math.max(...formatted.map(s => s.length));
 
@@ -74,7 +72,7 @@ function buildSelectMenu(currentEvent) {
                 { label: 'Dank Memer', value: 'dankmemer', emoji: '<:PepeHappy:715539014412664873>', default: currentEvent === 'dankmemer' },
                 { label: 'Investor', value: 'investor', emoji: '<a:cash:1498053763183808543>', default: currentEvent === 'investor' },
                 { label: 'Karuta', value: 'karuta', emoji: '🎟️', default: currentEvent === 'karuta' },
-                { label: 'OwO', value: 'owo', emoji: '<:hc_cowoncy:1498053388775194675>', default: currentEvent === 'owo' },
+                { label: 'OwO', value: 'owo', emoji: '<:owo_cash:1501038176817512560>', default: currentEvent === 'owo' },
             ])
     );
 }
@@ -128,7 +126,7 @@ module.exports = {
         .setDescription('View the donation leaderboard.'),
 
     async execute(interaction) {
-        // Bail out if the interaction is already older than 2.5 seconds — Discord's window is 3s
+        // Bail out if the interaction is already older than 2.5 seconds
         const age = Date.now() - interaction.createdTimestamp;
         if (age > 2500) {
             console.warn(`[leaderboard] Interaction already ${age}ms old — skipping.`);
@@ -145,36 +143,41 @@ module.exports = {
             throw err;
         }
 
-        const event = 'dankmemer';
-        const sorted = getSorted(event);
+        try {
+            const event = 'dankmemer';
+            const sorted = getSorted(event);
 
-        if (sorted.length === 0) {
-            return interaction.editReply({ content: 'No donation data found.' });
+            if (sorted.length === 0) {
+                return interaction.editReply({ content: 'No donation data found.' });
+            }
+
+            const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+            const userIndex = sorted.findIndex(e => e.userId === interaction.user.id);
+            const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
+            const page = 0;
+
+            const embed = await buildLeaderboard(sorted, page, totalPages, interaction, event);
+            const selectRow = buildSelectMenu(event);
+            const buttonRow = buildButtons(page, totalPages, userPage);
+
+            const reply = await interaction.editReply({
+                embeds: [embed],
+                components: [selectRow, buttonRow],
+            });
+
+            if (!interaction.client._lbCache) interaction.client._lbCache = new Map();
+            interaction.client._lbCache.set(reply.id, {
+                sorted,
+                totalPages,
+                userPage,
+                event,
+                page,
+                interactionUserId: interaction.user.id,
+            });
+        } catch (err) {
+            console.error('[leaderboard] Error after deferReply:', err);
+            await interaction.editReply({ content: `❌ Something went wrong: ${err.message}` });
         }
-
-        const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-        const userIndex = sorted.findIndex(e => e.userId === interaction.user.id);
-        const userPage = userIndex === -1 ? -1 : Math.floor(userIndex / PAGE_SIZE);
-        const page = 0;
-
-        const embed = await buildLeaderboard(sorted, page, totalPages, interaction, event);
-        const selectRow = buildSelectMenu(event);
-        const buttonRow = buildButtons(page, totalPages, userPage);
-
-        const reply = await interaction.editReply({
-            embeds: [embed],
-            components: [selectRow, buttonRow],
-        });
-
-        if (!interaction.client._lbCache) interaction.client._lbCache = new Map();
-        interaction.client._lbCache.set(reply.id, {
-            sorted,
-            totalPages,
-            userPage,
-            event,
-            page,
-            interactionUserId: interaction.user.id,
-        });
     },
 };
 
