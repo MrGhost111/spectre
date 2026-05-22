@@ -47,7 +47,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const member = members.get(userId);
         const displayName = member?.user?.username ?? member?.displayName ?? 'Unknown User';
         const dot = DOTS[(rank - 1) % DOTS.length];
-        const youTag = isYou ? '<:sweg:1507480543720247396>' : '';
+        const youTag = isYou ? '    <:sweg:1507480543720247396>' : '';
 
         const rankStr = String(rank).padStart(maxRankWidth, ' ');
         const amtStr = formatted[i].padEnd(maxAmtLen, ' ');
