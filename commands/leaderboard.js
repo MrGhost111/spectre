@@ -96,7 +96,7 @@ function buildButtons(page, totalPages, userPage, disabled = false) {
             .setDisabled(disabled || onFirstPage),
         new ButtonBuilder()
             .setCustomId(`lb_myrank_${page}`)
-            .setEmoji('<:sweg:1010054002202906634>')
+            .setEmoji('<:sweg:1507480543720247396>')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(disabled || userUnranked || onUserPage),
         new ButtonBuilder()
