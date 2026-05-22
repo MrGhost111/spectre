@@ -284,7 +284,7 @@ module.exports = {
                     new ButtonBuilder()
                         .setCustomId('risk')
                         .setStyle(ButtonStyle.Danger)
-                        .setEmoji('<:creepypp:1507261193205583923>')
+                        .setEmoji('<:creepypp:1507477093108285451>')
                 );
 
             const streakDisplay = success ? `**${currentStreak}**` : `**${previousStreak} → 0**`;
