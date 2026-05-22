@@ -47,7 +47,7 @@ async function buildLeaderboard(sorted, page, totalPages, interaction, event) {
         const member = members.get(userId);
         const displayName = member?.user?.username ?? member?.displayName ?? 'Unknown User';
         const dot = DOTS[(rank - 1) % DOTS.length];
-        const youTag = isYou ? '  <:sweg:1010054002202906634>' : '';
+        const youTag = isYou ? '  <:sweg:1507480543720247396>' : '';
 
         const rankStr = String(rank).padStart(maxRankWidth, ' ');
         const amtStr = formatted[i].padEnd(maxAmtLen, ' ');
@@ -97,7 +97,7 @@ function buildButtons(page, totalPages, userPage, disabled = false) {
         new ButtonBuilder()
             .setCustomId(`lb_myrank_${page}`)
             .setEmoji('<:sweg:1507480543720247396>')
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(ButtonStyle.Secondary)
             .setDisabled(disabled || userUnranked || onUserPage),
         new ButtonBuilder()
             .setCustomId(`lb_next_${page}`)
