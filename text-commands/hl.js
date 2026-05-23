@@ -212,22 +212,25 @@ module.exports = {
         const userData = highlights[message.author.id];
 
         switch (subCommand) {
-            case 'add': {
+
+                case 'add': {
                 const word = args.slice(1).join(' ').toLowerCase();
                 if (!word) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed('Please specify a word to highlight!')] 
+                    return message.reply({
+                        embeds: [createErrorEmbed('Please specify a word to highlight!')]
                     });
                 }
                 if (word.length < 3) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed('Highlight words must be at least 3 characters long!')] 
+                    return message.reply({
+                        embeds: [createErrorEmbed('Highlight words must be at least 3 characters long!')]
                     });
                 }
-                
-                if (userData.words.length >= MAX_HIGHLIGHTS) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed(`You can only have up to ${MAX_HIGHLIGHTS} highlight words!`)] 
+
+                const limit = message.member.roles.cache.has('783728143818424320') ? 30 : MAX_HIGHLIGHTS;
+
+                if (userData.words.length >= limit) {
+                    return message.reply({
+                        embeds: [createErrorEmbed(`You can only have up to ${limit} highlight words!`)]
                     });
                 }
                 
