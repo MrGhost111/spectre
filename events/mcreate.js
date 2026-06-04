@@ -12,6 +12,7 @@ const {
     handleStickyMessage,
     GIVEAWAY_CHANNEL_ID,
     EVENT_CHANNEL_ID,
+    SERVER_DONATION_CHANNEL_ID,
     DANK_MEMER_BOT_ID,
 } = require('../Donations/donationFlow');
 const { handleDankMessage } = require('../Donations/dankDetection');

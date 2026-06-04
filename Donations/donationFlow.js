@@ -35,7 +35,7 @@ const STICKY_CONTENT = {
     },
     [SERVER_DONATION_CHANNEL_ID]: {
         title: '<:prize:1000016483369369650> Want to donate to the server?',
-        description: 'Make a donation using </serverevents donate:1011560371267579936> — no giveaway or event needed. Just donate and staff will put it to good use!\n\nNo need to ping staff, it\'s all automated!',
+        description: 'Make a donation using </serverevents donate:1011560371267579936> - donate here if you doing it for the quest or dont have giveaway or event in mind. Just donate and staff will put it to good use!',
         color: '#4c00b0',
     },
 };
@@ -493,8 +493,8 @@ async function handleDonationFlow(
     if (!activeSessions.has(userId)) {
         if (isGiveaway && amount < MIN_GIVEAWAY_AMOUNT) {
             await channel.send(
-                `<@${userId}> ❌ The minimum donation to sponsor a giveaway is **⏣ ${MIN_GIVEAWAY_AMOUNT.toLocaleString()}**.\n` +
-                `> 💜 Want to go big? Donations of **⏣ ${MIN_MASSIVE_GIVEAWAY_AMOUNT.toLocaleString()}+** qualify as a **massive giveaway**!`
+                `<@${userId}> The minimum donation to sponsor a giveaway is **⏣ ${MIN_GIVEAWAY_AMOUNT.toLocaleString()}**.\n` +
+                `Please use <#1289101664426397717> for quest donationsS`
             );
             return;
         }
