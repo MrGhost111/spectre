@@ -187,8 +187,7 @@ async function handleStickyMessage(channel, triggerMessage) {
         const embed = new EmbedBuilder()
             .setTitle(config.title)
             .setDescription(config.description)
-            .setColor(config.color)
-            .setFooter({ text: 'Powered by /serverevents donate' });
+            .setColor(config.color);
 
         const newSticky = await channel.send({ embeds: [embed] }).catch(() => null);
         if (newSticky) {
@@ -392,8 +391,8 @@ async function askPingStaff(session) {
         const minutesLeft = Math.ceil(secondsLeft / 60);
         promptText =
             `**Do you want to ping staff?**\n` +
-            `> ⏳ Staff was recently pinged in this channel. If you choose yes, the ping will be sent automatically in **~${minutesLeft} minute(s)**.\n` +
-            `> *Reply \`yes\` to schedule the ping, or anything else to skip.*`;
+            `> Staff role was recently pinged in this channel. If you choose yes, the ping will be sent automatically in **~${minutesLeft} minute(s)**.\n` +
+            `> *Reply y or \`yes\` to schedule the ping, or anything else to skip.*`;
     }
 
     const raw = await askWithMerge(session, promptText, false);
@@ -494,7 +493,7 @@ async function handleDonationFlow(
         if (isGiveaway && amount < MIN_GIVEAWAY_AMOUNT) {
             await channel.send(
                 `<@${userId}> The minimum donation to sponsor a giveaway is **⏣ ${MIN_GIVEAWAY_AMOUNT.toLocaleString()}**.\n` +
-                `Please use <#1289101664426397717> for quest donationsS`
+                `Please use <#1289101664426397717> for quest donations`
             );
             return;
         }

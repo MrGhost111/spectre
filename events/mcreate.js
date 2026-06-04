@@ -23,7 +23,7 @@ let lastStickyMessageId = null;
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 
 const COUNTING_CHANNEL_ID = '1473339737044553953';
-const FLOW_CHANNEL_IDS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
+const FLOW_CHANNEL_IDS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID, SERVER_DONATION_CHANNEL_ID]);
 
 module.exports = {
     name: 'messageCreate',
