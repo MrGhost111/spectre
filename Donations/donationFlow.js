@@ -12,6 +12,16 @@ const PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
 const PROMPT_TIMEOUT_MESSAGE_MS = 10 * 60 * 1000;
 const STICKY_DELAY_MS = 30_000;
 
+// ─── Minimum donation thresholds ──────────────────────────────────────────────
+const MIN_GIVEAWAY_AMOUNT = 10_000_000;   // 10 million
+const MIN_MASSIVE_GIVEAWAY_AMOUNT = 30_000_000; // 30 million (info-only, not a hard gate)
+const MIN_EVENT_AMOUNT = 3_000_000;       // 3 million
+
+// ─── Staff ping cooldown (per channel, in ms) ─────────────────────────────────
+const STAFF_PING_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+// Map: channelId → timestamp of last staff ping
+const staffPingCooldowns = new Map();
+
 const STICKY_CONTENT = {
     [GIVEAWAY_CHANNEL_ID]: {
         title: '<:prize:1000016483369369650> Want to sponsor a giveaway?',
@@ -91,6 +101,10 @@ function hasCoinPrize(prizes) {
     return prizes.some(p => p.isCoins);
 }
 
+function getTotalAmount(prizes) {
+    return prizes.reduce((sum, p) => sum + (p.amount || 0), 0);
+}
+
 async function safeDelete(msg) {
     if (!msg) return;
     await msg.delete().catch(() => { });
@@ -100,49 +114,75 @@ function stripEmojiMarkup(text) {
     return text.replace(/<a?:[^:>]+:\d+>/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
+// ─── Staff ping cooldown helpers ──────────────────────────────────────────────
+
+/**
+ * Returns how many ms remain on the cooldown for the given channel,
+ * or 0 if the cooldown has expired / never been set.
+ */
+function getStaffPingCooldownRemaining(channelId) {
+    const last = staffPingCooldowns.get(channelId);
+    if (!last) return 0;
+    const elapsed = Date.now() - last;
+    return elapsed >= STAFF_PING_COOLDOWN_MS ? 0 : STAFF_PING_COOLDOWN_MS - elapsed;
+}
+
+function setStaffPingCooldown(channelId) {
+    staffPingCooldowns.set(channelId, Date.now());
+}
+
+/**
+ * Sends the staff ping (role mention) for a channel.
+ * If the channel is on cooldown, schedules the ping for when the CD expires.
+ * Returns immediately either way.
+ */
+async function sendStaffPing(channel, content) {
+    const remaining = getStaffPingCooldownRemaining(channel.id);
+
+    if (remaining <= 0) {
+        setStaffPingCooldown(channel.id);
+        await channel.send(content).catch(() => { });
+    } else {
+        setTimeout(async () => {
+            setStaffPingCooldown(channel.id);
+            await channel.send(content).catch(() => { });
+        }, remaining);
+    }
+}
+
 // ─── Sticky message handler ───────────────────────────────────────────────────
 
 async function handleStickyMessage(channel, triggerMessage) {
-    // Don't trigger on Dank Memer messages
     if (triggerMessage.author?.id === DANK_MEMER_BOT_ID) return;
-
-    // Only handle known sticky channels
     if (!STICKY_CONTENT[channel.id]) return;
 
-    // Don't trigger while a donation session is active in this channel
     for (const session of activeSessions.values()) {
         if (session.channel.id === channel.id) return;
     }
 
-    // Clear any existing pending timer
     const existingTimer = stickyTimers.get(channel.id);
     if (existingTimer) clearTimeout(existingTimer);
 
     const timer = setTimeout(async () => {
         stickyTimers.delete(channel.id);
 
-        // Double-check no session started while we were waiting
         for (const session of activeSessions.values()) {
             if (session.channel.id === channel.id) return;
         }
 
-        // Fetch the actual last message in the channel
         const lastMsg = await channel.messages.fetch({ limit: 1 })
             .then(m => m.first())
             .catch(() => null);
 
-        // If the last message is already our sticky, do nothing — regardless of age
         const currentStickyId = stickyMessages.get(channel.id);
         if (lastMsg && currentStickyId && lastMsg.id === currentStickyId) return;
 
-        // Delete the old sticky if it still exists somewhere in the channel
         if (currentStickyId) {
             const old = await channel.messages.fetch(currentStickyId).catch(() => null);
             if (old) await old.delete().catch(() => { });
             stickyMessages.delete(channel.id);
         }
 
-        // Send the new sticky embed
         const config = STICKY_CONTENT[channel.id];
         const embed = new EmbedBuilder()
             .setTitle(config.title)
@@ -161,7 +201,7 @@ async function handleStickyMessage(channel, triggerMessage) {
 
 // ─── Staff embed senders ──────────────────────────────────────────────────────
 
-async function sendGiveawayEmbed(client, channel, member, prizes, time, winners, message) {
+async function sendGiveawayEmbed(client, channel, member, prizes, time, winners, message, pingStaff) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
     const prizeStr = buildPrizeString(prizes);
@@ -187,10 +227,17 @@ async function sendGiveawayEmbed(client, channel, member, prizes, time, winners,
         .setFooter({ text: `ID: ${member.user.id}` })
         .setTimestamp();
 
-    await channel.send({ content: `<@&${STAFF_ROLE_ID}>${noteInfo}`, embeds: [embed] });
+    // Always send the embed immediately
+    await channel.send({ embeds: [embed] });
+
+    // Only ping staff if user opted in
+    if (pingStaff) {
+        const pingContent = `<@&${STAFF_ROLE_ID}>${noteInfo}`;
+        await sendStaffPing(channel, pingContent);
+    }
 }
 
-async function sendHeistEmbed(client, channel, member, prizes, message) {
+async function sendHeistEmbed(client, channel, member, prizes, message, pingStaff) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
     const prizeStr = buildPrizeString(prizes);
@@ -214,10 +261,15 @@ async function sendHeistEmbed(client, channel, member, prizes, message) {
         .setFooter({ text: `ID: ${member.user.id}` })
         .setTimestamp();
 
-    await channel.send({ content: `<@&${STAFF_ROLE_ID}>${noteInfo}`, embeds: [embed] });
+    await channel.send({ embeds: [embed] });
+
+    if (pingStaff) {
+        const pingContent = `<@&${STAFF_ROLE_ID}>${noteInfo}`;
+        await sendStaffPing(channel, pingContent);
+    }
 }
 
-async function sendEventEmbed(client, channel, member, prizes, eventType, requirement, message) {
+async function sendEventEmbed(client, channel, member, prizes, eventType, requirement, message, pingStaff) {
     const guild = channel.guild;
     const hasCoins = hasCoinPrize(prizes);
     const prizeStr = buildPrizeString(prizes);
@@ -243,7 +295,12 @@ async function sendEventEmbed(client, channel, member, prizes, eventType, requir
         .setFooter({ text: `ID: ${member.user.id}` })
         .setTimestamp();
 
-    await channel.send({ content: `<@&${STAFF_ROLE_ID}>${noteInfo}`, embeds: [embed] });
+    await channel.send({ embeds: [embed] });
+
+    if (pingStaff) {
+        const pingContent = `<@&${STAFF_ROLE_ID}>${noteInfo}`;
+        await sendStaffPing(channel, pingContent);
+    }
 }
 
 // ─── Prompt helpers ───────────────────────────────────────────────────────────
@@ -322,6 +379,28 @@ async function askHeistOrEventWithMerge(session) {
     }
 }
 
+/**
+ * Asks the user if they want to ping staff.
+ * Returns true if yes (y/yes), false for anything else.
+ */
+async function askPingStaff(session) {
+    const cooldownRemaining = getStaffPingCooldownRemaining(session.channel.id);
+
+    let promptText = '**Do you want to ping staff?**\n> *Reply `yes` to ping staff, or anything else to skip.*';
+    if (cooldownRemaining > 0) {
+        const secondsLeft = Math.ceil(cooldownRemaining / 1000);
+        const minutesLeft = Math.ceil(secondsLeft / 60);
+        promptText =
+            `**Do you want to ping staff?**\n` +
+            `> ⏳ Staff was recently pinged in this channel. If you choose yes, the ping will be sent automatically in **~${minutesLeft} minute(s)**.\n` +
+            `> *Reply \`yes\` to schedule the ping, or anything else to skip.*`;
+    }
+
+    const raw = await askWithMerge(session, promptText, false);
+    if (raw === null) return null;
+    return /^(y|yes)$/i.test(raw.trim());
+}
+
 // ─── Flow runners ─────────────────────────────────────────────────────────────
 
 async function runGiveawayFlowSafe(client, session) {
@@ -335,11 +414,14 @@ async function runGiveawayFlowSafe(client, session) {
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
+    const pingStaff = await askPingStaff(session);
+    if (pingStaff === null) return;
+
     activeSessions.delete(session.userId);
     const member = await session.channel.guild.members.fetch(session.userId).catch(() => null);
     if (!member) return;
 
-    await sendGiveawayEmbed(client, session.channel, member, session.prizes, time.trim(), winners.trim(), message);
+    await sendGiveawayEmbed(client, session.channel, member, session.prizes, time.trim(), winners.trim(), message, pingStaff);
 }
 
 async function runHeistFlowSafe(client, session) {
@@ -347,11 +429,14 @@ async function runHeistFlowSafe(client, session) {
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
+    const pingStaff = await askPingStaff(session);
+    if (pingStaff === null) return;
+
     activeSessions.delete(session.userId);
     const member = await session.channel.guild.members.fetch(session.userId).catch(() => null);
     if (!member) return;
 
-    await sendHeistEmbed(client, session.channel, member, session.prizes, message);
+    await sendHeistEmbed(client, session.channel, member, session.prizes, message, pingStaff);
 }
 
 async function runEventFlowSafe(client, session) {
@@ -369,11 +454,14 @@ async function runEventFlowSafe(client, session) {
     if (messageRaw === null) return;
     const message = /^(skip|none)$/i.test((messageRaw || '').trim()) ? null : messageRaw.trim();
 
+    const pingStaff = await askPingStaff(session);
+    if (pingStaff === null) return;
+
     activeSessions.delete(session.userId);
     const member = await session.channel.guild.members.fetch(session.userId).catch(() => null);
     if (!member) return;
 
-    await sendEventEmbed(client, session.channel, member, session.prizes, eventType.trim(), requirement, message);
+    await sendEventEmbed(client, session.channel, member, session.prizes, eventType.trim(), requirement, message, pingStaff);
 }
 
 async function runEventChannelFlowSafe(client, session, skipHeistQuestion) {
@@ -400,6 +488,24 @@ async function handleDonationFlow(
     const isGiveaway = channelId === GIVEAWAY_CHANNEL_ID;
     const isEvent = channelId === EVENT_CHANNEL_ID;
     if (!isGiveaway && !isEvent) return;
+
+    // ── Minimum threshold check (only applies to fresh sessions, not merges) ──
+    if (!activeSessions.has(userId)) {
+        if (isGiveaway && amount < MIN_GIVEAWAY_AMOUNT) {
+            await channel.send(
+                `<@${userId}> ❌ The minimum donation to sponsor a giveaway is **⏣ ${MIN_GIVEAWAY_AMOUNT.toLocaleString()}**.\n` +
+                `> 💜 Want to go big? Donations of **⏣ ${MIN_MASSIVE_GIVEAWAY_AMOUNT.toLocaleString()}+** qualify as a **massive giveaway**!`
+            );
+            return;
+        }
+
+        if (isEvent && amount < MIN_EVENT_AMOUNT) {
+            await channel.send(
+                `<@${userId}> ❌ The minimum donation to sponsor an event is **⏣ ${MIN_EVENT_AMOUNT.toLocaleString()}**.`
+            );
+            return;
+        }
+    }
 
     const newPrize = { text: prizeText, isCoins, amount, autoNoted, itemQty, pricePerUnit };
 
