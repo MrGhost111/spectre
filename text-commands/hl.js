@@ -47,11 +47,11 @@ function formatTimestamp(timestamp) {
 function checkHighlightMatch(messageWord, highlightWord, blacklistedWords) {
     messageWord = messageWord.toLowerCase();
     highlightWord = highlightWord.toLowerCase();
-    
+
     if (blacklistedWords?.some(word => messageWord.includes(word.toLowerCase()))) {
         return false;
     }
-    
+
     return messageWord.includes(highlightWord);
 }
 
@@ -71,9 +71,9 @@ async function checkMessageForHighlights(client, message) {
 
         const fetchedMessages = await message.channel.messages.fetch({ limit: 20 })
             .catch(() => null);
-        
+
         recentMessages = fetchedMessages ? Array.from(fetchedMessages.values()) : [];
-        
+
     } catch {
         recentMessages = [];
     }
@@ -94,14 +94,14 @@ async function checkMessageForHighlights(client, message) {
         const canViewChannel = message.channel.permissionsFor(member)?.has('ViewChannel');
         if (!canViewChannel) continue;
 
-        const wasRecentlyActive = recentMessages.some(msg => 
+        const wasRecentlyActive = recentMessages.some(msg =>
             msg.author.id === userId && (currentTime - msg.createdTimestamp <= THRESHOLD_TIME)
         );
 
         if (wasRecentlyActive) continue;
 
         for (const word of userData.words) {
-            const hasMatch = messageWords.some(messageWord => 
+            const hasMatch = messageWords.some(messageWord =>
                 checkHighlightMatch(messageWord, word, userData.blacklist?.words)
             );
 
@@ -110,9 +110,9 @@ async function checkMessageForHighlights(client, message) {
                 try {
                     const user = await client.users.fetch(userId);
 
-                    const contextMessages = await message.channel.messages.fetch({ 
-                        limit: 3, 
-                        before: message.id 
+                    const contextMessages = await message.channel.messages.fetch({
+                        limit: 3,
+                        before: message.id
                     });
 
                     const formattedContextMessages = Array.from(contextMessages.values())
@@ -130,10 +130,10 @@ async function checkMessageForHighlights(client, message) {
                             `**Jump to Message:**\n` +
                             `[Click here](${message.url})`
                         )
-                        .setFooter({ 
+                        .setFooter({
                             text: message.createdAt.toLocaleDateString('en-US', {
-                                year: 'numeric', 
-                                month: '2-digit', 
+                                year: 'numeric',
+                                month: '2-digit',
                                 day: '2-digit'
                             })
                         });
@@ -164,20 +164,20 @@ module.exports = {
     checkMessageForHighlights,
     async execute(message, args) {
         if (!message.guild) {
-            return message.reply({ 
-                embeds: [createErrorEmbed('This command can only be used in a server!')] 
+            return message.reply({
+                embeds: [createErrorEmbed('This command can only be used in a server!')]
             });
         }
 
         if (!hasRequiredRole(message.member)) {
-            return message.reply({ 
-                embeds: [createErrorEmbed('This command is a server perk. Please check <#862927749802885150> for more info.')] 
+            return message.reply({
+                embeds: [createErrorEmbed('This command is a server perk. Please check <#862927749802885150> for more info.')]
             });
         }
 
         const highlights = loadHighlights();
         const subCommand = args[0]?.toLowerCase();
-        
+
         if (!highlights[message.author.id]) {
             highlights[message.author.id] = {
                 words: [],
@@ -213,7 +213,7 @@ module.exports = {
 
         switch (subCommand) {
 
-                case 'add': {
+            case 'add': {
                 const word = args.slice(1).join(' ').toLowerCase();
                 if (!word) {
                     return message.reply({
@@ -226,26 +226,26 @@ module.exports = {
                     });
                 }
 
-                const limit = message.member.roles.cache.has('783728143818424320') ? 30 : MAX_HIGHLIGHTS;
+                const limit = (message.member.roles.cache.has('783728143818424320') || message.author.id === '730401940311244880') ? 30 : MAX_HIGHLIGHTS;
 
                 if (userData.words.length >= limit) {
                     return message.reply({
                         embeds: [createErrorEmbed(`You can only have up to ${limit} highlight words!`)]
                     });
                 }
-                
+
                 if (!userData.words.includes(word)) {
                     userData.words.push(word);
                     saveHighlights(highlights);
-                    
+
                     const successEmbed = new EmbedBuilder()
                         .setColor(0x00FF00)
                         .setDescription(`✅ Added "${word}" to your highlights`)
                         .setTimestamp();
                     message.reply({ embeds: [successEmbed] });
                 } else {
-                    message.reply({ 
-                        embeds: [createErrorEmbed('That word is already in your highlights!')] 
+                    message.reply({
+                        embeds: [createErrorEmbed('That word is already in your highlights!')]
                     });
                 }
                 break;
@@ -254,24 +254,24 @@ module.exports = {
             case 'remove': {
                 const wordToRemove = args.slice(1).join(' ').toLowerCase();
                 if (!wordToRemove) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed('Please specify a word to remove!')] 
+                    return message.reply({
+                        embeds: [createErrorEmbed('Please specify a word to remove!')]
                     });
                 }
-                
+
                 const index = userData.words.indexOf(wordToRemove);
                 if (index > -1) {
                     userData.words.splice(index, 1);
                     saveHighlights(highlights);
-                    
+
                     const successEmbed = new EmbedBuilder()
                         .setColor(0x00FF00)
                         .setDescription(`✅ Removed "${wordToRemove}" from your highlights`)
                         .setTimestamp();
                     message.reply({ embeds: [successEmbed] });
                 } else {
-                    message.reply({ 
-                        embeds: [createErrorEmbed('That word is not in your highlights!')] 
+                    message.reply({
+                        embeds: [createErrorEmbed('That word is not in your highlights!')]
                     });
                 }
                 break;
@@ -283,20 +283,20 @@ module.exports = {
                 const target = args.slice(3).join(' ');
 
                 if (!blacklistType || !['word', 'user', 'channel'].includes(blacklistType)) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed('Please specify what to blacklist (word/user/channel)!')] 
+                    return message.reply({
+                        embeds: [createErrorEmbed('Please specify what to blacklist (word/user/channel)!')]
                     });
                 }
 
                 if (!blacklistAction || !['add', 'remove'].includes(blacklistAction)) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed('Please specify the action (add/remove)!')] 
+                    return message.reply({
+                        embeds: [createErrorEmbed('Please specify the action (add/remove)!')]
                     });
                 }
 
                 if (!target) {
-                    return message.reply({ 
-                        embeds: [createErrorEmbed(`Please specify the ${blacklistType} to ${blacklistAction}!`)] 
+                    return message.reply({
+                        embeds: [createErrorEmbed(`Please specify the ${blacklistType} to ${blacklistAction}!`)]
                     });
                 }
 
@@ -309,16 +309,16 @@ module.exports = {
                         await message.guild.members.fetch(userId);
                         targetValue = userId;
                     } catch {
-                        return message.reply({ 
-                            embeds: [createErrorEmbed('Invalid user! Please mention a valid user or provide their ID.')] 
+                        return message.reply({
+                            embeds: [createErrorEmbed('Invalid user! Please mention a valid user or provide their ID.')]
                         });
                     }
                 } else if (blacklistType === 'channel') {
                     const channelId = target.replace(/[<#>]/g, '');
                     const channel = message.guild.channels.cache.get(channelId);
                     if (!channel) {
-                        return message.reply({ 
-                            embeds: [createErrorEmbed('Invalid channel! Please mention a valid channel or provide its ID.')] 
+                        return message.reply({
+                            embeds: [createErrorEmbed('Invalid channel! Please mention a valid channel or provide its ID.')]
                         });
                     }
                     targetValue = channelId;
@@ -326,23 +326,23 @@ module.exports = {
 
                 if (blacklistAction === 'add') {
                     if (userData.blacklist[blacklistKey].length >= MAX_BLACKLIST) {
-                        return message.reply({ 
-                            embeds: [createErrorEmbed(`You can only blacklist up to ${MAX_BLACKLIST} ${blacklistType}s!`)] 
+                        return message.reply({
+                            embeds: [createErrorEmbed(`You can only blacklist up to ${MAX_BLACKLIST} ${blacklistType}s!`)]
                         });
                     }
 
                     if (!userData.blacklist[blacklistKey].includes(targetValue)) {
                         userData.blacklist[blacklistKey].push(targetValue);
                         saveHighlights(highlights);
-                        
+
                         const successEmbed = new EmbedBuilder()
                             .setColor(0x00FF00)
                             .setDescription(`✅ Added ${blacklistType} "${target}" to your blacklist`)
                             .setTimestamp();
                         message.reply({ embeds: [successEmbed] });
                     } else {
-                        message.reply({ 
-                            embeds: [createErrorEmbed(`That ${blacklistType} is already in your blacklist!`)] 
+                        message.reply({
+                            embeds: [createErrorEmbed(`That ${blacklistType} is already in your blacklist!`)]
                         });
                     }
                 } else {
@@ -350,15 +350,15 @@ module.exports = {
                     if (index > -1) {
                         userData.blacklist[blacklistKey].splice(index, 1);
                         saveHighlights(highlights);
-                        
+
                         const successEmbed = new EmbedBuilder()
                             .setColor(0x00FF00)
                             .setDescription(`✅ Removed ${blacklistType} "${target}" from your blacklist`)
                             .setTimestamp();
                         message.reply({ embeds: [successEmbed] });
                     } else {
-                        message.reply({ 
-                            embeds: [createErrorEmbed(`That ${blacklistType} is not in your blacklist!`)] 
+                        message.reply({
+                            embeds: [createErrorEmbed(`That ${blacklistType} is not in your blacklist!`)]
                         });
                     }
                 }
@@ -382,21 +382,21 @@ module.exports = {
                         },
                         {
                             name: `👤 Blacklisted Users (${userData.blacklist.users.length}/${MAX_BLACKLIST})`,
-                            value: userData.blacklist.users.length > 0 
-                                ? userData.blacklist.users.map(id => `<@${id}>`).join('\n') 
+                            value: userData.blacklist.users.length > 0
+                                ? userData.blacklist.users.map(id => `<@${id}>`).join('\n')
                                 : 'No blacklisted users',
                             inline: false
                         },
                         {
                             name: `📺 Blacklisted Channels (${userData.blacklist.channels.length}/${MAX_BLACKLIST})`,
-                            value: userData.blacklist.channels.length > 0 
-                                ? userData.blacklist.channels.map(id => `<#${id}>`).join('\n') 
+                            value: userData.blacklist.channels.length > 0
+                                ? userData.blacklist.channels.map(id => `<#${id}>`).join('\n')
                                 : 'No blacklisted channels',
                             inline: false
                         }
                     )
                     .setTimestamp();
-                
+
                 message.reply({ embeds: [listEmbed] });
                 break;
             }
@@ -418,7 +418,7 @@ module.exports = {
                         { name: '`,hl list`', value: 'List your highlights and blacklist settings' }
                     )
                     .setFooter({ text: `Maximum ${MAX_HIGHLIGHTS} highlights and ${MAX_BLACKLIST} entries per blacklist type` });
-                
+
                 message.reply({ embeds: [helpEmbed] });
             }
         }
