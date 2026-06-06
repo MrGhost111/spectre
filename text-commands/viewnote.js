@@ -134,17 +134,19 @@ module.exports = {
                     const sign = d.amount >= 0 ? '<:plus:1501036176944009366>' : '—';
                     const date = `<t:${Math.floor(new Date(d.timestamp).getTime() / 1000)}:d>`;
                     const manual = d.manual ? ' *(manual)*' : '';
-                    const amountStr = `${currency} ${formatFull(Math.abs(d.amount))}`;
+                    const formattedNumber = formatFull(Math.abs(d.amount));
 
                     const itemDetail = (d.itemName && d.itemQty)
                         ? ` *(${d.itemQty} x ${d.itemName}${d.pricePerUnit ? `, ⏣ ${formatFull(d.pricePerUnit)} each` : ''})*`
                         : '';
 
-                    const linkedAmount = (d.channelId && d.messageId)
-                        ? `[${amountStr}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
-                        : amountStr;
+                    // currency may contain a custom emoji so we keep it outside the hyperlink
+                    // format: sign  currency [number](link)  itemDetail  manual
+                    const linkedNumber = (d.channelId && d.messageId)
+                        ? `[${formattedNumber}](https://discord.com/channels/${guildId}/${d.channelId}/${d.messageId})`
+                        : formattedNumber;
 
-                    return `${date} ${sign} ${linkedAmount}${itemDetail}${manual}`;
+                    return `${date} ${sign} ${currency} ${linkedNumber}${itemDetail}${manual}`;
                 });
 
                 container.addTextDisplayComponents(
