@@ -28,13 +28,14 @@ function isStaffMember(member) {
 // Parse shorthand amounts like 1b, 500m, 2.5b etc.
 function parseAmount(str) {
     if (!str) return null;
-    const s = str.trim().toLowerCase();
-    const match = s.match(/^([\d.]+)\s*([kmbt]?)$/);
+    const s = str.trim().toLowerCase().replace(/,/g, '');
+    const match = s.match(/^([\d.]+)\s*(k|m|mil|b|bil|billion)?$/);
     if (!match) return null;
     const num = parseFloat(match[1]);
-    const suffix = match[2];
-    const multipliers = { k: 1_000, m: 1_000_000, b: 1_000_000_000, t: 1_000_000_000_000 };
-    return suffix ? Math.round(num * (multipliers[suffix] ?? 1)) : Math.round(num);
+    const suffix = match[2] ?? '';
+    const multipliers = { k: 1_000, m: 1_000_000, mil: 1_000_000, b: 1_000_000_000, bil: 1_000_000_000, billion: 1_000_000_000 };
+    const result = suffix ? num * (multipliers[suffix] ?? 1) : num;
+    return isNaN(result) ? null : Math.floor(result);
 }
 
 module.exports = {
@@ -73,9 +74,6 @@ module.exports = {
         const invoker = interaction.user;
         const member = interaction.member;
 
-        // Staff can run this for anyone; regular users only for themselves
-        const isStaff = isStaffMember(member);
-
         // ── DISABLE ───────────────────────────────────────────────────────────
         if (action === 'disable') {
             const data = loadDonations('dankmemer');
@@ -83,16 +81,14 @@ module.exports = {
             if (!data[invoker.id]?.freeze?.enabled) {
                 return interaction.editReply({
                     content: '❌ You don\'t have a donation freeze active.',
-                    flags: MessageFlags.Ephemeral,
                 });
             }
 
             data[invoker.id].freeze = { enabled: false, transferTo: null, freezeAt: null };
-            saveDonations('dankmemer', data);
+            saveDonations(data, 'dankmemer'); // correct order: data first, event second
 
             return interaction.editReply({
                 content: '✅ Donation freeze disabled. Your donations will be noted to your own account again.',
-                flags: MessageFlags.Ephemeral,
             });
         }
 
@@ -100,31 +96,20 @@ module.exports = {
         if (!targetUser) {
             return interaction.editReply({
                 content: '❌ You must specify a **user** to transfer donations to when enabling a freeze.',
-                flags: MessageFlags.Ephemeral,
             });
         }
 
         if (targetUser.id === invoker.id) {
-            return interaction.editReply({
-                content: '❌ You can\'t transfer donations to yourself.',
-                flags: MessageFlags.Ephemeral,
-            });
+            return interaction.editReply({ content: '❌ You can\'t transfer donations to yourself.' });
         }
 
         if (targetUser.bot) {
-            return interaction.editReply({
-                content: '❌ You can\'t transfer donations to a bot.',
-                flags: MessageFlags.Ephemeral,
-            });
+            return interaction.editReply({ content: '❌ You can\'t transfer donations to a bot.' });
         }
 
-        // Verify target is in the server
         const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
         if (!targetMember) {
-            return interaction.editReply({
-                content: '❌ That user isn\'t in this server.',
-                flags: MessageFlags.Ephemeral,
-            });
+            return interaction.editReply({ content: '❌ That user isn\'t in this server.' });
         }
 
         // ── Loop guard: reject if target already has freeze enabled ──────────
@@ -132,7 +117,6 @@ module.exports = {
         if (data[targetUser.id]?.freeze?.enabled) {
             return interaction.editReply({
                 content: `❌ **${targetMember.displayName}** already has their own donation freeze active. Chaining freezes would cause an infinite loop — pick a different transfer target.`,
-                flags: MessageFlags.Ephemeral,
             });
         }
 
@@ -143,21 +127,18 @@ module.exports = {
             if (!freezeAt || freezeAt <= 0) {
                 return interaction.editReply({
                     content: '❌ Invalid amount. Use formats like `100b`, `2.5b`, `500m`.',
-                    flags: MessageFlags.Ephemeral,
                 });
             }
 
-            // Warn if current total already exceeds the freeze-at cap
             const currentTotal = data[invoker.id]?.totalDonated ?? 0;
             if (currentTotal >= freezeAt) {
                 return interaction.editReply({
-                    content: `❌ Your current donation total (⏣ ${currentTotal.toLocaleString()}) already exceeds or equals the freeze amount (⏣ ${freezeAt.toLocaleString()}). Either choose a higher amount or leave the amount blank to freeze immediately.`,
-                    flags: MessageFlags.Ephemeral,
+                    content: `❌ Your current donation total (⏣ ${currentTotal.toLocaleString()}) already exceeds or equals the freeze amount (⏣ ${freezeAt.toLocaleString()}). Choose a higher amount or leave blank to freeze immediately.`,
                 });
             }
         }
 
-        // ── Save freeze config ────────────────────────────────────────────────
+        // ── Save freeze config — preserve all existing user data ──────────────
         if (!data[invoker.id]) {
             data[invoker.id] = { totalDonated: 0, donations: [], note: null };
         }
@@ -168,7 +149,7 @@ module.exports = {
             freezeAt: freezeAt ?? null,
         };
 
-        saveDonations('dankmemer', data);
+        saveDonations(data, 'dankmemer'); // correct order: data first, event second
 
         // ── Build confirmation ────────────────────────────────────────────────
         const currentTotal = data[invoker.id]?.totalDonated ?? 0;

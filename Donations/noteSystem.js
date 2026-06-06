@@ -252,6 +252,11 @@ async function recordDonation(
         } : {}),
     });
 
+    // ── Preserve freeze config — never wipe it on a normal donation write ────
+    // (freeze is written by the slash command; recordDonation must not clobber it)
+    // data[donorId].freeze is left untouched — we only ever set/clear it from
+    // the freeze_donation slash command itself.
+
     saveDonations(data, event);
 
     const total = data[donorId].totalDonated;
