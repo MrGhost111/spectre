@@ -4,7 +4,7 @@
 // text-command flows are both caught.
 
 const { updateItemPrice, getItemPrice } = require('./itemPriceCache');
-const { recordDonation, formatFull } = require('./noteSystem');
+const { recordDonation, loadDonations, saveDonations, formatFull } = require('./noteSystem');
 const { handleDonationFlow, stripEmojiMarkup, GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID, DANK_MEMER_BOT_ID } = require('./donationFlow');
 const {
     loadUsers, loadStats, saveUsers, saveStats,
@@ -13,17 +13,18 @@ const {
     TIER_1_REQUIREMENT, TIER_2_REQUIREMENT,
 } = require('../donationSystem');
 const { EmbedBuilder } = require('discord.js');
+
 const TRANSACTION_CHANNEL_ID = '833246120389902356';
 const FLOW_CHANNELS = new Set([GIVEAWAY_CHANNEL_ID, EVENT_CHANNEL_ID]);
+
 // ─── Dedup: prevent re-processing the same message ID ────────────────────────
 const processedIds = new Set();
-function isAlreadyProcessed(messageId) {
-    return processedIds.has(messageId);
-}
+function isAlreadyProcessed(messageId) { return processedIds.has(messageId); }
 function markProcessed(messageId) {
     processedIds.add(messageId);
     setTimeout(() => processedIds.delete(messageId), 600_000);
 }
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function extractComponentText(components = []) {
     let text = '';
@@ -33,6 +34,7 @@ function extractComponentText(components = []) {
     }
     return text;
 }
+
 function buildFullText(message) {
     let text = message.content || '';
     for (const embed of message.embeds || []) {
@@ -44,6 +46,7 @@ function buildFullText(message) {
     }
     return text;
 }
+
 // ─── Item info embed parser ───────────────────────────────────────────────────
 function parseItemInfoEmbed(embeds) {
     if (!embeds?.length) return null;
@@ -63,6 +66,7 @@ function parseItemInfoEmbed(embeds) {
         netValue: (netValue && !isNaN(netValue)) ? netValue : null,
     };
 }
+
 function parsePrize(fullText) {
     const coinMatch = fullText.match(/Successfully donated \*\*⏣\s*([\d,]+)\*\*/);
     if (coinMatch) {
@@ -84,7 +88,7 @@ function parsePrize(fullText) {
         const itemQty = nameMatch ? parseInt(nameMatch[1], 10) : 1;
         const rawItemName = nameMatch ? nameMatch[2].trim() : cleanItem;
         return {
-            prizeText: `${itemQty} × ${rawItemName}`,   // clean display: "500 × Banknote"
+            prizeText: `${itemQty} × ${rawItemName}`,
             isCoins: false,
             coinAmount: 0,
             rawItemName,
@@ -92,6 +96,83 @@ function parsePrize(fullText) {
         };
     }
     return null;
+}
+
+// ─── Freeze: split a donation amount between donor and their transfer target ──
+//
+// Returns { donorAmount, transferAmount } where:
+//   donorAmount   = how much to note to the original donor
+//   transferAmount = how much to note to the transfer target
+//
+// Rules:
+//   - If freeze.freezeAt is null  → donor gets 0, target gets everything
+//   - If freezeAt is set and donor hasn't hit it yet → donor gets up to the cap,
+//     target gets the overflow
+//   - If donor already at/past cap → donor gets 0, target gets everything
+//
+function computeFreezeSplit(currentTotal, incomingAmount, freezeAt) {
+    if (freezeAt === null) {
+        // Immediate freeze — all goes to transfer target
+        return { donorAmount: 0, transferAmount: incomingAmount };
+    }
+
+    if (currentTotal >= freezeAt) {
+        // Already at or past cap
+        return { donorAmount: 0, transferAmount: incomingAmount };
+    }
+
+    const room = freezeAt - currentTotal;
+    if (incomingAmount <= room) {
+        // Entire donation fits under the cap
+        return { donorAmount: incomingAmount, transferAmount: 0 };
+    }
+
+    // Partial split — fill up to cap, rest goes to transfer target
+    return { donorAmount: room, transferAmount: incomingAmount - room };
+}
+
+// ─── Wrapper around recordDonation that respects freeze settings ──────────────
+//
+// If the donor has a freeze active, the amount is split between donor and their
+// transfer target. The transfer target is never freeze-checked here (loop guard
+// is enforced at freeze setup time in the slash command).
+//
+async function recordDonationWithFreeze(client, donorId, amount, channel, message, meta = null) {
+    const data = loadDonations('dankmemer');
+    const freeze = data[donorId]?.freeze;
+
+    if (!freeze?.enabled || !freeze.transferTo) {
+        // No freeze — normal path
+        return recordDonation(client, donorId, amount, channel, message, meta);
+    }
+
+    const currentTotal = data[donorId]?.totalDonated ?? 0;
+    const { donorAmount, transferAmount } = computeFreezeSplit(currentTotal, amount, freeze.freezeAt ?? null);
+
+    console.log(
+        `[DankDetect/Freeze] Donor ${donorId}: incoming ⏣ ${amount.toLocaleString()} | ` +
+        `to donor ⏣ ${donorAmount.toLocaleString()} | ` +
+        `to transfer (${freeze.transferTo}) ⏣ ${transferAmount.toLocaleString()}`
+    );
+
+    // Note the donor's portion (may be 0 — recordDonation should handle that gracefully)
+    if (donorAmount > 0) {
+        await recordDonation(client, donorId, donorAmount, channel, message, meta);
+    }
+
+    // Note the overflow to the transfer target
+    if (transferAmount > 0) {
+        await recordDonation(client, freeze.transferTo, transferAmount, channel, message, meta);
+    }
+
+    // If donor just hit their freeze cap, log it
+    const newTotal = (data[donorId]?.totalDonated ?? currentTotal) + donorAmount;
+    if (freeze.freezeAt && newTotal >= freeze.freezeAt && donorAmount > 0) {
+        console.log(
+            `[DankDetect/Freeze] Donor ${donorId} has reached freeze cap ⏣ ${freeze.freezeAt.toLocaleString()}. ` +
+            `All future donations will go to ${freeze.transferTo}.`
+        );
+    }
 }
 
 // ─── Main handler — called from both messageCreate and messageUpdate ──────────
@@ -146,11 +227,10 @@ async function handleDankMessage(client, message) {
         return;
     }
 
-    // Resolve cached item price once — used in all branches below
+    // Resolve cached item price once
     const cached = (!isCoins && rawItemName) ? getItemPrice(rawItemName) : null;
     const totalItemValue = cached ? cached.marketAvgValue * itemQty : 0;
 
-    // Meta passed to recordDonation so the log embed can show per-unit breakdown
     const donationMeta = (!isCoins && rawItemName)
         ? { itemName: rawItemName, itemQty, pricePerUnit: cached?.marketAvgValue ?? null }
         : null;
@@ -193,7 +273,9 @@ async function handleDankMessage(client, message) {
         saveStats(statsData);
 
         const regularAmount = isTier2 ? Math.round(coinAmount * 1.25) : coinAmount;
-        const { total: newRegularTotal } = await recordDonation(
+
+        // Transaction channel uses freeze-aware recording
+        const { total: newRegularTotal } = await recordDonationWithFreeze(
             client, donorId, regularAmount, null, message
         );
 
@@ -230,17 +312,15 @@ async function handleDankMessage(client, message) {
     // ═══════════════════════════════════════════════════════════════════════════
     if (isFlowChannel) {
         let autoNoted = false;
-        // Pass the real monetary amount to the flow so buildPrizeString can
-        // display totals — coins use coinAmount, items use totalItemValue.
         const flowAmount = isCoins ? coinAmount : totalItemValue;
 
         if (isCoins && coinAmount > 0) {
-            await recordDonation(client, donorId, coinAmount, message.channel, message);
+            await recordDonationWithFreeze(client, donorId, coinAmount, message.channel, message);
             autoNoted = true;
             console.log(`[DankDetect] ✅ Coins auto-noted for ${donorId} in flow channel`);
         } else if (!isCoins && rawItemName) {
             if (cached) {
-                await recordDonation(client, donorId, totalItemValue, message.channel, message, donationMeta);
+                await recordDonationWithFreeze(client, donorId, totalItemValue, message.channel, message, donationMeta);
                 autoNoted = true;
                 console.log(`[DankDetect] ✅ Item auto-noted: ${itemQty}× "${rawItemName}" → ⏣ ${totalItemValue.toLocaleString()} (${itemQty} × ⏣ ${cached.marketAvgValue.toLocaleString()})`);
             } else {
@@ -260,11 +340,11 @@ async function handleDankMessage(client, message) {
     // BRANCH C — Any other channel
     // ═══════════════════════════════════════════════════════════════════════════
     if (isCoins) {
-        await recordDonation(client, donorId, coinAmount, message.channel, message);
+        await recordDonationWithFreeze(client, donorId, coinAmount, message.channel, message);
         console.log('[DankDetect] ✅ Regular donation recorded for', donorId);
     } else if (rawItemName) {
         if (cached) {
-            await recordDonation(client, donorId, totalItemValue, message.channel, message, donationMeta);
+            await recordDonationWithFreeze(client, donorId, totalItemValue, message.channel, message, donationMeta);
             console.log(`[DankDetect] ✅ Item auto-noted (other ch): ${itemQty}× "${rawItemName}" → ⏣ ${totalItemValue.toLocaleString()}`);
         } else {
             console.log(`[DankDetect] Item outside flow, no cached price for "${rawItemName}"`);
