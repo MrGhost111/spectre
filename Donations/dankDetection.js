@@ -274,10 +274,12 @@ async function handleDankMessage(client, message) {
 
         const regularAmount = isTier2 ? Math.round(coinAmount * 1.25) : coinAmount;
 
-        // Transaction channel uses freeze-aware recording
-        const { total: newRegularTotal } = await recordDonationWithFreeze(
-            client, donorId, regularAmount, null, message
-        );
+        // Weekly/tier tracking stays on the donor; note total is freeze-aware.
+        // We read the donor's updated total from file after the write since
+        // recordDonationWithFreeze may route some/all to the transfer target.
+        await recordDonationWithFreeze(client, donorId, regularAmount, null, message);
+        const donorNoteData = loadDonations('dankmemer');
+        const newRegularTotal = donorNoteData[donorId]?.totalDonated ?? regularAmount;
 
         const requirement = isTier2
             ? TIER_2_REQUIREMENT
