@@ -31,59 +31,56 @@ module.exports = {
         try {
             channelsData = JSON.parse(fs.readFileSync(channelsDataPath, 'utf8'));
 
-            // --- FIX 1: Remove any existing entry where THIS USER is the owner ---
-            // (revoke their old channel's view permission too)
-            const existingEntryForUser = channelsData[targetUser.id];
-            if (existingEntryForUser) {
-                const oldChannel = interaction.guild.channels.cache.get(existingEntryForUser.channelId);
-                if (oldChannel) {
-                    await oldChannel.permissionOverwrites.edit(targetUser, { ViewChannel: false });
-                }
-                delete channelsData[targetUser.id];
-            }
-
-            // --- FIX 2: Remove any existing entry where THIS CHANNEL is already assigned ---
-            // This is what caused the "owner left" ghost: the channel had a stale userId from
-            // its previous owner, so viewc #channel found that old entry and couldn't fetch them.
+            // Remove every entry that references this user OR this channel.
+            // This guarantees both are unique in the file — no duplicates possible.
             for (const [userId, data] of Object.entries(channelsData)) {
-                if (data && typeof data === 'object' && data.channelId === selectedChannel.id) {
-                    // Revoke the old owner's view permission if they're still in the server
-                    const oldOwner = interaction.guild.members.cache.get(userId);
-                    if (oldOwner) {
-                        await selectedChannel.permissionOverwrites.edit(oldOwner, { ViewChannel: false }).catch(() => { });
+                if (!data || typeof data !== 'object') continue;
+
+                const isThisUser = userId === targetUser.id;
+                const isThisChannel = data.channelId === selectedChannel.id;
+
+                if (isThisUser || isThisChannel) {
+                    // Revoke view permission from whoever held this slot
+                    const slotChannel = isThisChannel
+                        ? selectedChannel
+                        : interaction.guild.channels.cache.get(data.channelId);
+
+                    if (slotChannel) {
+                        const oldMember = await interaction.guild.members.fetch(userId).catch(() => null);
+                        if (oldMember) {
+                            await slotChannel.permissionOverwrites.edit(oldMember, { ViewChannel: false }).catch(() => { });
+                        }
                     }
                     delete channelsData[userId];
-                    break;
                 }
             }
 
-            // --- FIX 3: Move channel back to the main category if it was archived ---
+            // Move channel back to main category if it was archived
             const category = await interaction.guild.channels.fetch(CHANNEL_CATEGORY_ID).catch(() => null);
             if (category && selectedChannel.parentId !== CHANNEL_CATEGORY_ID) {
                 await selectedChannel.setParent(CHANNEL_CATEGORY_ID, { lockPermissions: false });
             }
 
-            // Get members who already have explicit ViewChannel permission in this channel
+            // Collect friends already in the channel (non-bot members with explicit ViewChannel)
             const overwrites = selectedChannel.permissionOverwrites.cache;
             const visibleMembers = await Promise.all(
                 overwrites
-                    .filter(overwrite => overwrite.type === 1 && overwrite.allow.has('ViewChannel'))
-                    .map(async overwrite => {
-                        const member = await interaction.guild.members.fetch(overwrite.id).catch(() => null);
+                    .filter(ow => ow.type === 1 && ow.allow.has('ViewChannel'))
+                    .map(async ow => {
+                        const member = await interaction.guild.members.fetch(ow.id).catch(() => null);
                         return member && !member.user.bot ? member : null;
                     })
             );
+            const friends = visibleMembers
+                .filter(m => m !== null && m.id !== targetUser.id)
+                .map(m => m.id);
 
-            const nonBotMembers = visibleMembers.filter(
-                member => member !== null && member.id !== targetUser.id
-            );
-
-            // Write the new entry — userId field matches the key, no mismatch possible
+            // Write the single authoritative entry
             channelsData[targetUser.id] = {
                 userId: targetUser.id,
                 channelId: selectedChannel.id,
                 createdAt: new Date().toISOString(),
-                friends: nonBotMembers.map(member => member.id),
+                friends,
             };
 
             fs.writeFileSync(channelsDataPath, JSON.stringify(channelsData, null, 2));
@@ -100,18 +97,10 @@ module.exports = {
                     { name: 'Channel', value: `<#${selectedChannel.id}>`, inline: true }
                 );
 
-            if (nonBotMembers.length > 0) {
-                embed.addFields({
-                    name: 'Existing friends added',
-                    value: nonBotMembers.map(member => `<@${member.id}>`).join('\n'),
-                    inline: false,
-                });
+            if (friends.length > 0) {
+                embed.addFields({ name: 'Existing friends carried over', value: friends.map(id => `<@${id}>`).join('\n'), inline: false });
             } else {
-                embed.addFields({
-                    name: 'No existing friends to add',
-                    value: 'No other members found in the channel.',
-                    inline: false,
-                });
+                embed.addFields({ name: 'No existing friends', value: 'No other members found in the channel.', inline: false });
             }
 
             await interaction.editReply({ embeds: [embed] });
