@@ -47,7 +47,7 @@ module.exports = {
             try {
                 response = await httpsPost(
                     'router.huggingface.co',
-                    '/models/stabilityai/stable-diffusion-xl-base-1.0',
+                    '/hf-inference/models/black-forest-labs/FLUX.1-schnell',
                     { inputs: prompt },
                     {
                         'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
