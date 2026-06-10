@@ -1,5 +1,48 @@
 ﻿// textcommands/imagine.js
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const https = require('https');
+const dns = require('dns');
+
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
+function httpsGet(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, {
+            headers: {
+                'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+                'Content-Type': 'application/json',
+            }
+        }, (res) => {
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+        }).on('error', reject);
+    });
+}
+
+function httpsPost(hostname, path, data, headers) {
+    return new Promise((resolve, reject) => {
+        const body = JSON.stringify(data);
+        const options = {
+            hostname,
+            path,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+                ...headers,
+            },
+        };
+        const req = https.request(options, (res) => {
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
 
 module.exports = {
     name: 'imagine',
@@ -15,37 +58,37 @@ module.exports = {
         try {
             await statusMsg.edit('🎨 Contacting Hugging Face API...');
 
-            const response = await fetch(
-                'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-                    },
-                    body: JSON.stringify({ inputs: prompt }),
-                }
-            ).catch(err => { throw new Error(`Network error: ${err.message}`); });
+            let response;
+            try {
+                response = await httpsPost(
+                    'api-inference.huggingface.co',
+                    '/models/stabilityai/stable-diffusion-xl-base-1.0',
+                    { inputs: prompt },
+                    { 'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}` }
+                );
+            } catch (err) {
+                return statusMsg.edit(`❌ Network error: \`${err.message}\``);
+            }
 
-            const contentType = response.headers.get('content-type') ?? '';
+            const contentType = response.headers['content-type'] ?? '';
 
             if (contentType.includes('application/json')) {
-                const json = await response.json();
+                const json = JSON.parse(response.body.toString());
                 if (json.error?.toLowerCase().includes('loading')) {
                     return statusMsg.edit(
-                        `⏳ The AI model is warming up. Estimated wait: **${Math.ceil(json.estimated_time ?? 30)}s**. Try again in a moment.`
+                        `⏳ Model is warming up. Estimated wait: **${Math.ceil(json.estimated_time ?? 30)}s**. Try again in a moment.`
                     );
                 }
                 return statusMsg.edit(`❌ API error: \`${json.error ?? JSON.stringify(json)}\``);
             }
 
-            if (!response.ok) {
-                return statusMsg.edit(`❌ API error: \`${response.status} ${response.statusText}\``);
+            if (response.status !== 200) {
+                return statusMsg.edit(`❌ API error: \`${response.status}\``);
             }
 
             await statusMsg.edit('🎨 Downloading image...');
 
-            const buffer = Buffer.from(await response.arrayBuffer());
+            const buffer = response.body;
             if (!buffer || buffer.length === 0) {
                 return statusMsg.edit('❌ API returned an empty image. Try a different prompt.');
             }
