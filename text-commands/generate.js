@@ -33,11 +33,11 @@ module.exports = {
     name: 'imagine',
     description: 'Generate an image using a free AI model.',
     async execute(message, args) {
-        const prompt = args.join(' ');
         if (!message.member.permissions.has('Administrator')) {
             return message.reply('❌ This command is admin only.');
         }
 
+        const prompt = args.join(' ');
         if (!prompt) {
             return message.reply('You need to describe something for me to generate!');
         }
@@ -47,12 +47,26 @@ module.exports = {
         try {
             await statusMsg.edit('🎨 Contacting Hugging Face API...');
 
+            // Wrap the prompt to make FLUX treat every word as critical.
+            // FLUX.1-schnell responds well to dense, comma-separated descriptors.
+            const enhancedPrompt =
+                `${prompt}, ultra detailed, every element intentional, ` +
+                `high fidelity, sharp focus, masterful composition`;
+
             let response;
             try {
                 response = await httpsPost(
                     'router.huggingface.co',
                     '/hf-inference/models/black-forest-labs/FLUX.1-schnell',
-                    { inputs: prompt },
+                    {
+                        inputs: enhancedPrompt,
+                        parameters: {
+                            num_inference_steps: 4,  // schnell is optimised for exactly 4 steps — fastest + best
+                            guidance_scale: 0,        // schnell ignores CFG; 0 = correct setting for this model
+                            width: 1024,
+                            height: 1024,
+                        },
+                    },
                     {
                         'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
                         'X-Wait-For-Model': 'true',
