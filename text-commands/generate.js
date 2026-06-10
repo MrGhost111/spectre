@@ -34,6 +34,10 @@ module.exports = {
     description: 'Generate an image using a free AI model.',
     async execute(message, args) {
         const prompt = args.join(' ');
+        if (!message.member.permissions.has('Administrator')) {
+            return message.reply('❌ This command is admin only.');
+        }
+
         if (!prompt) {
             return message.reply('You need to describe something for me to generate!');
         }
