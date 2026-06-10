@@ -49,7 +49,11 @@ module.exports = {
                     'router.huggingface.co',
                     '/models/stabilityai/stable-diffusion-xl-base-1.0',
                     { inputs: prompt },
-                    { 'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}` }
+                    {
+                        'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+                        'X-Wait-For-Model': 'true',
+                        'X-Use-Cache': 'false',
+                    }
                 );
             } catch (err) {
                 return statusMsg.edit(`❌ Network error: \`${err.message}\``);
@@ -58,17 +62,18 @@ module.exports = {
             const contentType = response.headers['content-type'] ?? '';
 
             if (contentType.includes('application/json')) {
-                const json = JSON.parse(response.body.toString());
+                let json;
+                try { json = JSON.parse(response.body.toString()); } catch { json = {}; }
                 if (json.error?.toLowerCase().includes('loading')) {
                     return statusMsg.edit(
                         `⏳ Model is warming up. Estimated wait: **${Math.ceil(json.estimated_time ?? 30)}s**. Try again in a moment.`
                     );
                 }
-                return statusMsg.edit(`❌ API error: \`${json.error ?? JSON.stringify(json)}\``);
+                return statusMsg.edit(`❌ API error \`${response.status}\`: \`${json.error ?? response.body.toString().slice(0, 300)}\``);
             }
 
             if (response.status !== 200) {
-                return statusMsg.edit(`❌ API error: \`${response.status}\` — \`${response.body.toString().slice(0, 200)}\``);
+                return statusMsg.edit(`❌ API error: \`${response.status}\` — \`${response.body.toString().slice(0, 300)}\``);
             }
 
             await statusMsg.edit('🎨 Sending image...');
