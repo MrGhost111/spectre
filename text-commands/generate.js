@@ -13,14 +13,31 @@ module.exports = {
         const statusMsg = await message.reply('🎨 Generating your image, please wait...');
 
         try {
-            const encoded = encodeURIComponent(prompt);
-            const url = `https://image.pollinations.ai/prompt/${encoded}?seed=${Date.now()}&width=768&height=768&nologo=true`;
+            await statusMsg.edit('🎨 Contacting Hugging Face API...');
 
-            await statusMsg.edit('🎨 Contacting image API...');
+            const response = await fetch(
+                'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+                    },
+                    body: JSON.stringify({ inputs: prompt }),
+                }
+            ).catch(err => { throw new Error(`Network error: ${err.message}`); });
 
-            const response = await fetch(url).catch(err => {
-                throw new Error(`Network error: ${err.message}`);
-            });
+            const contentType = response.headers.get('content-type') ?? '';
+
+            if (contentType.includes('application/json')) {
+                const json = await response.json();
+                if (json.error?.toLowerCase().includes('loading')) {
+                    return statusMsg.edit(
+                        `⏳ The AI model is warming up. Estimated wait: **${Math.ceil(json.estimated_time ?? 30)}s**. Try again in a moment.`
+                    );
+                }
+                return statusMsg.edit(`❌ API error: \`${json.error ?? JSON.stringify(json)}\``);
+            }
 
             if (!response.ok) {
                 return statusMsg.edit(`❌ API error: \`${response.status} ${response.statusText}\``);
@@ -29,7 +46,6 @@ module.exports = {
             await statusMsg.edit('🎨 Downloading image...');
 
             const buffer = Buffer.from(await response.arrayBuffer());
-
             if (!buffer || buffer.length === 0) {
                 return statusMsg.edit('❌ API returned an empty image. Try a different prompt.');
             }
