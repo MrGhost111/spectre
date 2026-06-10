@@ -5,21 +5,6 @@ const dns = require('dns');
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-function httpsGet(url) {
-    return new Promise((resolve, reject) => {
-        https.get(url, {
-            headers: {
-                'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-                'Content-Type': 'application/json',
-            }
-        }, (res) => {
-            const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
-        }).on('error', reject);
-    });
-}
-
 function httpsPost(hostname, path, data, headers) {
     return new Promise((resolve, reject) => {
         const body = JSON.stringify(data);
@@ -61,7 +46,7 @@ module.exports = {
             let response;
             try {
                 response = await httpsPost(
-                    'api-inference.huggingface.co',
+                    'router.huggingface.co',
                     '/models/stabilityai/stable-diffusion-xl-base-1.0',
                     { inputs: prompt },
                     { 'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}` }
@@ -83,10 +68,10 @@ module.exports = {
             }
 
             if (response.status !== 200) {
-                return statusMsg.edit(`❌ API error: \`${response.status}\``);
+                return statusMsg.edit(`❌ API error: \`${response.status}\` — \`${response.body.toString().slice(0, 200)}\``);
             }
 
-            await statusMsg.edit('🎨 Downloading image...');
+            await statusMsg.edit('🎨 Sending image...');
 
             const buffer = response.body;
             if (!buffer || buffer.length === 0) {
