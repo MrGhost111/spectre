@@ -1,0 +1,211 @@
+const language = require('../functions/wos/Settings/language');
+const admin = require('../functions/wos/Settings/admin');
+const createAlliance = require('../functions/wos/Alliance/createAlliance');
+const editAlliance = require('../functions/wos/Alliance/editAlliance');
+const deleteAlliance = require('../functions/wos/Alliance/deleteAlliance');
+const editPriority = require('../functions/wos/Alliance/editPriority');
+const viewAlliances = require('../functions/wos/Alliance/viewAlliances');
+const addPlayer = require('../functions/wos/Players/addPlayer');
+const movePlayers = require('../functions/wos/Players/movePlayers');
+const removePlayers = require('../functions/wos/Players/removePlayers');
+const viewPlayers = require('../functions/wos/Players/viewPlayers');
+const idChannel = require('../functions/wos/Players/idChannel');
+const exportPlayers = require('../functions/wos/Players/export');
+const history = require('../functions/wos/Players/history');
+const redeemGift = require('../functions/wos/GiftCode/redeemGift');
+const removeGift = require('../functions/wos/GiftCode/removeGift');
+const autoRedeem = require('../functions/wos/GiftCode/autoRedeem');
+const giftCodeChannel = require('../functions/wos/GiftCode/giftCodeChannel');
+const viewGift = require('../functions/wos/GiftCode/viewGift');
+const triggerRefresh = require('../functions/wos/Alliance/triggerRefresh');
+const assignAlliance = require('../functions/wos/Alliance/assignAlliance');
+const deleteNotification = require('../functions/wos/Notification/deleteNotification');
+const editNotification = require('../functions/wos/Notification/editNotification');
+const notificationEditor = require('../functions/wos/Notification/notificationEditor');
+const notificationMentions = require('../functions/wos/Notification/notificationMentions');
+const notificationFields = require('../functions/wos/Notification/notificationFields');
+const notificationSettings = require('../functions/wos/Notification/notificationSettings');
+const shareNotification = require('../functions/wos/Notification/shareNotification');
+const notifAutoClean = require('../functions/wos/Notification/autoClean');
+const scheduleView = require('../functions/wos/Notification/scheduleView');
+const emojisActivate = require('../functions/wos/Settings/theme/emojisActivate');
+const emojisEdit = require('../functions/wos/Settings/theme/emojisEdit');
+const emojisView = require('../functions/wos/Settings/theme/emojisView');
+const emojisExport = require('../functions/wos/Settings/theme/emojisExport');
+const emojisDelete = require('../functions/wos/Settings/theme/emojisDelete');
+const featureAccess = require('../functions/wos/Settings/featureAccess');
+const dbMigration = require('../functions/wos/Settings/migration');
+const buildings = require('../functions/wos/Calculators/Buildings/buildings');
+const warAcademy = require('../functions/wos/Calculators/WarAcademy/warAcademy');
+
+// === HANDLER REGISTRY ===
+const dropdownHandlers = [
+    // === String Select Menus ===
+    { type: 'string', pattern: /^language_select_/, fn: language.handleLanguageSelection },
+    { type: 'string', pattern: /^feature_access_whitelist_select_/, fn: featureAccess.handleWhitelistSelect },
+
+    // Database migration selection
+    { type: 'string', pattern: /^db_migration_select_/, fn: dbMigration.handleDBMigrationSelect },
+    { type: 'string', pattern: /^db_migration_game_/, fn: dbMigration.handleDBMigrationGameSelect },
+
+    // Admin selections
+    { type: 'string', pattern: /^select_admin_remove_/, fn: admin.handleRemoveAdminSelection },
+    { type: 'string', pattern: /^select_admin_edit_/, fn: admin.handleEditAdminSelection },
+    { type: 'string', pattern: /^select_admin_view_/, fn: admin.handleViewAdminSelection },
+    { type: 'string', pattern: /^select_permissions_/, fn: admin.handlePermissionSelection },
+
+    // Alliance selections
+    { type: 'string', pattern: /^select_edit_alliance_game_/, fn: editAlliance.handleEditAllianceGameSelection },
+    { type: 'string', pattern: /^select_alliance_edit_/, fn: editAlliance.handleEditAllianceSelection },
+    { type: 'string', pattern: /^select_delete_alliance_game_/, fn: deleteAlliance.handleDeleteAllianceGameSelection },
+    { type: 'string', pattern: /^select_alliance_delete_/, fn: deleteAlliance.handleDeleteAllianceSelection },
+    { type: 'string', pattern: /^select_edit_priority_game_/, fn: editPriority.handleEditPriorityGameSelection },
+    { type: 'string', pattern: /^select_alliance_priority_/, fn: editPriority.handlePriorityAllianceSelection },
+    { type: 'string', pattern: /^select_view_alliance_game_/, fn: viewAlliances.handleViewAllianceGameSelection },
+    { type: 'string', pattern: /^select_view_alliance_/, fn: viewAlliances.handleViewAllianceSelection },
+
+    // Emoji theme selections
+    { type: 'string', pattern: /^emoji_activate_select_/, fn: emojisActivate.handleEmojiActivateSelection },
+    { type: 'string', pattern: /^emoji_edit_select_/, fn: emojisEdit.handleEmojiEditSelection },
+    { type: 'string', pattern: /^emoji_view_select_/, fn: emojisView.handleEmojiViewSelection },
+    { type: 'string', pattern: /^emoji_export_select_/, fn: emojisExport.handleEmojiExportSelection },
+    { type: 'string', pattern: /^emoji_delete_select_/, fn: emojisDelete.handleEmojiDeleteSelection },
+    { type: 'string', pattern: /^select_add_player_game_/, fn: addPlayer.handleAddPlayerGameSelection },
+    { type: 'string', pattern: /^alliance_select_add_player_/, fn: addPlayer.handleAllianceSelection },
+    { type: 'string', pattern: /^select_id_channel_game_/, fn: idChannel.handleIdChannelGameSelection },
+    { type: 'string', pattern: /^id_channel_msg_select_/, fn: idChannel.handleIdChannelMessageAllianceSelect },
+    { type: 'string', pattern: /^id_channel_alliance_select_/, fn: idChannel.handleIdChannelAllianceSelection },
+    { type: 'string', pattern: /^id_channel_remove_select_/, fn: idChannel.handleIdChannelRemoveSelect },
+    { type: 'string', pattern: /^id_channel_autoclean_select_/, fn: idChannel.handleAutoCleanSelect },
+
+    // Move players selections
+    { type: 'string', pattern: /^select_move_players_game_/, fn: movePlayers.handleMovePlayersGameSelection },
+    { type: 'string', pattern: /^move_players_target_select_/, fn: movePlayers.handleMovePlayersTargetSelection },
+    { type: 'string', pattern: /^move_players_source_select_/, fn: movePlayers.handleMovePlayersSourceSelection },
+    { type: 'string', pattern: /^move_players_player_select_/, fn: movePlayers.handleMovePlayersPlayerSelection },
+
+    // Remove players selections
+    { type: 'string', pattern: /^select_remove_players_game_/, fn: removePlayers.handleRemovePlayersGameSelection },
+    { type: 'string', pattern: /^remove_players_alliance_select_/, fn: removePlayers.handleRemovePlayersAllianceSelection },
+    { type: 'string', pattern: /^remove_players_player_select_/, fn: removePlayers.handleRemovePlayersPlayerSelection },
+
+    // View players selections
+    { type: 'string', pattern: /^select_view_players_game_/, fn: viewPlayers.handleViewPlayersGameSelection },
+    { type: 'string', pattern: /^view_players_alliance_select_/, fn: viewPlayers.handleViewPlayersAllianceSelection },
+
+    // Export players selections
+    { type: 'string', pattern: /^select_export_game_/, fn: exportPlayers.handleExportGameSelection },
+    { type: 'string', pattern: /^export_state_select_/, fn: exportPlayers.handleStateSelection },
+    { type: 'string', pattern: /^export_alliance_select_/, fn: exportPlayers.handleAllianceSelection },
+    { type: 'string', pattern: /^export_furnace_select_/, fn: exportPlayers.handleFurnaceSelection },
+
+    // Player history selections
+    { type: 'string', pattern: /^select_history_game_/, fn: history.handleHistoryGameSelection },
+    { type: 'string', pattern: /^history_alliance_/, fn: history.handleHistoryAllianceSelection },
+
+    // Manual redeem selections
+    { type: 'string', pattern: /^select_manual_redeem_game_/, fn: redeemGift.handleManualRedeemGameSelection },
+    { type: 'string', pattern: /^manual_redeem_alliance_select_/, fn: redeemGift.handleAllianceSelection },
+    { type: 'string', pattern: /^manual_redeem_code_select_/, fn: redeemGift.handleGiftCodeSelection },
+
+    // View gift code selections
+    { type: 'string', pattern: /^select_view_gift_game_/, fn: viewGift.handleViewGiftGameSelection },
+
+    // Remove gift selections
+    { type: 'string', pattern: /^select_remove_gift_game_/, fn: removeGift.handleRemoveGiftGameSelection },
+    { type: 'string', pattern: /^remove_gift_select_/, fn: removeGift.handleRemoveGiftSelect },
+
+    // Toggle auto-redeem selections
+    { type: 'string', pattern: /^select_toggle_auto_redeem_game_/, fn: autoRedeem.handleToggleAutoRedeemGameSelection },
+    { type: 'string', pattern: /^toggle_auto_redeem_select_/, fn: autoRedeem.handleToggleAutoRedeemSelect },
+
+    // Gift code channel selections
+    { type: 'string', pattern: /^select_gift_code_channel_game_/, fn: giftCodeChannel.handleGiftCodeChannelGameSelection },
+    { type: 'string', pattern: /^gift_code_channel_remove_select_/, fn: giftCodeChannel.handleGiftCodeChannelRemoveSelect },
+
+    // Trigger refresh selections
+    { type: 'string', pattern: /^select_trigger_refresh_game_/, fn: triggerRefresh.handleTriggerRefreshGameSelection },
+    { type: 'string', pattern: /^select_trigger_refresh_/, fn: triggerRefresh.handleTriggerRefreshSelection },
+
+    // Assign alliance selections
+    { type: 'string', pattern: /^select_assign_admin_/, fn: assignAlliance.handleAssignAdminSelection },
+    { type: 'string', pattern: /^select_assign_alliances_/, fn: assignAlliance.handleAssignAlliancesSelection },
+
+    // === User Select Menus ===
+    { type: 'user', pattern: /^select_user_add_admin_/, fn: admin.handleAddAdminUserSelection },
+    { type: 'user', pattern: /^notification_mention_select_.*\|user\|/, fn: notificationMentions.handleMentionSelection },
+
+    // === Role Select Menus ===
+    { type: 'role', pattern: /^notification_mention_select_.*\|role\|/, fn: notificationMentions.handleMentionSelection },
+
+    // Notification embed component selection
+    { type: 'string', pattern: /^notification_embed_select_/, fn: notificationEditor.handleEmbedSelectMenu },
+
+    // Notification field edit selection
+    { type: 'string', pattern: /^notification_field_edit_select_/, fn: notificationFields.handleEditFieldSelectMenu },
+    { type: 'string', pattern: /^notification_field_remove_select_/, fn: notificationFields.handleRemoveFieldSelect },
+    { type: 'string', pattern: /^notification_field_reorder_from_/, fn: notificationFields.handleReorderFieldsFromSelect },
+    { type: 'string', pattern: /^notification_field_reorder_to_/, fn: notificationFields.handleReorderFieldsToSelect },
+    { type: 'string', pattern: /^notification_tag_select_/, fn: notificationMentions.handleTagSelection },
+    { type: 'string', pattern: /^notification_delete_(?:server|private)_select_/, fn: deleteNotification.handleNotificationSelection },
+    { type: 'string', pattern: /^notification_edit_select_/, fn: editNotification.handleNotificationSelection },
+    { type: 'string', pattern: /^template_export_menu_/, fn: shareNotification.handleNotificationExportSelection },
+
+    // Notification auto-clean channel selection
+    { type: 'string', pattern: /^notif_ac_ch_select_/, fn: notifAutoClean.handleChannelSelectMenu },
+
+    // Calculators
+    { type: 'string', pattern: /^calc_bld_select_/, fn: buildings.handleBuildingSelect },
+    { type: 'string', pattern: /^calc_bld_from_/, fn: buildings.handleBuildingFromLevelSelect },
+    { type: 'string', pattern: /^calc_bld_to_/, fn: buildings.handleBuildingToLevelSelect },
+
+    // War Academy calculator
+    { type: 'string', pattern: /^calc_wa_select_/, fn: warAcademy.handleSkillSelect },
+    { type: 'string', pattern: /^calc_wa_from_/, fn: warAcademy.handleFromLevelSelect },
+    { type: 'string', pattern: /^calc_wa_to_/, fn: warAcademy.handleToLevelSelect },
+
+    // === Channel Select Menus ===
+    { type: 'channel', pattern: /^alliance_channel_select_/, fn: createAlliance.handleAllianceChannelSelection },
+    { type: 'channel', pattern: /^alliance_channel_edit_/, fn: editAlliance.handleEditAllianceChannelSelection },
+    { type: 'channel', pattern: /^id_channel_select_/, fn: idChannel.handleIdChannelSelect },
+    { type: 'channel', pattern: /^gift_code_channel_select_/, fn: giftCodeChannel.handleGiftCodeChannelSelect },
+    { type: 'channel', pattern: /^notification_channel_select_/, fn: notificationSettings.handleChannelSelection },
+    { type: 'channel', pattern: /^schedule_board_filter_/, fn: scheduleView.handleBoardFilterChannel },
+    { type: 'channel', pattern: /^schedule_board_target_/, fn: scheduleView.handleBoardTargetChannel },
+    { type: 'channel', pattern: /^feature_access_whitelist_select_/, fn: featureAccess.handleWhitelistSelect },
+];
+
+// === SETUP FUNCTION ===
+function setupDropdownHandlers(client) {
+    const listener = async (interaction) => {
+        for (const { type, pattern, fn } of dropdownHandlers) {
+            if (
+                (type === 'string' && interaction.isStringSelectMenu()) ||
+                (type === 'user' && interaction.isUserSelectMenu()) ||
+                (type === 'role' && interaction.isRoleSelectMenu()) ||
+                (type === 'channel' && interaction.isChannelSelectMenu())
+            ) {
+                if (pattern.test(interaction.customId)) {
+                    try {
+                        await fn(interaction);
+                    } catch (error) {
+                        console.error(`[DropdownHandler] Error handling dropdown ${interaction.customId}:`, error);
+                        try {
+                            const reply = interaction.deferred || interaction.replied
+                                ? interaction.followUp.bind(interaction)
+                                : interaction.reply.bind(interaction);
+                            await reply({ content: 'An error occurred while processing this selection.', flags: 64 });
+                        } catch (_) { /* interaction may have expired */ }
+                    }
+                    return; // stop at first match
+                }
+            }
+        }
+    };
+
+    client.on('interactionCreate', listener);
+
+    return () => client.off('interactionCreate', listener);
+}
+
+module.exports = setupDropdownHandlers;

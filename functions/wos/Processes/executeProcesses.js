@@ -1,0 +1,339 @@
+const { getProcessById, resolveProcessGameType, updateProcessStatus, updateProcessProgress, PROCESS_STATUS } = require('./createProcesses');
+const { queueManager } = require('./queueManager');
+const { systemLogQueries } = require('../utility/database');
+const { executeAutoRefresh: executeAutoRefreshFunction } = require('../Alliance/refreshAlliance');
+const { handleError } = require('../utility/commonFunctions');
+
+const MAX_REQUEUE_ATTEMPTS = 3;
+
+/**
+ * SQLite-based process execution controller with priority management
+ */
+class ProcessExecutor {
+    constructor() {
+        this.activeProcesses = new Map(); // Track actively executing processes
+    }
+
+    /**
+     * Executes a process based on its action type
+     * @param {Object} processInfo - Process information
+     * @param {number} processInfo.process_id - Process ID
+     * @param {string} processInfo.status - Process status
+     * @param {number|null} processInfo.paused - Paused process ID if any
+     * @returns {Promise<boolean>} Execution success status
+     */
+    async executeProcess(processInfo) {
+        try {
+            const { process_id, status, paused } = processInfo;
+
+            // Check if process is active or already executing
+            if (status !== 'active' || this.activeProcesses.has(process_id)) {
+                return false;
+            }
+
+            // Get full process data from SQLite
+            const processData = await getProcessById(process_id);
+            if (!processData) {
+                systemLogQueries.addLog(
+                    'error',
+                    `Process ${process_id} not found in database`,
+                    JSON.stringify({ processInfo, function: 'executeProcess' })
+                );
+                return false;
+            }
+
+            // Confirm status is still active (might have been preempted)
+            if (processData.status !== PROCESS_STATUS.ACTIVE) {
+                return false;
+            }
+
+            // Mark as actively executing
+            this.activeProcesses.set(process_id, {
+                startTime: Date.now(),
+                action: processData.action,
+                priority: processData.priority,
+                gameType: resolveProcessGameType(processData)
+            });
+
+            try {
+                // Execute based on action type
+                await this.executeByAction(processData);
+
+                // Remove from active processes BEFORE completing (so queue manager can start next process)
+                this.activeProcesses.delete(process_id);
+
+                // Check if process was preempted during execution
+                // If preempted, it's already in 'queued' status - DON'T complete it
+                const currentStatus = await getProcessById(process_id);
+                if (currentStatus && currentStatus.status === 'queued') {
+                    return true; // Process was paused, not completed
+                }
+
+                // Only complete if process is still active AND all work is done
+                if (currentStatus && currentStatus.status === 'active') {
+                    // Guard: don't complete if there's still pending work (race condition protection)
+                    const hasPendingWork = currentStatus.progress?.pending?.length > 0;
+                    if (hasPendingWork) {
+                        const requeueCount = (currentStatus.progress.requeue_count || 0) + 1;
+
+                        if (requeueCount >= MAX_REQUEUE_ATTEMPTS) {
+                            // Move remaining pending items to failed and complete the process
+                            const updatedProgress = {
+                                ...currentStatus.progress,
+                                failed: [...(currentStatus.progress.failed || []), ...currentStatus.progress.pending],
+                                pending: [],
+                                requeue_count: requeueCount
+                            };
+                            await updateProcessProgress(process_id, updatedProgress);
+                            systemLogQueries.addLog('error', `Process ${process_id} failed after ${requeueCount} requeue attempts, ${currentStatus.progress.pending.length} items moved to failed`,
+                                JSON.stringify({ process_id, action: currentStatus.action, function: 'executeProcess' }));
+                            await queueManager.completeProcess(process_id);
+                        } else {
+                            // Track requeue count in progress and re-queue
+                            const updatedProgress = { ...currentStatus.progress, requeue_count: requeueCount };
+                            await updateProcessProgress(process_id, updatedProgress);
+                            await updateProcessStatus(process_id, PROCESS_STATUS.QUEUED);
+                            systemLogQueries.addLog('warn', `Process ${process_id} re-queued (attempt ${requeueCount}/${MAX_REQUEUE_ATTEMPTS}): ${currentStatus.progress.pending.length} pending items remain`,
+                                JSON.stringify({ process_id, action: currentStatus.action, function: 'executeProcess' }));
+                            await queueManager.startNextProcess();
+                        }
+                    } else {
+                        // Complete process and start next (handled internally by queueManager)
+                        await queueManager.completeProcess(process_id);
+                    }
+                } else {
+                    // console.log(`Process ${process_id} status is ${currentStatus?.status}, not completing`);
+                }
+
+                return true;
+
+            } catch (error) {
+                // Handle different error types
+                if (error.message === 'RATE_LIMIT' || error.message.includes('PAUSED_FOR_RATE_LIMIT')) {
+                    return true; // Rate limit is expected, not a failure
+                } else {
+                    await this.failProcess(process_id, error);
+                    return false;
+                }
+            } finally {
+                // Safety cleanup (in case not already removed)
+                this.activeProcesses.delete(process_id);
+            }
+
+        } catch (error) {
+            await handleError(null, null, error, 'executeProcess function', false);
+
+            // Clean up
+            this.activeProcesses.delete(processInfo.process_id);
+
+            try {
+                await this.failProcess(processInfo.process_id, error);
+            } catch (statusError) {
+                // Error already logged in failProcess
+            }
+
+            return false;
+        }
+    }
+
+    /**
+     * Executes process based on its action type
+     * @param {Object} processData - Full process data
+     * @returns {Promise<void>}
+     */
+    async executeByAction(processData) {
+        const { id: processId, action } = processData;
+
+        // Check for preemption before starting any action
+        const preemptionCheck = await this.checkForPreemption(processId);
+        if (preemptionCheck.shouldStop) {
+            return;
+        }
+
+        switch (action) {
+            case 'addplayer':
+                await this.executeAddPlayer(processId);
+                break;
+
+            case 'refresh':
+                await this.executeRefresh(processId);
+                break;
+
+            case 'redeem_giftcode':
+                await this.executeRedeemGiftcode(processId);
+                break;
+
+            case 'auto_refresh':
+                await this.executeAutoRefresh(processId);
+                break;
+
+            default:
+                systemLogQueries.addLog(
+                    'error',
+                    `Unknown action type: ${action}`,
+                    JSON.stringify({ processId, action, function: 'executeByAction' })
+                );
+                throw new Error(`Unknown action type: ${action}`);
+        }
+    }
+
+    /**
+     * Fails a process
+     * @param {number} processId - Process ID
+     * @param {Error} error - Error that caused failure
+     * @returns {Promise<void>}
+     */
+    async failProcess(processId, error) {
+        try {
+            await updateProcessStatus(processId, PROCESS_STATUS.FAILED);
+
+            systemLogQueries.addLog(
+                'error',
+                `Process ${processId} failed`,
+                JSON.stringify({
+                    processId,
+                    error: error.message,
+                    stack: error.stack,
+                    function: 'failProcess'
+                })
+            );
+
+            // Start next process after failure
+            await queueManager.startNextProcess();
+
+        } catch (failError) {
+            systemLogQueries.addLog(
+                'error',
+                'Error failing process',
+                JSON.stringify({
+                    processId,
+                    originalError: error.message,
+                    failError: failError.message,
+                    function: 'failProcess'
+                })
+            );
+        }
+    }
+
+    /**
+     * Checks if a process should be preempted
+     * @param {number} processId - Process ID to check
+     * @returns {Promise<{shouldStop: boolean, reason?: string}>} Execution status
+     */
+    async checkForPreemption(processId) {
+        try {
+            const processData = await getProcessById(processId);
+            if (!processData) {
+                return { shouldStop: true, reason: 'PROCESS_NOT_FOUND' };
+            }
+
+            // Check if process status changed (preempted processes are set back to queued)
+            if (processData.status !== PROCESS_STATUS.ACTIVE) {
+                return { shouldStop: true, reason: processData.preempted_by ? 'PREEMPTED' : 'STATUS_CHANGED' };
+            }
+
+            return { shouldStop: false };
+
+        } catch (error) {
+            return { shouldStop: true, reason: 'ERROR' };
+        }
+    }
+
+    /**
+     * Wraps a process action with standardized error handling.
+     * Rate limit errors are re-thrown as expected; other errors are logged and re-thrown.
+     * @param {number} processId - Process ID
+     * @param {Function} actionFn - Async function to execute
+     * @param {string} actionName - Name for logging
+     * @returns {Promise<*>} Result of the action function
+     */
+    async executeWithErrorHandling(processId, actionFn, actionName) {
+        try {
+            return await actionFn(processId);
+        } catch (error) {
+            if (error.message === 'RATE_LIMIT' || error.message.includes('PAUSED_FOR_RATE_LIMIT')) {
+                throw error;
+            }
+            systemLogQueries.addLog(
+                'error',
+                `Error executing ${actionName} process ${processId}`,
+                JSON.stringify({ processId, error: error.message, stack: error.stack, function: actionName })
+            );
+            throw error;
+        }
+    }
+
+    /**
+     * Executes add player process
+     * @param {number} processId - Process ID
+     * @returns {Promise<void>}
+     */
+    async executeAddPlayer(processId) {
+        const { processPlayerData } = require('../Players/fetchPlayerData');
+        await this.executeWithErrorHandling(processId, processPlayerData, 'executeAddPlayer');
+    }
+
+    /**
+     * Executes refresh process (manual refresh uses the same logic as auto-refresh)
+     * @param {number} processId - Process ID
+     * @returns {Promise<void>}
+     */
+    async executeRefresh(processId) {
+        await this.executeWithErrorHandling(processId, executeAutoRefreshFunction, 'executeRefresh');
+    }
+
+    /**
+     * Executes auto refresh process
+     * @param {number} processId - Process ID
+     * @returns {Promise<void>}
+     */
+    async executeAutoRefresh(processId) {
+        await this.executeWithErrorHandling(processId, executeAutoRefreshFunction, 'executeAutoRefresh');
+    }
+
+    /**
+     * Executes redeem giftcode process
+     * @param {number} processId - Process ID
+     * @returns {Promise<void>}
+     */
+    async executeRedeemGiftcode(processId) {
+        const { executeRedeemOperation } = require('../GiftCode/redeemFunction');
+        const result = await this.executeWithErrorHandling(processId, executeRedeemOperation, 'executeRedeemGiftcode');
+        // Result is undefined if executeWithErrorHandling caught and re-threw
+        if (result?.preempted) {
+            return;
+        }
+    }
+
+    /**
+     * Gets statistics about actively executing processes
+     * @returns {Object} Execution statistics
+     */
+    getExecutionStats() {
+        const stats = {
+            activeExecutions: this.activeProcesses.size,
+            activeByGame: {},
+            processes: []
+        };
+
+        for (const [processId, info] of this.activeProcesses) {
+            stats.activeByGame[info.gameType] = (stats.activeByGame[info.gameType] || 0) + 1;
+            stats.processes.push({
+                processId,
+                action: info.action,
+                priority: info.priority,
+                gameType: info.gameType,
+                duration: Date.now() - info.startTime
+            });
+        }
+
+        return stats;
+    }
+}
+
+// Create singleton instance
+const processExecutor = new ProcessExecutor();
+
+module.exports = {
+    processExecutor
+};
