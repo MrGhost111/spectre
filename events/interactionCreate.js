@@ -298,7 +298,7 @@ module.exports = {
                 console.warn(`[interactionCreate] Stale slash command "${interaction.commandName}" (${age}ms old) — discarding.`);
                 return;
             }
-
+            if (interaction.commandName === 'panel' || interaction.commandName === 'inspect') return;
             const command = client.commands.get(interaction.commandName);
 
             if (!command) {
@@ -333,6 +333,8 @@ module.exports = {
 
         // ── Autocomplete ─────────────────────────────────────────────────────
         if (interaction.isAutocomplete()) {
+            // WOS commands are handled by wos_interactionCreate.js
+            if (interaction.commandName === 'panel' || interaction.commandName === 'inspect') return;
             const command = client.commands.get(interaction.commandName);
 
             if (!command || !command.autocomplete) {
