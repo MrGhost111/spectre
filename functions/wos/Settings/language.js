@@ -11,7 +11,7 @@ const {
     SeparatorSpacingSize
 } = require('discord.js');
 const { userQueries } = require('../utility/database');
-const languages = require('../../i18n');
+const languages = require('../../../i18n');
 const { getUserInfo, assertUserMatches, handleError, updateComponentsV2AfterSeparator } = require('../utility/commonFunctions');
 const { getComponentEmoji, getEmojiMapForUser, getGlobalEmojiMap, wrapLangWithEmojis } = require('../utility/emojis');
 

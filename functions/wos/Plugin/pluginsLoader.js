@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const i18n = require('../../i18n');
+const i18n = require('../../../i18n');
 
 // ============================================================
 // PLUGIN SYSTEM — Core loader, validation, and shared state

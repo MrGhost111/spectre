@@ -1,7 +1,7 @@
 const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const { getProcessById, updateProcessStatus, updateProcessProgress } = require('../Processes/createProcesses');
 const { allianceQueries, playerQueries } = require('../utility/database');
-const languages = require('../../i18n');
+const languages = require('../../../i18n');
 const { handleError, getUserInfo } = require('../utility/commonFunctions');
 const { getComponentEmoji, getGlobalEmojiMap } = require('../utility/emojis');
 const { API_CONFIG } = require('../utility/apiConfig');

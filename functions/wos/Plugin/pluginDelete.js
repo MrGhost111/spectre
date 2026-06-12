@@ -19,7 +19,7 @@ const {
     releaseUpdateLock,
     formatActiveUpdateMessage
 } = require('../Settings/updateCoordinator');
-const i18n = require('../../i18n');
+const i18n = require('../../../i18n');
 
 const ITEMS_PER_PAGE = 5;
 

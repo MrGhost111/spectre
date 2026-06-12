@@ -2,7 +2,7 @@ const { adminQueries, userQueries, systemLogQueries, settingsQueries, allianceQu
 const { SeparatorBuilder, SeparatorSpacingSize, PermissionFlagsBits } = require('discord.js');
 const { getActiveGameTypes } = require('./gameRuntime');
 const { getGameProfile, normalizeGameType } = require('./gameProfiles');
-const languages = require('../../i18n');
+const languages = require('../../../i18n');
 const { getEmojiMapForUser, wrapLangWithEmojis, getComponentEmoji } = require('./emojis');
 const path = require('path');
 

@@ -21,6 +21,7 @@
     "@discordjs/voice": "^0.17.0",
     "@google-cloud/language": "^6.5.0",
     "@huggingface/inference": "^4.13.2",
+    "adm-zip": "^0.5.17",
     "axios": "^1.17.0",
     "better-sqlite3": "^11.10.0",
     "cls": "^0.1.5",
