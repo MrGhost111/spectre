@@ -6,6 +6,9 @@ const { formatFull, formatNumber } = require('../Donations/noteSystem');
 const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 const YOUR_USER_ID = '753491023208120321';
 
+// These commands are handled by wos_interactionCreate.js
+const WOS_COMMANDS = new Set(['panel', 'inspect', 'deploycmd']);
+
 module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
@@ -292,13 +295,16 @@ module.exports = {
 
         // ── Slash commands ───────────────────────────────────────────────────
         if (interaction.isChatInputCommand()) {
+            // Skip WOS commands — handled by wos_interactionCreate.js
+            if (WOS_COMMANDS.has(interaction.commandName)) return;
+
             // Discard stale interactions before doing any work
             const age = Date.now() - interaction.createdTimestamp;
             if (age > 2500) {
                 console.warn(`[interactionCreate] Stale slash command "${interaction.commandName}" (${age}ms old) — discarding.`);
                 return;
             }
-            if (interaction.commandName === 'panel' || interaction.commandName === 'inspect') return;
+
             const command = client.commands.get(interaction.commandName);
 
             if (!command) {
@@ -333,8 +339,9 @@ module.exports = {
 
         // ── Autocomplete ─────────────────────────────────────────────────────
         if (interaction.isAutocomplete()) {
-            // WOS commands are handled by wos_interactionCreate.js
-            if (interaction.commandName === 'panel' || interaction.commandName === 'inspect') return;
+            // Skip WOS commands — handled by wos_interactionCreate.js
+            if (WOS_COMMANDS.has(interaction.commandName)) return;
+
             const command = client.commands.get(interaction.commandName);
 
             if (!command || !command.autocomplete) {
