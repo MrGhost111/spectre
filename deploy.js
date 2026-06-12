@@ -5,35 +5,37 @@ require('dotenv').config();
 const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID;
 const token = process.env.DISCORD_TOKEN;
-
 const rest = new REST({ version: '10' }).setToken(token);
 
 (async () => {
     try {
         console.log('Started refreshing guild application (/) commands.');
 
-        // Load all command files from the ./commands directory
         const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
         const commands = [];
 
         for (const file of commandFiles) {
-            const command = require(`./commands/${file}`);
-            if (command.data) {
-                const commandData = typeof command.data.toJSON === 'function' ? command.data.toJSON() : command.data;
-                commands.push(commandData);
+            try {
+                const command = require(`./commands/${file}`);
+                if (command.data) {
+                    const commandData = typeof command.data.toJSON === 'function'
+                        ? command.data.toJSON()
+                        : command.data;
+                    commands.push(commandData);
+                }
+            } catch (err) {
+                console.warn(`⚠️  Skipped ${file}: ${err.message}`);
             }
         }
 
-        // Delete previously registered commands that are not needed anymore
         const currentCommands = await rest.get(Routes.applicationGuildCommands(clientId, guildId));
         for (const command of currentCommands) {
             if (!commands.some(c => c.name === command.name)) {
-                console.log(`Deleting guild command: ${command.name} with ID ${command.id}`);
+                console.log(`Deleting guild command: ${command.name} (${command.id})`);
                 await rest.delete(Routes.applicationGuildCommand(clientId, guildId, command.id));
             }
         }
 
-        // Deploy the updated set of commands to the specific guild
         await rest.put(
             Routes.applicationGuildCommands(clientId, guildId),
             { body: commands }
