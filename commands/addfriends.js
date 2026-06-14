@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const dataPath = path.join(__dirname, '../data/channels.json');
 
-// Centralized role config (keep in sync with mychannel.js)
 const ROLE_CONFIG = {
     '768448955804811274': { limit: 5 },
     '768449168297033769': { limit: 5 },
@@ -27,6 +26,8 @@ module.exports = {
         .addUserOption(option => option.setName('friend5').setDescription('Fifth friend to add')),
 
     async execute(interaction) {
+        await interaction.deferReply({ ephemeral: true });
+
         const responses = [];
 
         let channelsData = {};
@@ -36,12 +37,12 @@ module.exports = {
 
         const userChannel = channelsData[interaction.user.id];
         if (!userChannel) {
-            return interaction.reply({ content: "You don't own a channel.", ephemeral: true });
+            return interaction.editReply({ content: "You don't own a channel." });
         }
 
         const channel = interaction.guild.channels.cache.get(userChannel.channelId);
         if (!channel) {
-            return interaction.reply({ content: "Channel not found.", ephemeral: true });
+            return interaction.editReply({ content: "Channel not found." });
         }
 
         const userOptions = [
@@ -55,9 +56,8 @@ module.exports = {
         const maxFriends = calculateMaxFriends(interaction.member);
 
         if (userChannel.friends.length + userOptions.length > maxFriends) {
-            return interaction.reply({
+            return interaction.editReply({
                 content: `You have exceeded your friend limit of ${maxFriends}.`,
-                ephemeral: true,
             });
         }
 
@@ -74,7 +74,6 @@ module.exports = {
             if (!userChannel.friends) userChannel.friends = [];
 
             if (userChannel.friends.includes(user.id)) {
-                // Already in list — just make sure the permission exists
                 if (channel.permissionOverwrites.cache.has(user.id)) {
                     responses.push(`<@${user.id}> is already in the channel.`);
                 } else {
@@ -102,9 +101,6 @@ module.exports = {
             }
         }
 
-        // NOTE: Removed the "ensure all friends are in channel" loop that was here.
-        // Friends who left and rejoined are handled in /mychannel instead.
-
         channelsData[interaction.user.id] = userChannel;
         fs.writeFileSync(dataPath, JSON.stringify(channelsData, null, 2), 'utf8');
 
@@ -113,7 +109,7 @@ module.exports = {
             .setDescription(responses.length > 0 ? responses.join('\n') : 'No changes made.')
             .setColor(Colors.Green);
 
-        await interaction.reply({ embeds: [embed] });
+        await interaction.editReply({ embeds: [embed] });
     },
 };
 
