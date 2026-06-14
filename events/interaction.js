@@ -12,13 +12,7 @@ module.exports = {
     name: 'interactionCreate',
     async execute(client, interaction) {
         try {
-            // Handle slash commands
-            if (interaction.isCommand()) {
-                const command = client.commands.get(interaction.commandName);
-                if (!command) return;
-                await command.execute(interaction);
-                return;
-            }
+       
 
             // Handle modal submissions
             if (interaction.isModalSubmit()) {
