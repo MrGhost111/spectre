@@ -1,3 +1,4 @@
+// wos_interactionCreate.js
 const { Events } = require('discord.js');
 const WOS_COMMANDS = new Set(['panel', 'inspect']);
 

@@ -1,3 +1,4 @@
+// interactionCreate.js
 const fs = require('fs');
 const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, MessageFlags } = require('discord.js');
@@ -7,7 +8,7 @@ const storyDataPath = path.join(__dirname, '../data/storyGame.json');
 const YOUR_USER_ID = '753491023208120321';
 
 // These commands are handled by wos_interactionCreate.js
-const WOS_COMMANDS = new Set(['panel', 'inspect', 'deploycmd']);
+const WOS_COMMANDS = new Set(['panel', 'inspect']);
 
 module.exports = {
     name: 'interactionCreate',
