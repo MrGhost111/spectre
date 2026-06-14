@@ -31,17 +31,12 @@ module.exports = {
         console.log(`📨 Message received: Guild=${message.guild?.name || 'DM'}, Author=${message.author.tag}, Bot=${message.author.bot}, Content="${message.content.substring(0, 50)}"`);
 
         if (message.author.bot) {
-            // ── Catch Dank Memer slash-command responses here ─────────────────
-            // Slash-command Dank Memer messages arrive fully formed on messageCreate.
-            // Text-command ones are caught on messageUpdate instead.
-            // The shared dedup Set in dankDetection.js ensures no double-processing.
             if (message.author.id === DANK_MEMER_BOT_ID) {
                 await handleDankMessage(client, message).catch(e =>
                     console.error('[MCREATE] handleDankMessage error:', e)
                 );
             }
 
-            // ── Sticky: repost when any bot sends in flow channels ─────────────
             if (message.guild && FLOW_CHANNEL_IDS.has(message.channelId)) {
                 await handleStickyMessage(message.channel, message).catch(() => { });
             }
@@ -222,6 +217,9 @@ module.exports = {
             }
         }
 
+        // ===========================================
+        // MUTEROLE UPDATE HANDLER
+        // ===========================================
         if (message.content.startsWith('!muterole update') && message.guild) {
             if (!message.member.permissions.has('Administrator')) {
                 return message.reply('❌ You do not have permission to use this command.');
@@ -236,10 +234,19 @@ module.exports = {
                 '799997847931977749',
             ]);
 
+            const protectedChannelIds = new Set([
+                '1296077996435832902',
+                '815478998283976704',
+                '850431178170433556',
+                '944923216982470656',
+                '710788619719409695',
+                '944924520647643156',
+            ]);
+
             const statusMsg = await message.channel.send('⏳ Waiting for Carl to finish updating...');
 
             try {
-                const carlMessage = await message.channel.awaitMessages({
+                const collected = await message.channel.awaitMessages({
                     filter: m =>
                         m.author.id === CARL_BOT_ID &&
                         m.content.includes('The role') &&
@@ -247,18 +254,23 @@ module.exports = {
                     max: 1,
                     time: 30_000,
                     errors: ['time'],
-                }).then(collected => collected.first());
+                });
+
+                const carlMessage = collected.first();
 
                 // React to Carl's message
                 await carlMessage.react('🤓').catch(() => { });
                 await carlMessage.react('👆').catch(() => { });
 
-                await statusMsg.edit('⚙️ Carl finished. Scanning protected categories...');
+                await statusMsg.edit('⚙️ Carl finished. Scanning protected categories and channels...');
 
-                // Collect all channels in protected categories
+                // Collect all channels in protected categories + hardcoded channel IDs
                 const channelsToRevert = [];
                 for (const [, channel] of message.guild.channels.cache) {
-                    if (channel.parentId && protectedCategoryIds.has(channel.parentId)) {
+                    if (
+                        (channel.parentId && protectedCategoryIds.has(channel.parentId)) ||
+                        protectedChannelIds.has(channel.id)
+                    ) {
                         channelsToRevert.push(channel);
                     }
                 }
@@ -289,13 +301,13 @@ module.exports = {
                 const summary = [
                     `✅ Done! Reverted mute role overrides in **${reverted}** channel${reverted !== 1 ? 's' : ''}`,
                     failed > 0 ? `⚠️ Failed to revert **${failed}** channel${failed !== 1 ? 's' : ''}` : null,
-                    `🛡️ Protected categories: **${protectedCategoryIds.size}** | Channels scanned: **${channelsToRevert.length}**`,
+                    `Protected categories: **${protectedCategoryIds.size}** | Channels scanned: **${channelsToRevert.length}**`,
                 ].filter(Boolean).join('\n');
 
                 await statusMsg.edit(summary);
 
             } catch (err) {
-                if (err.message === 'time' || (err.size !== undefined && err.size === 0)) {
+                if (err.size === 0 || err.message === 'time') {
                     await statusMsg.edit('❌ Timed out waiting for Carl\'s response. Did you run the Carl command?');
                 } else {
                     console.error('Error in muterole update:', err);
