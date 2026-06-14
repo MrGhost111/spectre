@@ -42,7 +42,6 @@ module.exports = {
 
                     const guild = await client.guilds.fetch(client.guilds.cache.first().id);
                     const member = await guild.members.fetch(donorId);
-
                     usersData[donorId] = usersData[donorId] || {};
                     usersData[donorId].totalDonated = (usersData[donorId].totalDonated || 0) + donationAmount;
                     usersData[donorId].weeklyDonated = (usersData[donorId].weeklyDonated || 0) + donationAmount;
