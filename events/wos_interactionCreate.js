@@ -1,15 +1,12 @@
 const { Events } = require('discord.js');
-
 const WOS_COMMANDS = new Set(['panel', 'inspect']);
 
 module.exports = {
     name: Events.InteractionCreate,
     async execute(client, interaction) {
         try {
-            // Only handle autocomplete and slash commands for WOS here.
-            // Buttons/dropdowns/forms are handled by the handlers registered in wos_ready.js
-
             if (interaction.isAutocomplete()) {
+                console.log(`[DEBUG] Autocomplete fired for: ${interaction.commandName}`); // <-- here
                 if (!WOS_COMMANDS.has(interaction.commandName)) return;
                 const command = client.commands?.get(interaction.commandName);
                 if (command?.autocomplete) {
@@ -21,13 +18,10 @@ module.exports = {
                 }
                 return;
             }
-
             if (!interaction.isChatInputCommand()) return;
             if (!WOS_COMMANDS.has(interaction.commandName)) return;
-
             const command = client.commands?.get(interaction.commandName);
             if (!command) return;
-
             try {
                 await command.execute(interaction);
             } catch (error) {
@@ -39,7 +33,6 @@ module.exports = {
                     await interaction.reply(reply).catch(() => { });
                 }
             }
-
         } catch (err) {
             console.error('[WOS] Unhandled error in wos_interactionCreate:', err);
         }
