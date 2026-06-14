@@ -223,32 +223,87 @@ module.exports = {
         }
 
         if (message.content.startsWith('!muterole update') && message.guild) {
-            const eventChannelIds = [
-                '1296077996435832902', '815478998283976704', '850431178170433556',
-                '944923216982470656', '710788619719409695', '944924520647643156',
-            ];
-            const mutedRoleId = '673978861335085107';
-            try {
-                await message.channel.send('Waiting for Carl...');
-                setTimeout(async () => {
-                    try {
-                        for (const channelId of eventChannelIds) {
-                            const channel = await message.guild.channels.fetch(channelId);
-                            if (channel) {
-                                await channel.permissionOverwrites.edit(mutedRoleId, { ViewChannel: null, SendMessages: null });
-                                console.log(`Updated permissions for muted role in channel: ${channel.id}`);
-                            }
-                        }
-                        await message.channel.send('Fixed Carls skill issue by reverting changes made to event channels.');
-                    } catch (error) {
-                        console.error('Error updating permissions:', error);
-                        await message.channel.send('There was an error updating permissions. Please try again.');
-                    }
-                }, 5000);
-                return;
-            } catch (error) {
-                console.error('Error in muterole update command:', error);
+            if (!message.member.permissions.has('Administrator')) {
+                return message.reply('❌ You do not have permission to use this command.');
             }
+
+            const mutedRoleId = '673978861335085107';
+            const CARL_BOT_ID = '235148962103951360';
+
+            const protectedCategoryIds = new Set([
+                '1064095644811284490',
+                '842471433238347786',
+                '799997847931977749',
+            ]);
+
+            const statusMsg = await message.channel.send('⏳ Waiting for Carl to finish updating...');
+
+            try {
+                const carlMessage = await message.channel.awaitMessages({
+                    filter: m =>
+                        m.author.id === CARL_BOT_ID &&
+                        m.content.includes('The role') &&
+                        m.content.includes('has been updated with'),
+                    max: 1,
+                    time: 30_000,
+                    errors: ['time'],
+                }).then(collected => collected.first());
+
+                // React to Carl's message
+                await carlMessage.react('🤓').catch(() => { });
+                await carlMessage.react('👆').catch(() => { });
+
+                await statusMsg.edit('⚙️ Carl finished. Scanning protected categories...');
+
+                // Collect all channels in protected categories
+                const channelsToRevert = [];
+                for (const [, channel] of message.guild.channels.cache) {
+                    if (channel.parentId && protectedCategoryIds.has(channel.parentId)) {
+                        channelsToRevert.push(channel);
+                    }
+                }
+
+                await statusMsg.edit(`🔄 Reverting mute role from **${channelsToRevert.length}** channels...`);
+
+                let reverted = 0;
+                let failed = 0;
+
+                for (const channel of channelsToRevert) {
+                    try {
+                        await channel.permissionOverwrites.edit(mutedRoleId, {
+                            SendMessages: null,
+                            ViewChannel: null,
+                        });
+                        reverted++;
+
+                        // Live counter update every 5 channels
+                        if (reverted % 5 === 0) {
+                            await statusMsg.edit(`🔄 Reverting... **${reverted}/${channelsToRevert.length}** channels done`);
+                        }
+                    } catch (err) {
+                        console.error(`Failed to revert channel ${channel.id}:`, err);
+                        failed++;
+                    }
+                }
+
+                const summary = [
+                    `✅ Done! Reverted mute role overrides in **${reverted}** channel${reverted !== 1 ? 's' : ''}`,
+                    failed > 0 ? `⚠️ Failed to revert **${failed}** channel${failed !== 1 ? 's' : ''}` : null,
+                    `🛡️ Protected categories: **${protectedCategoryIds.size}** | Channels scanned: **${channelsToRevert.length}**`,
+                ].filter(Boolean).join('\n');
+
+                await statusMsg.edit(summary);
+
+            } catch (err) {
+                if (err.message === 'time' || (err.size !== undefined && err.size === 0)) {
+                    await statusMsg.edit('❌ Timed out waiting for Carl\'s response. Did you run the Carl command?');
+                } else {
+                    console.error('Error in muterole update:', err);
+                    await statusMsg.edit('❌ Something went wrong while reverting. Check console for details.');
+                }
+            }
+
+            return;
         }
 
         const prefix = ',';
