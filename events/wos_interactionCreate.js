@@ -1,4 +1,7 @@
 const { Events } = require('discord.js');
+const { handleLanguageSelection } = require('../functions/wos/Settings/language');
+const { handleChangeLanguageButton } = require('../functions/wos/Settings/language');
+
 const WOS_COMMANDS = new Set(['panel', 'inspect']);
 
 module.exports = {
@@ -18,25 +21,29 @@ module.exports = {
                 return;
             }
 
-            // Handle component interactions (buttons, select menus)
-            if (interaction.isStringSelectMenu() || interaction.isButton()) {
-                // Route to whatever handler manages language selection and other components
-                const handler = client.components?.get(interaction.customId)
-                    ?? client.components?.get(interaction.customId.split(':')[0]); // if you use customId prefixes
+            // Handle select menus
+            if (interaction.isStringSelectMenu()) {
+                const customId = interaction.customId;
 
-                if (handler) {
-                    try {
-                        await handler.execute(interaction);
-                    } catch (e) {
-                        console.error(`[WOS] Component handler error for ${interaction.customId}:`, e);
-                        const reply = { content: 'An error occurred.', ephemeral: true };
-                        if (interaction.replied || interaction.deferred) {
-                            await interaction.followUp(reply).catch(() => { });
-                        } else {
-                            await interaction.reply(reply).catch(() => { });
-                        }
-                    }
+                if (customId.startsWith('language_select_')) {
+                    await handleLanguageSelection(interaction);
+                    return;
                 }
+
+                // add other select menus here as needed
+                return;
+            }
+
+            // Handle buttons
+            if (interaction.isButton()) {
+                const customId = interaction.customId;
+
+                if (customId.startsWith('change_language_')) {
+                    await handleChangeLanguageButton(interaction);
+                    return;
+                }
+
+                // add other buttons here as needed
                 return;
             }
 
@@ -57,6 +64,7 @@ module.exports = {
                     await interaction.reply(reply).catch(() => { });
                 }
             }
+
         } catch (err) {
             console.error('[WOS] Unhandled error in wos_interactionCreate:', err);
         }
