@@ -1,10 +1,20 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+    ContainerBuilder,
+    TextDisplayBuilder,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    MessageFlags,
+} = require('discord.js');
 const path = require('path');
 const NodeCache = require('node-cache');
 
 // Initialize cache
 const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
-const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 
 // Role configurations
 const ROLE_CONFIGS = {
@@ -46,6 +56,11 @@ const DATA_PATHS = {
     cooldowns: path.join(__dirname, '../data/cooldowns.json'),
     bars: path.join(__dirname, '../data/bars.json')
 };
+
+// ── Crit/fumble chances (rolled only on a successful hit) ──────────────────
+const HEADSHOT_CHANCE = 0.05;   // 5%
+const LUCKY_DODGE_CHANCE = 0.02; // 2%
+const HEADSHOT_MULTIPLIER = 2;   // +100% duration
 
 async function readJsonFile(filePath, defaultValue = { users: [] }) {
     try {
@@ -117,18 +132,38 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-// Always force-fetch so roles are never stale — this was the root cause of the crash
+// Always force-fetch so roles are never stale. NOTE: this intentionally does NOT
+// use memberCache. Caching GuildMember objects across calls is unsafe here —
+// a cached member can end up detached from a live `guild` reference (e.g. after
+// role/cache churn elsewhere), which throws "Cannot read properties of undefined
+// (reading 'get')" deep in discord.js's RoleManager when something later reads
+// member.roles.cache. That bug only ever shows up on a re-targeted user within
+// the old cache's TTL window, which matches the "re-mute the same person" report.
+// A guild.members.fetch({ force: true }) call is cheap enough to just always do.
 async function fetchMember(guild, userId) {
-    const cacheKey = `member_${guild.id}_${userId}`;
-    const cached = memberCache.get(cacheKey);
-    if (cached) return cached;
-
     try {
-        const member = await guild.members.fetch({ user: userId, force: true });
-        memberCache.set(cacheKey, member);
-        return member;
+        return await guild.members.fetch({ user: userId, force: true });
     } catch (error) {
         console.error(`Failed to fetch member ${userId}:`, error);
+        return null;
+    }
+}
+
+// Finds the most recent speaker in the channel who is NOT the author, NOT the
+// target, and NOT a bot. Used for the Lucky Dodge crit. Returns a discord.js
+// User, or null if nobody else suitable could be found.
+async function findThirdPartySpeaker(channel, authorId, targetId) {
+    try {
+        const recentMessages = await channel.messages.fetch({ limit: 50 });
+        for (const msg of recentMessages.values()) {
+            if (msg.author.bot) continue;
+            if (msg.author.id === authorId) continue;
+            if (msg.author.id === targetId) continue;
+            return msg.author;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error finding third party speaker for Lucky Dodge:', error);
         return null;
     }
 }
@@ -136,7 +171,7 @@ async function fetchMember(guild, userId) {
 module.exports = {
     name: 'stfu',
     aliases: ['shut', 'quiet', 'chill', 'silence'],
-    description: 'Rolls random power and accuracy numbers and displays their corresponding bars',
+    description: 'Rolls random power and accuracy numbers and displays their corresponding bars (with crit/fumble outcomes)',
     async execute(message, args) {
         try {
             // Check required roles
@@ -231,6 +266,27 @@ module.exports = {
             const luckCheckRoll = Math.floor(Math.random() * 101);
             const success = luckCheckRoll <= totalLuck;
 
+            // ── Crit / fumble rolls (success-only, as designed) ─────────────
+            let isHeadshot = false;
+            let isLuckyDodge = false;
+            let dodgeTarget = null; // resolved third-party user, if dodge triggers and one is found
+
+            if (success) {
+                // Roll independently so both could theoretically happen at once;
+                // dodge takes priority for who gets muted, headshot still boosts duration.
+                isHeadshot = Math.random() < HEADSHOT_CHANCE;
+                isLuckyDodge = Math.random() < LUCKY_DODGE_CHANCE;
+
+                if (isLuckyDodge) {
+                    dodgeTarget = await findThirdPartySpeaker(message.channel, message.author.id, targetUser.id);
+                    // Per design: if nobody else suitable is found, fall back to
+                    // muting the original target as if no dodge happened.
+                    if (!dodgeTarget) {
+                        isLuckyDodge = false;
+                    }
+                }
+            }
+
             // Update streak
             const currentStreak = success ? (previousStreak + 1) : 0;
             const existingUserIndex = streaks.users.findIndex(entry => entry.userId === message.author.id);
@@ -244,14 +300,37 @@ module.exports = {
                 ? Math.floor(Math.random() * 51) + 50
                 : Math.min(50, Math.floor(Math.random() * 51));
 
-            const muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
+            let muteDuration = Math.floor((powerRoll - 30) * (69 - 35) / (100 - 30) + 35);
+            if (isHeadshot) muteDuration = Math.floor(muteDuration * HEADSHOT_MULTIPLIER);
 
-            // success → target muted, fail → author muted (self-inflicted)
-            const muteUserId = success ? targetUser.id : message.author.id;
+            // Who actually gets muted:
+            // - success + dodge      -> the resolved third party
+            // - success (no dodge)   -> target
+            // - fail                 -> author (self-inflicted)
+            const muteUserId = success
+                ? (isLuckyDodge ? dodgeTarget.id : targetUser.id)
+                : message.author.id;
 
-            const resultMessage = success
-                ? `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`
-                : `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
+            // ── Result text ─────────────────────────────────────────────────
+            let resultMessage;
+            let accentColor = 0xFFA500; // default orange, matches original embed color
+
+            if (isLuckyDodge) {
+                resultMessage =
+                    `> **${targetUser.username}** saw it coming and dodged at the last second! ` +
+                    `The hit flew wild and clocked **${dodgeTarget.username}** instead — muted for **${muteDuration} seconds**. ` +
+                    `Wrong place, wrong time.`;
+                accentColor = 0x9B59B6; // purple, to visually flag the rare dodge outcome
+            } else if (success && isHeadshot) {
+                resultMessage =
+                    `> 🎯 **HEADSHOT!** You hit **${targetUser.username}** clean in the face and muted them for **${muteDuration} seconds** ` +
+                    `(critical hit, duration doubled).`;
+                accentColor = 0xE74C3C; // red, to flag the crit
+            } else if (success) {
+                resultMessage = `> You hit **${targetUser.username}** right into the face and muted them for **${muteDuration} seconds**.`;
+            } else {
+                resultMessage = `> You tried to hit **${targetUser.username}** but failed miserably. Enjoy **${muteDuration} second mute for showing skill issue**.`;
+            }
 
             const muteSuccess = await message.client.muteManager.addMute(
                 muteUserId,
@@ -271,22 +350,6 @@ module.exports = {
             const powerBar = getBar(powerRoll, barsData.bars, 'power');
             const accuracyBar = getBar(accuracyRoll, barsData.bars, 'accuracy');
 
-            const actionRow = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('info')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setEmoji('<:infom:1064823078162538497>'),
-                    new ButtonBuilder()
-                        .setCustomId('lb')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setEmoji('<:lbtest:1064919048242090054>'),
-                    new ButtonBuilder()
-                        .setCustomId('risk')
-                        .setStyle(ButtonStyle.Danger)
-                        .setEmoji('<:creepypp:1507477093108285451>')
-                );
-
             const streakDisplay = success ? `**${currentStreak}**` : `**${previousStreak} → 0**`;
             const luckDisplay = `<:idk:1064831073881694278> Luck: **${totalLuck}**`;
 
@@ -294,19 +357,62 @@ module.exports = {
                 ? 'https://media.discordapp.net/attachments/843413781409169412/1349999094659285022/ezgif-2633322587eafb.gif?ex=67d52421&is=67d3d2a1&hm=cb2fc404c2c45e72634ab768dd0667a517333c72be46c4c2bf0ba9491d138509&=&width=563&height=166'
                 : 'https://media.discordapp.net/attachments/1014096605059756032/1350242262256320592/goku.gif?ex=67d60699&is=67d4b519&hm=2a2c950931f683d10b93238a554132fce5d95fc31b39da5663d4c7876e03d912&=&width=798&height=340';
 
-            const embed = new EmbedBuilder()
-                .setColor('#FFA500')
-                .setDescription(
-                    '## Dope!!\n<:invisible:1277372701710749777>\n' +
-                    `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
-                    `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
-                    resultMessage + '\n\n' +
-                    `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
-                    luckDisplay
-                )
-                .setImage(imageUrl);
+            let headerLine = '## Dope!!';
+            if (isLuckyDodge) headerLine = '## 🍀 Lucky Dodge!!';
+            else if (success && isHeadshot) headerLine = '## 🎯 Headshot!!';
 
-            await message.channel.send({ embeds: [embed], components: [actionRow] });
+            const bodyText =
+                `${headerLine}\n<:invisible:1277372701710749777>\n` +
+                `**Power:** ${powerRoll}\n<:power:1064835342160625784> ${powerBar}\n` +
+                `**Accuracy:** ${accuracyRoll}\n<:target:1064834827188191292> ${accuracyBar}\n\n` +
+                resultMessage + '\n\n' +
+                `<:YJ_streak:1259258046924853421> Streak: ${streakDisplay}\n` +
+                luckDisplay;
+
+            // ── Build the message as a single Components V2 container ──────
+            // This replaces the old EmbedBuilder + separate ActionRow entirely.
+            // The container itself IS the "embed" (colored bar on the left via
+            // setAccentColor), and the buttons live inside it, below the image,
+            // instead of being a trailing action row outside the embed.
+            const container = new ContainerBuilder()
+                .setAccentColor(accentColor)
+                .addTextDisplayComponents(
+                    textDisplay => textDisplay.setContent(bodyText)
+                )
+                .addMediaGalleryComponents(
+                    new MediaGalleryBuilder().addItems(
+                        new MediaGalleryItemBuilder().setURL(imageUrl)
+                    )
+                )
+                .addSeparatorComponents(
+                    new SeparatorBuilder()
+                        .setDivider(true)
+                        .setSpacing(SeparatorSpacingSize.Small)
+                )
+                .addActionRowComponents(
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('info')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setLabel('Info')
+                            .setEmoji('<:infom:1064823078162538497>'),
+                        new ButtonBuilder()
+                            .setCustomId('lb')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setLabel('Leaderboard')
+                            .setEmoji('<:lbtest:1064919048242090054>'),
+                        new ButtonBuilder()
+                            .setCustomId('risk')
+                            .setStyle(ButtonStyle.Danger)
+                            .setLabel('Risk')
+                            .setEmoji('<:creepypp:1507477093108285451>')
+                    )
+                );
+
+            await message.channel.send({
+                components: [container],
+                flags: MessageFlags.IsComponentsV2,
+            });
 
             // Update cooldown
             const cooldownEnd = currentTime + 3600;
