@@ -1,5 +1,4 @@
-﻿// JavaScript source code
-const {
+﻿const {
     ContainerBuilder,
     TextDisplayBuilder,
     MediaGalleryBuilder,
@@ -16,7 +15,6 @@ const NodeCache = require('node-cache');
 
 // Initialize cache
 const roleCache = new NodeCache({ stdTTL: 300 }); // 5 minute cache
-const memberCache = new NodeCache({ stdTTL: 60 }); // 1 minute cache
 
 // Role configurations
 const ROLE_CONFIGS = {
@@ -134,16 +132,17 @@ async function updateUserStats(userId, success) {
     return userStats;
 }
 
-// Always force-fetch so roles are never stale — this was the root cause of the crash
+// Always force-fetch so roles are never stale. NOTE: this intentionally does NOT
+// use memberCache. Caching GuildMember objects across calls is unsafe here —
+// a cached member can end up detached from a live `guild` reference (e.g. after
+// role/cache churn elsewhere), which throws "Cannot read properties of undefined
+// (reading 'get')" deep in discord.js's RoleManager when something later reads
+// member.roles.cache. That bug only ever shows up on a re-targeted user within
+// the old cache's TTL window, which matches the "re-mute the same person" report.
+// A guild.members.fetch({ force: true }) call is cheap enough to just always do.
 async function fetchMember(guild, userId) {
-    const cacheKey = `member_${guild.id}_${userId}`;
-    const cached = memberCache.get(cacheKey);
-    if (cached) return cached;
-
     try {
-        const member = await guild.members.fetch({ user: userId, force: true });
-        memberCache.set(cacheKey, member);
-        return member;
+        return await guild.members.fetch({ user: userId, force: true });
     } catch (error) {
         console.error(`Failed to fetch member ${userId}:`, error);
         return null;
@@ -359,8 +358,8 @@ module.exports = {
                 : 'https://media.discordapp.net/attachments/1014096605059756032/1350242262256320592/goku.gif?ex=67d60699&is=67d4b519&hm=2a2c950931f683d10b93238a554132fce5d95fc31b39da5663d4c7876e03d912&=&width=798&height=340';
 
             let headerLine = '## Dope!!';
-            if (isLuckyDodge) headerLine = '## Lucky Dodge!!';
-            else if (success && isHeadshot) headerLine = '## Headshot!!';
+            if (isLuckyDodge) headerLine = '## 🍀 Lucky Dodge!!';
+            else if (success && isHeadshot) headerLine = '## 🎯 Headshot!!';
 
             const bodyText =
                 `${headerLine}\n<:invisible:1277372701710749777>\n` +
