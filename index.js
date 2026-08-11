@@ -14,10 +14,10 @@ const LOG_CHANNEL_ID = '1349968940973166645';
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        // GatewayIntentBits.GuildMembers,      // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.MessageContent,
+        // GatewayIntentBits.MessageContent,    // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
     ],
@@ -114,12 +114,14 @@ client.once('ready', async () => {       // <-- add async here
     client.user.setActivity('your DMs', { type: ActivityType.Listening });
 
     // Bulk fetch all guild members into cache so leaderboard lookups are instant
+    // NOTE: This will fail/skip per-guild without the GuildMembers privileged intent.
+    // That's expected right now — it's caught below so it won't crash the bot.
     for (const guild of client.guilds.cache.values()) {
         try {
             await guild.members.fetch();
             logToConsole(`Cached ${guild.memberCount} members for guild: ${guild.name}`);
         } catch (error) {
-            logToConsole(`Failed to fetch members for ${guild.name}: ${error.message}`, true);
+            logToConsole(`Skipped member fetch for ${guild.name} (GuildMembers intent disabled): ${error.message}`, true);
         }
     }
 
