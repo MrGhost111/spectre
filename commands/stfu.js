@@ -172,7 +172,7 @@ async function findThirdPartySpeaker(channel, authorId, targetId) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('stfu')
-        .setDescription('Rolls random power and accuracy numbers and displays their corresponding bars (with crit/fumble outcomes)')
+        .setDescription('Roll power and accuracy to mute someone (crit/fumble chances included)')
         .addUserOption(option =>
             option.setName('target')
                 .setDescription('The user to use this on')
