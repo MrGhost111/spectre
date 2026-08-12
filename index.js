@@ -113,21 +113,27 @@ client.once('ready', async () => {       // <-- add async here
     client.user.setStatus('idle');
     client.user.setActivity('your DMs', { type: ActivityType.Listening });
 
-    // Bulk fetch all guild members into cache so leaderboard lookups are instant
-    // NOTE: This will fail/skip per-guild without the GuildMembers privileged intent.
-    // That's expected right now — it's caught below so it won't crash the bot.
-    for (const guild of client.guilds.cache.values()) {
-        try {
-            await guild.members.fetch();
-            logToConsole(`Cached ${guild.memberCount} members for guild: ${guild.name}`);
-        } catch (error) {
-            logToConsole(`Skipped member fetch for ${guild.name} (GuildMembers intent disabled): ${error.message}`, true);
-        }
-    }
-
-    // Load commands and events
+    // Load commands and events FIRST so slash commands work immediately on startup
     loadCommands();
     loadEvents();
+
+    // Bulk fetch all guild members into cache so leaderboard lookups are instant
+    // NOTE: GuildMembers privileged intent is currently disabled, so this fetch
+    // can never succeed — it would just hang for ~2 min per guild waiting on data
+    // that will never arrive. Skip it outright until the intent is re-enabled.
+    const GUILD_MEMBERS_INTENT_ENABLED = false; // flip to true once bot is verified / intent re-enabled
+    if (GUILD_MEMBERS_INTENT_ENABLED) {
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                await guild.members.fetch();
+                logToConsole(`Cached ${guild.memberCount} members for guild: ${guild.name}`);
+            } catch (error) {
+                logToConsole(`Skipped member fetch for ${guild.name}: ${error.message}`, true);
+            }
+        }
+    } else {
+        logToConsole('Skipping bulk member fetch — GuildMembers intent is currently disabled.');
+    }
     // Initialize systems
     client.muteManager = new MuteManager(client);
     logToConsole('Mute Manager initialized');
