@@ -14,10 +14,10 @@ const LOG_CHANNEL_ID = '1349968940973166645';
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        // GatewayIntentBits.GuildMembers,      // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
+         GatewayIntentBits.GuildMembers,      // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildVoiceStates,
-        // GatewayIntentBits.MessageContent,    // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
+        GatewayIntentBits.MessageContent,    // PRIVILEGED - disabled until bot is verified (10k+ user threshold)
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
     ],
